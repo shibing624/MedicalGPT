@@ -1,12 +1,12 @@
 <div align="center">
   <a href="https://github.com/shibing624/MedicalGPT">
-    <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/logo.png" width="200" alt="Logo"> MedicalGPT
+    <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/logo.png" width="120" alt="Logo">
   </a>
 </div>
 
 -----------------
 
-# MedicalGPT: Training Medical GPT Model with ChatGPT Pipeline
+# MedicalGPT: Training Medical GPT Model
 [![HF Models](https://img.shields.io/badge/Hugging%20Face-shibing624-green)](https://huggingface.co/shibing624)
 [![Github Stars](https://img.shields.io/github/stars/shibing624/MedicalGPT?color=yellow)](https://star-history.com/#shibing624/MeidcalGPT&Timeline)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -62,9 +62,9 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 ```latex
 @misc{MedicalGPT,
-  title={MedicalGPT: Text Generation Tool},
-  author={Xu Ming},
-  year={2021},
+  title={MedicalGPT: Training Medical GPT Model},
+  author={Ming Xu},
+  year={2023},
   howpublished={\url{https://github.com/shibing624/MedicalGPT}},
 }
 ```
