@@ -1,13 +1,14 @@
 <div align="center">
   <a href="https://github.com/shibing624/MedicalGPT">
-    <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/logo.png" width="100" alt="Logo">
+    <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/logo.png" width="200" alt="Logo"> MedicalGPT
   </a>
 </div>
 
 -----------------
 
-# MedicalGPT: Training Your Own Medical GPT Model with ChatGPT Training Pipeline
-[![PyPI version](https://badge.fury.io/py/MedicalGPT.svg)](https://badge.fury.io/py/MedicalGPT)
+# MedicalGPT: Training Medical GPT Model with ChatGPT Pipeline
+[![HF Models](https://img.shields.io/badge/Hugging%20Face-shibing624-green)](https://huggingface.co/shibing624)
+[![Github Stars](https://img.shields.io/github/stars/shibing624/MedicalGPT?color=yellow)](https://star-history.com/#shibing624/MeidcalGPT&Timeline)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![License Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![python_version](https://img.shields.io/badge/Python-3.8%2B-green.svg)](requirements.txt)
@@ -19,7 +20,7 @@
 **MedicalGPT** training medical GPT model with ChatGPT training pipeline, implemantation of Pretraining, 
 Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
-<img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/GPT_Training.jpg" width="600" />
+<img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/GPT_Training.jpg" width="860" />
 
 
 ## 🚀 Getting Started
