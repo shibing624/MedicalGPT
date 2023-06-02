@@ -1,0 +1,13 @@
+loguru
+transformers>=4.28.1
+huggingface-hub
+datasets
+tensorboard
+tqdm>=4.47.0
+pandas
+sacremoses
+Rouge
+cpm_kernels
+peft>=0.3.0
+evaluate
+trl
