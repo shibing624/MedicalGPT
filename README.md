@@ -38,7 +38,7 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 我们提供了一个简洁的基于gradio的交互式web界面，启动服务后，可通过浏览器访问，输入问题，模型会返回答案。
 
 1. 安装依赖库：
-```zsh
+```shell
 pip install gradio
 pip install mdtex2html
 ```
@@ -69,7 +69,7 @@ python scripts/gradio_demo.py --base_model path_to_merged_alpaca_hf_dir
 
 Continue pretraining of the base llama-7b model to create llama-7b-pt:
 
-```zsh
+```shell
 torchrun --nnodes 1 --nproc_per_node 8 scripts/run_pretraining.py \
     --model_name_or_path minlik/chinese-llama-plus-7b-merged \
     --tokenizer_name_or_path minlik/chinese-llama-plus-7b-merged \
@@ -281,7 +281,7 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_rl_training.py \
     --reward_baseline 0.0
 ```
 
-#### 参数说明
+### 参数说明
 
 1. 如果想要单卡训练，仅需将nproc_per_node设置为1即可
 2. 默认预训练模型是LLaMA，如果训练其他GPT模型，适当调整`tokenzier_name_or_path`和`model_name_or_path`即可
@@ -301,20 +301,11 @@ python scripts/merge_peft_adapter.py --base_model_name_or_path X_folder --peft_m
 - this script requires `peft>=0.3.0`
 - 合并后的权重保存在output_dir目录下，后续可通过from_pretrained直接加载
 
-**关于deepspeed**
-
-deepspeed 的参数配置`deepspeed_config.json`可参考：
-
-1. https://www.deepspeed.ai/docs/config-json/
-2. https://huggingface.co/docs/accelerate/usage_guides/deepspeed
-3. https://github.com/huggingface/transformers/blob/main/tests/deepspeed
-
-如果显存充足，可优先考虑stage 2，对应的配置文件是deepspeed_config.json。如果显存不足，可采用stage 3，该模式采用模型参数并行，可显著减小显存占用，但是训练速度会变慢很多。
-
+**关于模型结果**
 
 训练日志和模型保存在output_dir目录下，目录下的文件结构如下：
 
-```Arduino
+```shell
 output_dir/
 |-- adapter_config.json
 |-- adapter_model.bin
@@ -329,12 +320,31 @@ output_dir/
 |-- tokenizer_config.json
 |-- training_args.bin
 └── config.json
+|-- logs
+|   |-- 1685436851.18595
+|   |   `-- events.out.tfevents.1685436851.ts-89f5028ad154472e99e7bcf2c9bf2343-launcher.82684.1
 ```
 
 trainer_state.json记录了loss、learning_rate的变化
 
+logs目录下的文件可用于tensorboard可视化，启动tensorboard命令如下：
+```shell
+tensorboard --logdir output_dir/logs --host 0.0.0.0 --port 8008
+```
 
-**关于多级多卡训练**
+
+**关于deepspeed**
+
+deepspeed 的参数配置`deepspeed_config.json`可参考：
+
+1. https://www.deepspeed.ai/docs/config-json/
+2. https://huggingface.co/docs/accelerate/usage_guides/deepspeed
+3. https://github.com/huggingface/transformers/blob/main/tests/deepspeed
+
+如果显存充足，可优先考虑stage 2，对应的配置文件是deepspeed_config.json。如果显存不足，可采用stage 3，该模式采用模型参数并行，可显著减小显存占用，但是训练速度会变慢很多。
+
+
+**关于多机多卡训练**
 
 以两台机器为例，每台机器上有8张卡
 
