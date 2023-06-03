@@ -28,7 +28,7 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 - 第一阶段：PT(Continue PreTraining)增量预训练，在海量领域文档数据上二次预训练LLaMA模型，以注入领域知识，如有需要可以扩充领域词表，比如医疗领域词表
 - 第二阶段：SFT(Supervised Fine-tuning)有监督微调，构造指令微调数据集，在预训练模型基础上做指令精调，以对齐指令意图
-- 第三阶段：RM(Reward Model)奖励模型，构造人类偏好排序数据集，训练奖励模型，用来对齐人类偏好，主要是"HHH"原则，具体是"helpful, honest, harmless"
+- 第三阶段：RM(Reward Model)奖励模型建模，构造人类偏好排序数据集，训练奖励模型，用来对齐人类偏好，主要是"HHH"原则，具体是"helpful, honest, harmless"
 - 第四阶段：RL(Reinforcement Learning)基于人类反馈的强化学习(RLHF)，用奖励模型来训练SFT模型，生成模型使用奖励或惩罚来更新其策略，以便生成更高质量、更符合人类偏好的文本
 
 ## ▶️ Demo
@@ -65,6 +65,8 @@ python scripts/gradio_demo.py --base_model path_to_merged_alpaca_hf_dir
 ## 🚀 Training Pipeline
 
 ### Stage 1: Continue Pretraining
+第一阶段：PT(Continue PreTraining)增量预训练
+
 基于llama-7b模型，使用医疗百科类数据继续预训练，期望注入医疗知识到预训练模型，得到llama-7b-pt模型，此步骤可选
 
 Continue pretraining of the base llama-7b model to create llama-7b-pt:
@@ -115,6 +117,8 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_pretraining.py \
 [参数说明](#参数说明)
 
 ### Stage 2: Supervised FineTuning
+第二阶段：SFT(Supervised Fine-tuning)有监督微调
+
 基于llama-7b-pt模型，使用医疗问答类数据进行有监督微调，得到llama-7b-sft模型
 
 Supervised fine-tuning of the base llama-7b-pt model to create llama-7b-sft
@@ -165,8 +169,9 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_supervised_finetuning.py \
 [参数说明](#参数说明)
 
 ### Stage 3: Reward Modeling
+第三阶段：RM(Reward Model)奖励模型建模
 
-RM(Reward Model)：奖励模型，原则上，我们可以直接用人类标注来对模型做 RLHF 微调。
+RM(Reward Model)奖励模型，原则上，我们可以直接用人类标注来对模型做 RLHF 微调。
 
 然而，这将需要我们给人类发送一些样本，在每轮优化后计分。这是贵且慢的，因为收敛需要的训练样本量大，而人类阅读和标注的速度有限。
 一个比直接反馈更好的策略是，在进入 RL 循环之前用人类标注集来训练一个奖励模型RM。奖励模型的目的是模拟人类对文本的打分。
@@ -224,6 +229,7 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_reward_modeling.py \
 [参数说明](#参数说明)
 
 ### Stage 4: Reinforcement Learning
+第四阶段：RL(Reinforcement Learning)基于人类反馈的强化学习(RLHF)
 
 RL(Reinforcement Learning)模型的目的是最大化奖励模型的输出，基于上面步骤，我们有了微调的语言模型(llama-7b-sft)和奖励模型(llama-7b-reward)，
 可以开始执行 RL 循环了。
@@ -319,10 +325,11 @@ output_dir/
 |-- special_tokens_map.json
 |-- tokenizer_config.json
 |-- training_args.bin
-└── config.json
 |-- logs
 |   |-- 1685436851.18595
 |   |   `-- events.out.tfevents.1685436851.ts-89f5028ad154472e99e7bcf2c9bf2343-launcher.82684.1
+└── config.json
+
 ```
 
 trainer_state.json记录了loss、learning_rate的变化
@@ -376,7 +383,7 @@ python scripts/inference.py \
 参数说明：
 
 - `--base_model {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录
-- `--lora_model {lora_model}`：LoRA解压后文件所在目录，也可使用🤗Model Hub模型调用名称。如果已经合并了LoRA权重到预训练模型，则可以不提供此参数
+- `--lora_model {lora_model}`：LoRA解压后文件所在目录，也可使用HF Model Hub模型调用名称。如果已经合并了LoRA权重到预训练模型，则可以不提供此参数
 - `--tokenizer_path {tokenizer_path}`：存放对应tokenizer的目录。若不提供此参数，则其默认值与--lora_model相同；若也未提供--lora_model参数，则其默认值与--base_model相同
 - `--with_prompt`：是否将输入与prompt模版进行合并。如果加载Alpaca模型，请务必启用此选项！
 - `--interactive`：以交互方式启动，以便进行多次单轮问答
