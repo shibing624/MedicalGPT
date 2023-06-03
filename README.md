@@ -24,6 +24,12 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/GPT_Training.jpg" width="860" />
 
+训练领域模型--医疗模型，分四阶段：
+
+- 第一阶段：PT(Continue PreTraining)增量预训练，在海量领域文档数据上二次预训练LLaMA模型，以注入领域知识，如有需要可以扩充领域词表，比如医疗领域词表
+- 第二阶段：SFT(Supervised Fine-tuning)有监督微调，构造指令微调数据集，在预训练模型基础上做指令精调，以对齐指令意图
+- 第三阶段：RM(Reward Model)奖励模型，构造人类偏好排序数据集，训练奖励模型，用来对齐人类偏好，主要是"HHH"原则，具体是"helpful, honest, harmless"
+- 第四阶段：RL(Reinforcement Learning)基于人类反馈的强化学习(RLHF)，用奖励模型来训练SFT模型，生成模型使用奖励或惩罚来更新其策略，以便生成更高质量、更符合人类偏好的文本
 
 ## ▶️ Demo
 
@@ -31,26 +37,26 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 我们提供了一个简洁的基于gradio的交互式web界面，启动服务后，可通过浏览器访问，输入问题，模型会返回答案。
 
-先安装依赖库，gradio和mdtex2html：
-```shell
+1. 安装依赖库：
+```zsh
 pip install gradio
 pip install mdtex2html
 ```
 
-启动服务命令如下：
+2. 启动服务，命令如下：
 ```shell
 python scripts/gradio_demo.py --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
 ```
 
-如果已经执行了`scripts/merge_peft_adapter.py`脚本将lora权重合并，那么无需再指定--lora_model：
+如果已经执行了`scripts/merge_peft_adapter.py`脚本将lora权重合并到预训练模型，那么无需再指定--lora_model：
 ```shell
 python scripts/gradio_demo.py --base_model path_to_merged_alpaca_hf_dir 
 ```
 
 参数说明：
 
-- `--base_model {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录，也可使用🤗Model Hub模型调用名称
-- `--lora_model {lora_model}`：LoRA解压后文件所在目录，也可使用🤗Model Hub模型调用名称。若不提供此参数，则只加载--base_model指定的模型
+- `--base_model {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录，也可使用HF Model Hub模型调用名称
+- `--lora_model {lora_model}`：LoRA解压后文件所在目录，也可使用HF Model Hub模型调用名称。若不提供此参数，则只加载--base_model指定的模型
 - `--tokenizer_path {tokenizer_path}`：存放对应tokenizer的目录。若不提供此参数，则其默认值与--lora_model相同；若也未提供--lora_model参数，则其默认值与--base_model相同
 - `--use_cpu`: 仅使用CPU进行推理
 - `--gpus {gpu_ids}`: 指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
@@ -63,7 +69,7 @@ python scripts/gradio_demo.py --base_model path_to_merged_alpaca_hf_dir
 
 Continue pretraining of the base llama-7b model to create llama-7b-pt:
 
-```shell
+```zsh
 torchrun --nnodes 1 --nproc_per_node 8 scripts/run_pretraining.py \
     --model_name_or_path minlik/chinese-llama-plus-7b-merged \
     --tokenizer_name_or_path minlik/chinese-llama-plus-7b-merged \
@@ -160,9 +166,9 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_supervised_finetuning.py \
 
 ### Stage 3: Reward Modeling
 
-RM(Reward Model)：奖励模型
+RM(Reward Model)：奖励模型，原则上，我们可以直接用人类标注来对模型做 RLHF 微调。
 
-原则上，我们可以直接用人类标注来对模型做 RLHF 微调。然而，这将需要我们给人类发送一些样本，在每轮优化后计分。这是贵且慢的，因为收敛需要的训练样本量大，而人类阅读和标注的速度有限。
+然而，这将需要我们给人类发送一些样本，在每轮优化后计分。这是贵且慢的，因为收敛需要的训练样本量大，而人类阅读和标注的速度有限。
 一个比直接反馈更好的策略是，在进入 RL 循环之前用人类标注集来训练一个奖励模型RM。奖励模型的目的是模拟人类对文本的打分。
 
 构建奖励模型的最佳实践是预测结果的排序，即对每个 prompt (输入文本) 对应的两个结果 (yk, yj)，模型预测人类标注的比分哪个更高。
@@ -220,7 +226,9 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_reward_modeling.py \
 ### Stage 4: Reinforcement Learning
 
 RL(Reinforcement Learning)模型的目的是最大化奖励模型的输出，基于上面步骤，我们有了微调的语言模型(llama-7b-sft)和奖励模型(llama-7b-reward)，
-可以开始执行 RL 循环了: 这个过程大致分为三步
+可以开始执行 RL 循环了。
+
+这个过程大致分为三步：
 
 1. 输入prompt，模型生成答复
 2. 用奖励模型来对答复评分
@@ -281,8 +289,8 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_rl_training.py \
 4. 如果gpu支持int8，加上`--load_in_8bit True`代表采用8bit量化训练，可显著减少显存占用
 
 **关于LoRA Training**
-默认使用LoRA训练，每个stage的LoRA模型权重都需要合并到base model中，使用以下命令合并，
-下一个stage的base model指定为合并后的模型文件夹。
+
+默认使用LoRA训练，每个stage的LoRA模型权重都需要合并到base model中，使用以下命令合并，下一个stage的`model_name_or_path`指定为合并后的模型文件夹。
 
 LoRA layers were using at all stages to reduce memory requirements. 
 At each stage the peft adapter layers were merged with the base model, using: 
@@ -294,6 +302,7 @@ python scripts/merge_peft_adapter.py --base_model_name_or_path X_folder --peft_m
 - 合并后的权重保存在output_dir目录下，后续可通过from_pretrained直接加载
 
 **关于deepspeed**
+
 deepspeed 的参数配置`deepspeed_config.json`可参考：
 
 1. https://www.deepspeed.ai/docs/config-json/
@@ -325,7 +334,8 @@ output_dir/
 trainer_state.json记录了loss、learning_rate的变化
 
 
-**多级多卡训练**
+**关于多级多卡训练**
+
 以两台机器为例，每台机器上有8张卡
 
 ```shell
@@ -382,7 +392,7 @@ python scripts/inference.py \
 
 ## 📚 Dataset 
 
-- 240万条中文医疗数据集(包括预训练指令微调和奖励数据集)：[https://huggingface.co/datasets/shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
+- 240万条中文医疗数据集(包括预训练、指令微调和奖励数据集)：[https://huggingface.co/datasets/shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
 
 ## ✅ Todo
 
@@ -402,7 +412,7 @@ python scripts/inference.py \
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/wechat.jpeg" width="200" />
 
-### ⚠️ 局限性、使用限制与免责声明
+## ⚠️ 局限性、使用限制与免责声明
 
 基于当前数据和基础模型训练得到的SFT模型，在效果上仍存在以下问题：
 
