@@ -72,7 +72,7 @@ python scripts/gradio_demo.py --base_model path_to_merged_alpaca_hf_dir
 Continue pretraining of the base llama-7b model to create llama-7b-pt:
 
 ```shell
-torchrun --nnodes 1 --nproc_per_node 8 scripts/run_pretraining.py \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nnodes 1 --nproc_per_node 2 scripts/run_pretraining.py \
     --model_name_or_path minlik/chinese-llama-plus-7b-merged \
     --tokenizer_name_or_path minlik/chinese-llama-plus-7b-merged \
     --dataset_name shibing624/medical \
@@ -124,7 +124,7 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_pretraining.py \
 Supervised fine-tuning of the base llama-7b-pt model to create llama-7b-sft
 
 ```shell
-torchrun --nnodes 1 --nproc_per_node 8 scripts/run_supervised_finetuning.py \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nnodes 1 --nproc_per_node 2  scripts/run_supervised_finetuning.py \
     --model_name_or_path <LLAMA_MODEL_PATH> \
     --tokenizer_name_or_path <LLAMA_MODEL_PATH> \
     --dataset_name shibing624/medical \
@@ -185,7 +185,7 @@ RM模型是通过人工标注SFT模型的打分结果来训练的，目的是取
 Reward modeling using dialog pairs from the reward dataset using the llama-7b-sft to create llama-7b-reward:
 
 ```shell
-torchrun --nnodes 1 --nproc_per_node 8 scripts/run_reward_modeling.py \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nnodes 1 --nproc_per_node 2 scripts/run_reward_modeling.py \
     --model_name_or_path <LLAMA_SFT_MODEL> \
     --tokenizer_name_or_path <LLAMA_SFT_MODEL> \
     --dataset_name shibing624/medical \
@@ -248,7 +248,7 @@ RL(Reinforcement Learning)模型的目的是最大化奖励模型的输出，基
 Reinforcement Learning fine-tuning of llama-7b-sft with the llama-7b-reward reward model to create llama-7b-rl
 
 ```shell
-torchrun --nnodes 1 --nproc_per_node 8 scripts/run_rl_training.py \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nnodes 1 --nproc_per_node 2 scripts/run_rl_training.py \
     --model_name_or_path <LLAMA_SFT_MODEL> \
     --reward_model_name_or_path <LLAMA_REWARD_MODEL> \
     --tokenizer_name_or_path <LLAMA_TOKENIZER> \
@@ -289,10 +289,12 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_rl_training.py \
 
 ### 参数说明
 
-1. 如果想要单卡训练，仅需将nproc_per_node设置为1即可
+1. 如果想要单卡训练，仅需将nproc_per_node设置为1即可，或者去掉torchrun命令，直接运行python脚本，如`python scripts/run_supervised_finetuning.py`
 2. 默认预训练模型是LLaMA，如果训练其他GPT模型，适当调整`tokenzier_name_or_path`和`model_name_or_path`即可
 3. 如果运行环境支持deepspeed，加上`--deepspeed deepspeed_config.json`
 4. 如果gpu支持int8，加上`--load_in_8bit True`代表采用8bit量化训练，可显著减少显存占用
+5. 训练集，`--train_file_dir`指定训练数据目录，`--validation_file_dir`指定验证数据目录，如果不指定，默认使用`--dataset_name`指定的HF datasets数据集，训练集字段格式见[数据集格式](#数据集格式)
+6. `--max_train_samples`和`--max_eval_samples`指定训练和验证数据集的最大样本数，用于快速验证代码是否可用，训练时请删除这两个参数
 
 **关于LoRA Training**
 
@@ -301,7 +303,10 @@ torchrun --nnodes 1 --nproc_per_node 8 scripts/run_rl_training.py \
 LoRA layers were using at all stages to reduce memory requirements. 
 At each stage the peft adapter layers were merged with the base model, using: 
 ```shell
-python scripts/merge_peft_adapter.py --base_model_name_or_path X_folder --peft_model_path Y_folder --output_dir X_folder
+python scripts/merge_peft_adapter.py \
+  --base_model_name_or_path base_model_dir \
+  --peft_model_path lora_model_dir \
+  --output_dir outputs-merged
 ```
 
 - this script requires `peft>=0.3.0`
@@ -368,8 +373,44 @@ torchrun --nproc_per_node 8 --nnodes 2 --master_addr ${master_addr} --master_por
 - master_addr 代表主机器的ip地址
 - master_port 代表与主机器通信的端口号
 
+#### 数据集格式
+使用`--train_file_dir`和`--validation_file_dir`加载的数据集格式
 
-## 😊 Inference 
+- PT(预训练)数据集格式如下：
+
+text文件，每行一个样本
+```shell
+txt文件，每行一个样本
+```
+
+- SFT(有监督微调)数据集格式如下：
+
+alpaca数据集格式，每行一个样本，每个样本包含以下字段：
+
+json文件，每行一个样本，每个样本包含以下字段：
+```shell
+{"instruction": "text1", "input": "text2", "output": "text3"}
+```
+
+- Reward(奖励模型)数据集格式如下：
+
+json文件，每行一个样本，每个样本包含以下字段：
+```shell
+{"question": "text1", "response_chosen": "text2", "response_rejected": "text3"}
+```
+
+- RL(强化学习)数据集格式如下：
+
+json文件，每行一个样本，每个样本包含以下字段：
+```shell
+{"instruction": "text1", "input": "text2", "output": "text3"}
+```
+可以复用SFT数据集。
+
+
+使用`--dataset_name`加载的HF datasets数据集格式参考[shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
+
+## 🔥 Inference 
 训练完成后，现在我们加载训练好的模型，验证模型生成文本的效果。
 
 ```shell
@@ -409,7 +450,16 @@ python scripts/inference.py \
 
 ## 📚 Dataset 
 
-- 240万条中文医疗数据集(包括预训练、指令微调和奖励数据集)：[https://huggingface.co/datasets/shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
+- 240万条中文医疗数据集(包括预训练、指令微调和奖励数据集)：[shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
+
+**附上一些通用数据集和医疗数据集的链接**
+
+- 50万条中文ChatGPT指令Belle数据集：[BelleGroup/train_0.5M_CN](https://huggingface.co/datasets/BelleGroup/train_0.5M_CN)
+- 100万条中文ChatGPT指令Belle数据集：[BelleGroup/train_1M_CN](https://huggingface.co/datasets/BelleGroup/train_1M_CN)
+- 5万条英文ChatGPT指令Alpaca数据集：[50k English Stanford Alpaca dataset](https://github.com/tatsu-lab/stanford_alpaca#data-release)
+- 2万条中文GPT-4指令Alpaca数据集：[shibing624/alpaca-zh](https://huggingface.co/datasets/shibing624/alpaca-zh)
+- 69万条中文指令Guanaco数据集(Belle50万条+Guanaco19万条)：[Chinese-Vicuna/guanaco_belle_merge_v1.0](https://huggingface.co/datasets/Chinese-Vicuna/guanaco_belle_merge_v1.0)
+- 22万条中文医疗对话数据集(华佗项目)：[FreedomIntelligence/HuatuoGPT-sft-data-v1](https://huggingface.co/datasets/FreedomIntelligence/HuatuoGPT-sft-data-v1)
 
 ## ✅ Todo
 
