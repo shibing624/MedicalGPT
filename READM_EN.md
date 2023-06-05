@@ -27,7 +27,7 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 Training MedicalGPT model：
 
-- Stage 1：PT(Continue PreTraining), Pre-training the LLaMA model on massive domain document data to inject domain knowledge, if necessary, expand the domain vocabulary, such as the medical domain vocabulary
+- Stage 1：PT(Continue PreTraining), Pre-training the LLaMA model on massive domain document data to inject domain knowledge
 - Stage 2: SFT (Supervised Fine-tuning) has supervised fine-tuning, constructs instruction fine-tuning data sets, and performs instruction fine-tuning on the basis of pre-trained models to align instruction intentions
 - Stage 3: RM (Reward Model) reward model modeling, constructing a human preference ranking data set, training the reward model to align human preferences, mainly the "HHH" principle, specifically "helpful, honest, harmless"
 - Stage 4: RL (Reinforcement Learning) is based on human feedback reinforcement learning (RLHF), using the reward model to train the SFT model, and the generation model uses rewards or penalties to update its strategy in order to generate higher quality, more in line with human preferences text
