@@ -29,7 +29,7 @@ from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
 from transformers import (
     AutoTokenizer,
-    AutoModel,
+    AutoModelForCausalLM,
     HfArgumentParser,
     Trainer,
     TrainingArguments,
@@ -256,7 +256,7 @@ def main():
             if model_args.torch_dtype in ["auto", None]
             else getattr(torch, model_args.torch_dtype)
         )
-        model = AutoModel.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             load_in_8bit=model_args.load_in_8bit,
             cache_dir=model_args.cache_dir,
