@@ -124,46 +124,8 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nnodes 1 --nproc_per_node 2 scripts/run_pret
 Supervised fine-tuning of the base llama-7b-pt model to create llama-7b-sft
 
 ```shell
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nnodes 1 --nproc_per_node 2  scripts/run_supervised_finetuning.py \
-    --model_name_or_path <LLAMA_MODEL_PATH> \
-    --tokenizer_name_or_path <LLAMA_MODEL_PATH> \
-    --dataset_name shibing624/medical \
-    --dataset_config_name finetune \
-    --validation_split_percentage 0.001 \
-    --per_device_train_batch_size 4 \
-    --per_device_eval_batch_size 4 \
-    --do_train \
-    --seed 42 \
-    --fp16 \
-    --max_train_samples 1000 \
-    --max_eval_samples 10 \
-    --num_train_epochs 5.0 \
-    --learning_rate 1e-5 \
-    --warmup_ratio 0.05 \
-    --weight_decay 0 \
-    --logging_strategy steps \
-    --logging_steps 10 \
-    --eval_steps 50 \
-    --eval_strategy steps \
-    --save_steps 500 \
-    --save_strategy steps \
-    --save_total_limit 3 \
-    --gradient_accumulation_steps 1 \
-    --preprocessing_num_workers 8 \
-    --max_length 512 \
-    --output_dir outputs-sft \
-    --overwrite_output_dir \
-    --ddp_timeout 30000 \
-    --logging_first_step True \
-    --lora_rank 8 \
-    --lora_alpha 32 \
-    --target_modules q_proj,v_proj,k_proj,o_proj \
-    --lora_dropout 0.05 \
-    --torch_dtype float16 \
-    --device_map auto \
-    --gradient_checkpointing True \
-    --report_to tensorboard \
-    --ddp_find_unused_parameters False
+cd scripts
+sh run_sft.sh
 ```
 
 [参数说明](#参数说明)
@@ -290,11 +252,12 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nnodes 1 --nproc_per_node 2 scripts/run_rl_t
 ### 参数说明
 
 1. 如果想要单卡训练，仅需将nproc_per_node设置为1即可，或者去掉torchrun命令，直接运行python脚本，如`python scripts/run_supervised_finetuning.py`
-2. 默认预训练模型是LLaMA，如果训练其他GPT模型，适当调整`tokenzier_name_or_path`和`model_name_or_path`即可
-3. 如果运行环境支持deepspeed，加上`--deepspeed deepspeed_config.json`
-4. 如果gpu支持int8，加上`--load_in_8bit True`代表采用8bit量化训练，可显著减少显存占用
-5. 训练集，`--train_file_dir`指定训练数据目录，`--validation_file_dir`指定验证数据目录，如果不指定，默认使用`--dataset_name`指定的HF datasets数据集，训练集字段格式见[数据集格式](#数据集格式)
-6. `--max_train_samples`和`--max_eval_samples`指定训练和验证数据集的最大样本数，用于快速验证代码是否可用，训练时请删除这两个参数
+2. 默认预训练模型是LLaMA，训练代码也兼容ChatGLM-6B/BLOOM等GPT模型，调整`model_name_or_path`即可
+3. 指定训练集，`--train_file_dir`指定训练数据目录，`--validation_file_dir`指定验证数据目录，如果不指定，默认使用`--dataset_name`指定的HF datasets数据集，训练集字段格式见[数据集格式](#数据集格式)，建议领域训练集中加入一些通用对话数据，数据集链接见[Dataset](#Dataset)
+4. 如果运行环境支持deepspeed，加上`--deepspeed deepspeed_config.json`
+5. 如果gpu支持int8，加上`--load_in_8bit True`代表采用8bit量化训练，可显著减少显存占用
+6. 调试模型，`--max_train_samples`和`--max_eval_samples`指定训练和验证数据集的最大样本数，用于快速验证代码是否可用，训练时请删除这两个参数或者设置为-1
+
 
 **关于LoRA Training**
 
@@ -337,9 +300,8 @@ output_dir/
 
 ```
 
-trainer_state.json记录了loss、learning_rate的变化
-
-logs目录下的文件可用于tensorboard可视化，启动tensorboard命令如下：
+- `trainer_state.json`记录了loss、learning_rate的变化
+- logs目录下的文件可用于tensorboard可视化，启动tensorboard命令如下：
 ```shell
 tensorboard --logdir output_dir/logs --host 0.0.0.0 --port 8008
 ```
