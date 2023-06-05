@@ -1,4 +1,4 @@
-[**🇨🇳中文**](./README.md) | [**🌐English**](./README_EN.md) | [**📖文档/Docs**](https://github.com/shibing624/MedicalGPT/wiki) | [**❓提问/Issues**](https://github.com/shibing624/MedicalGPT/issues)
+[**🇨🇳中文**](https://github.com/shibing624/MedicalGPT/blob/main/READM.md) | [**🌐English**](https://github.com/shibing624/MedicalGPT/blob/main/READM_EN.md) | [**📖文档/Docs**](https://github.com/shibing624/MedicalGPT/wiki) | [**❓提问/Issues**](https://github.com/shibing624/MedicalGPT/issues)
 
 <div align="center">
   <a href="https://github.com/shibing624/MedicalGPT">
@@ -22,57 +22,50 @@
 **MedicalGPT** training medical GPT model with ChatGPT training pipeline, implemantation of Pretraining, 
 Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
-**MedicalGPT** 训练医疗大模型，实现包括二次预训练、有监督微调、奖励建模、强化学习训练。
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/GPT_Training.jpg" width="860" />
 
-训练领域模型--医疗模型，分四阶段：
+Training MedicalGPT model：
 
-- 第一阶段：PT(Continue PreTraining)增量预训练，在海量领域文档数据上二次预训练LLaMA模型，以注入领域知识，如有需要可以扩充领域词表，比如医疗领域词表
-- 第二阶段：SFT(Supervised Fine-tuning)有监督微调，构造指令微调数据集，在预训练模型基础上做指令精调，以对齐指令意图
-- 第三阶段：RM(Reward Model)奖励模型建模，构造人类偏好排序数据集，训练奖励模型，用来对齐人类偏好，主要是"HHH"原则，具体是"helpful, honest, harmless"
-- 第四阶段：RL(Reinforcement Learning)基于人类反馈的强化学习(RLHF)，用奖励模型来训练SFT模型，生成模型使用奖励或惩罚来更新其策略，以便生成更高质量、更符合人类偏好的文本
+- Stage 1：PT(Continue PreTraining), Pre-training the LLaMA model on massive domain document data to inject domain knowledge, if necessary, expand the domain vocabulary, such as the medical domain vocabulary
+- Stage 2: SFT (Supervised Fine-tuning) has supervised fine-tuning, constructs instruction fine-tuning data sets, and performs instruction fine-tuning on the basis of pre-trained models to align instruction intentions
+- Stage 3: RM (Reward Model) reward model modeling, constructing a human preference ranking data set, training the reward model to align human preferences, mainly the "HHH" principle, specifically "helpful, honest, harmless"
+- Stage 4: RL (Reinforcement Learning) is based on human feedback reinforcement learning (RLHF), using the reward model to train the SFT model, and the generation model uses rewards or penalties to update its strategy in order to generate higher quality, more in line with human preferences text
 
 ## ▶️ Demo
 
 - Hugging Face Demo: doing
 
-我们提供了一个简洁的基于gradio的交互式web界面，启动服务后，可通过浏览器访问，输入问题，模型会返回答案。
-
-启动服务，命令如下：
+We provide a simple Gradio-based interactive web interface. After the service is started, it can be accessed through a browser, enter a question, and the model will return an answer. The command is as follows:
 ```shell
 python scripts/gradio_demo.py --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
 ```
 
-参数说明：
+Parameter Description:
 
-- `--base_model {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录，也可使用HF Model Hub模型调用名称
-- `--lora_model {lora_model}`：LoRA文件所在目录，也可使用HF Model Hub模型调用名称。若lora权重已经合并到预训练模型，则删除--lora_model参数
-- `--tokenizer_path {tokenizer_path}`：存放对应tokenizer的目录。若不提供此参数，则其默认值与--lora_model相同；若也未提供--lora_model参数，则其默认值与--base_model相同
-- `--use_cpu`: 仅使用CPU进行推理
-- `--gpus {gpu_ids}`: 指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
+- `--base_model {base_model}`: directory to store LLaMA model weights and configuration files in HF format, or use the HF Model Hub model call name
+- `--lora_model {lora_model}`: The directory where the LoRA file is located, and the name of the HF Model Hub model can also be used. If the lora weights have been merged into the pre-trained model, delete the --lora_model parameter
+- `--tokenizer_path {tokenizer_path}`: Store the directory corresponding to the tokenizer. If this parameter is not provided, its default value is the same as --lora_model; if the --lora_model parameter is not provided, its default value is the same as --base_model
+- `--use_cpu`: use only CPU for inference
+- `--gpus {gpu_ids}`: Specifies the number of GPU devices used, the default is 0. If using multiple GPUs, separate them with commas, such as 0,1,2
 
 
 ## 🚀 Training Pipeline
 
 ### Stage 1: Continue Pretraining
-第一阶段：PT(Continue PreTraining)增量预训练
 
-基于llama-7b模型，使用医疗百科类数据继续预训练，期望注入医疗知识到预训练模型，得到llama-7b-pt模型，此步骤可选
+Based on the llama-7b model, use medical encyclopedia data to continue pre-training, and expect to inject medical knowledge into the pre-training model to obtain the llama-7b-pt model. This step is optional
 
-Continue pretraining of the base llama-7b model to create llama-7b-pt:
 
 ```shell
 cd scripts
 sh run_pt.sh
 ```
 
-[训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E7%BB%86%E8%8A%82%E8%AF%B4%E6%98%8E)
+[Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
 
 ### Stage 2: Supervised FineTuning
-第二阶段：SFT(Supervised Fine-tuning)有监督微调
-
-基于llama-7b-pt模型，使用医疗问答类数据进行有监督微调，得到llama-7b-sft模型
+Based on the llama-7b-pt model, the llama-7b-sft model is obtained by using medical question-and-answer data for supervised fine-tuning. This step is required
 
 Supervised fine-tuning of the base llama-7b-pt model to create llama-7b-sft
 
@@ -81,21 +74,21 @@ cd scripts
 sh run_sft.sh
 ```
 
-[训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E7%BB%86%E8%8A%82%E8%AF%B4%E6%98%8E)
+[Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
 
 ### Stage 3: Reward Modeling
-第三阶段：RM(Reward Model)奖励模型建模
+RM(Reward Model): reward model modeling
 
-RM(Reward Model)奖励模型，原则上，我们可以直接用人类标注来对模型做 RLHF 微调。
+In principle, we can directly use human annotations to fine-tune the model with RLHF.
 
-然而，这将需要我们给人类发送一些样本，在每轮优化后计分。这是贵且慢的，因为收敛需要的训练样本量大，而人类阅读和标注的速度有限。
-一个比直接反馈更好的策略是，在进入 RL 循环之前用人类标注集来训练一个奖励模型RM。奖励模型的目的是模拟人类对文本的打分。
+However, this will require us to send some samples to humans to be scored after each round of optimization. This is expensive and slow due to the large number of training samples required for convergence and the limited speed at which humans can read and annotate them.
+A better strategy than direct feedback is to train a reward model RM on the human annotated set before entering the RL loop. The purpose of the reward model is to simulate human scoring of text.
 
-构建奖励模型的最佳实践是预测结果的排序，即对每个 prompt (输入文本) 对应的两个结果 (yk, yj)，模型预测人类标注的比分哪个更高。
-RM模型是通过人工标注SFT模型的打分结果来训练的，目的是取代人工打分，本质是个回归模型，用来对齐人类偏好，主要是"HHH"原则，具体是"helpful, honest, harmless"。
+The best practice for building a reward model is to rank the prediction results, that is, for each prompt (input text) corresponding to two results (yk, yj), the model predicts which score the human annotation is higher.
+The RM model is trained by manually marking the scoring results of the SFT model. The purpose is to replace manual scoring. It is essentially a regression model used to align human preferences, mainly based on the "HHH" principle, specifically "helpful, honest, harmless".
 
 
-基于llama-7b-sft模型，使用医疗问答偏好数据训练奖励偏好模型，训练得到llama-7b-reward模型
+Based on the llama-7b-sft model, the reward preference model is trained using medical question and answer preference data, and the llama-7b-reward model is obtained after training. This step is required
 
 Reward modeling using dialog pairs from the reward dataset using the llama-7b-sft to create llama-7b-reward:
 
@@ -103,24 +96,19 @@ Reward modeling using dialog pairs from the reward dataset using the llama-7b-sf
 cd scripts
 sh run_rm.sh
 ```
-[训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E7%BB%86%E8%8A%82%E8%AF%B4%E6%98%8E)
+[Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
 
 ### Stage 4: Reinforcement Learning
-第四阶段：RL(Reinforcement Learning)基于人类反馈的强化学习(RLHF)
+The purpose of the RL (Reinforcement Learning) model is to maximize the output of the reward model. Based on the above steps, we have a fine-tuned language model (llama-7b-sft) and reward model (llama-7b-reward).
+The RL loop is ready to execute.
 
-RL(Reinforcement Learning)模型的目的是最大化奖励模型的输出，基于上面步骤，我们有了微调的语言模型(llama-7b-sft)和奖励模型(llama-7b-reward)，
-可以开始执行 RL 循环了。
+This process is roughly divided into three steps:
 
-这个过程大致分为三步：
-
-1. 输入prompt，模型生成答复
-2. 用奖励模型来对答复评分
-3. 基于评分，进行一轮策略优化的强化学习(PPO)
+1. Enter prompt, the model generates a reply
+2. Use a reward model to score responses
+3. Based on the score, a round of reinforcement learning for policy optimization (PPO)
 
 <img src=https://huggingface.co/datasets/trl-internal-testing/example-images/resolve/main/blog/stackllama/trl_loop.png height=400 />
-
-
-基于llama-7b-reward模型 RL 微调训练llama-7b-sft模型，得到llama-7b-rl模型
 
 Reinforcement Learning fine-tuning of llama-7b-sft with the llama-7b-reward reward model to create llama-7b-rl
 
@@ -128,9 +116,10 @@ Reinforcement Learning fine-tuning of llama-7b-sft with the llama-7b-reward rewa
 cd scripts
 sh run_rl.sh
 ```
-[训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E7%BB%86%E8%8A%82%E8%AF%B4%E6%98%8E)
+[Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
+
 ## 🔥 Inference 
-训练完成后，现在我们加载训练好的模型，验证模型生成文本的效果。
+After the training is complete, now we load the trained model to verify the effect of the model generating text.
 
 ```shell
 python scripts/inference.py \
@@ -140,102 +129,92 @@ python scripts/inference.py \
     --interactive
 ```
 
-参数说明：
+Parameter Description:
 
-- `--base_model {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录
-- `--lora_model {lora_model}`：LoRA解压后文件所在目录，也可使用HF Model Hub模型调用名称。如果已经合并了LoRA权重到预训练模型，则可以不提供此参数
-- `--tokenizer_path {tokenizer_path}`：存放对应tokenizer的目录。若不提供此参数，则其默认值与--lora_model相同；若也未提供--lora_model参数，则其默认值与--base_model相同
-- `--with_prompt`：是否将输入与prompt模版进行合并。如果加载Alpaca模型，请务必启用此选项！
-- `--interactive`：以交互方式启动，以便进行多次单轮问答
-- `--data_file {file_name}`：非交互方式启动下，按行读取file_name中的的内容进行预测
-- `--predictions_file {file_name}`：非交互式方式下，将预测的结果以json格式写入file_name
-- `--use_cpu`: 仅使用CPU进行推理
-- `--gpus {gpu_ids}`: 指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
-
-
+- `--base_model {base_model}`: Directory to store LLaMA model weights and configuration files in HF format
+- `--lora_model {lora_model}`: The directory where the LoRA file is decompressed, and the name of the HF Model Hub model can also be used. If you have incorporated LoRA weights into the pre-trained model, you can not provide this parameter
+- `--tokenizer_path {tokenizer_path}`: Store the directory corresponding to the tokenizer. If this parameter is not provided, its default value is the same as --lora_model; if the --lora_model parameter is not provided, its default value is the same as --base_model
+- `--with_prompt`: Whether to merge the input with the prompt template. Be sure to enable this option if loading an Alpaca model!
+- `--interactive`: start interactively for multiple single rounds of question and answer
+- `--data_file {file_name}`: Start in non-interactive mode, read the contents of file_name line by line for prediction
+- `--predictions_file {file_name}`: In non-interactive mode, write the predicted results to file_name in json format
+- `--use_cpu`: use only CPU for inference
+- `--gpus {gpu_ids}`: Specifies the number of GPU devices used, the default is 0. If using multiple GPUs, separate them with commas, such as 0,1,2
 
 
 #### Inference Examples
 
 <details>
-
-| Human | Assitant |
+| Human | Assistant |
 | ----- | ------ |
-| 怎么让自己精力充沛，列5点建议 | 以下是一些可以让你保持精力充沛的建议： <br/>1. 睡眠充足。确保每天晚上得到充足的睡眠时间。 <br/>2. 多运动。进行适度的有氧运动，如慢跑、游泳等，可以帮助你提高能量和耐力。<br/>3. 吃健康食品。选择富含蛋白质的食物，如鸡肉、鱼肉和鸡蛋，以及新鲜的水果和蔬菜。 <br/>4. 减少咖啡因的摄入量。尽量避免在白天喝含咖啡因的饮料或吃含有咖啡因的食物。 <br/>5. 放松身心。尝试冥想、瑜伽或其他形式的放松活动来减轻压力和焦虑感。 |
-
+| How to make yourself energetic, list 5 suggestions | Here are some suggestions to keep you energetic: <br/>1. Get enough sleep. Make sure to get enough sleep every night. <br/>2. Exercise more. Doing moderate aerobic exercise, such as jogging and swimming, can help improve your energy and stamina. 3. Eat healthy food. Choose protein-rich foods such as chicken, fish, and eggs, as well as fresh fruits and vegetables. 4. Reduce caffeine intake. Try to avoid drinking caffeinated beverages or eating caffeinated foods during the day. <br/>5. Relax. Try meditation, yoga, or other forms of relaxation to reduce stress and anxiety. |
 </details>
 <br/>
 
 
 ## 📚 Dataset 
 
-- 240万条中文医疗数据集(包括预训练、指令微调和奖励数据集)：[shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
+- 2.4 million Chinese medical datasets (including pre-training, instruction fine-tuning and reward datasets): [shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
 
-**附上一些通用数据集和医疗数据集的链接**
+**Attach links to some general datasets and medical datasets**
 
-- 50万条中文ChatGPT指令Belle数据集：[BelleGroup/train_0.5M_CN](https://huggingface.co/datasets/BelleGroup/train_0.5M_CN)
-- 100万条中文ChatGPT指令Belle数据集：[BelleGroup/train_1M_CN](https://huggingface.co/datasets/BelleGroup/train_1M_CN)
-- 5万条英文ChatGPT指令Alpaca数据集：[50k English Stanford Alpaca dataset](https://github.com/tatsu-lab/stanford_alpaca#data-release)
-- 2万条中文GPT-4指令Alpaca数据集：[shibing624/alpaca-zh](https://huggingface.co/datasets/shibing624/alpaca-zh)
-- 69万条中文指令Guanaco数据集(Belle50万条+Guanaco19万条)：[Chinese-Vicuna/guanaco_belle_merge_v1.0](https://huggingface.co/datasets/Chinese-Vicuna/guanaco_belle_merge_v1.0)
-- 22万条中文医疗对话数据集(华佗项目)：[FreedomIntelligence/HuatuoGPT-sft-data-v1](https://huggingface.co/datasets/FreedomIntelligence/HuatuoGPT-sft-data-v1)
+- Belle dataset of 500,000 Chinese ChatGPT commands: [BelleGroup/train_0.5M_CN](https://huggingface.co/datasets/BelleGroup/train_0.5M_CN)
+- Belle dataset of 1 million Chinese ChatGPT commands: [BelleGroup/train_1M_CN](https://huggingface.co/datasets/BelleGroup/train_1M_CN)
+- Alpaca dataset of 50,000 English ChatGPT commands: [50k English Stanford Alpaca dataset](https://github.com/tatsu-lab/stanford_alpaca#data-release)
+- Alpaca dataset of 20,000 Chinese GPT-4 instructions: [shibing624/alpaca-zh](https://huggingface.co/datasets/shibing624/alpaca-zh)
+- Guanaco dataset with 690,000 Chinese instructions (500,000 Belle + 190,000 Guanaco): [Chinese-Vicuna/guanaco_belle_merge_v1.0](https://huggingface.co/datasets/Chinese-Vicuna/guanaco_belle_merge_v1.0)
+- 220,000 Chinese medical dialogue datasets (HuatuoGPT project): [FreedomIntelligence/HuatuoGPT-sft-data-v1](https://huggingface.co/datasets/FreedomIntelligence/HuatuoGPT-sft-data-v1)
 
 ## ✅ Todo
 
-1. [ ] 新增多轮对话数据微调方法
+1. [ ] Added multi-round dialogue data fine-tuning method
 2. [x] add reward model finetuning
 3. [x] add rl finetuning
 4. [x] add medical reward dataset
 5. [x] add llama in8/int4 training
 6. [ ] add all training and predict demo in colab
-
 ## ☎️ Contact
 
-- Issue(建议)
-  ：[![GitHub issues](https://img.shields.io/github/issues/shibing624/MedicalGPT.svg)](https://github.com/shibing624/MedicalGPT/issues)
-- 邮件我：xuming: xuming624@qq.com
-- 微信我： 加我*微信号：xuming624, 备注：姓名-公司名-NLP* 进NLP交流群。
+- Issue (suggestion)
+   : [![GitHub issues](https://img.shields.io/github/issues/shibing624/MedicalGPT.svg)](https://github.com/shibing624/MedicalGPT/issues)
+- Email me: xuming: xuming624@qq.com
+- WeChat Me: Add me* WeChat ID: xuming624, Remarks: Name-Company Name-NLP* Enter the NLP exchange group.
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/wechat.jpeg" width="200" />
 
-## ⚠️ 局限性、使用限制与免责声明
+## ⚠️ Limitations, Restrictions of Use and Disclaimer
 
-基于当前数据和基础模型训练得到的SFT模型，在效果上仍存在以下问题：
+The SFT model trained based on the current data and the basic model still has the following problems in terms of effect:
 
-1. 在涉及事实性的指令上可能会产生违背事实的错误回答。
+1. Wrong answers that contradict the facts may be generated on the factual instructions.
+2. Unable to identify harmful instructions well, resulting in harmful speech.
+3. The ability of the model still needs to be improved in some scenarios involving reasoning, code, and multiple rounds of dialogue.
 
-2. 对于具备危害性的指令无法很好的鉴别，由此会产生危害性言论。
-
-3. 在一些涉及推理、代码、多轮对话等场景下模型的能力仍有待提高。
-
-基于以上模型局限性，我们要求开发者仅将我们开源的模型权重及后续用此项目生成的衍生物用于研究目的，不得用于商业，以及其他会对社会带来危害的用途。
-
-本项目仅可应用于研究目的，项目开发者不承担任何因使用本项目（包含但不限于数据、模型、代码等）导致的危害或损失。详细请参考[免责声明](https://github.com/shibing624/MedicalGPT/blob/main/DISCLAIMER)。
-
-项目代码的授权协议为 [The Apache License 2.0](/LICENSE)，代码可免费用做商业用途，模型权重和数据只能用于研究目的。请在产品说明中附加MedicalGPT的链接和授权协议。
-
+Based on the limitations of the above models, we require developers to only use our open source model weights and subsequent derivatives generated by this project for research purposes, and not for commercial use, and other purposes that will cause harm to society.
+This project can only be used for research purposes, and the project developer is not responsible for any harm or loss caused by the use of this project (including but not limited to data, models, codes, etc.). For details, please refer to [Disclaimer](https://github.com/shibing624/MedicalGPT/blob/main/DISCLAIMER).
+The license agreement for the project code is [The Apache License 2.0](/LICENSE), the code is free for commercial use, and the model weights and data can only be used for research purposes. Please attach MedicalGPT's link and license agreement in the product description.
 
 ## 😇 Citation
 
-如果你在研究中使用了MedicalGPT，请按如下格式引用：
+If you used MedicalGPT in your research, please cite as follows:
 
 ```latex
 @misc{MedicalGPT,
-  title={MedicalGPT: Training Medical GPT Model},
-  author={Ming Xu},
-  year={2023},
-  howpublished={\url{https://github.com/shibing624/MedicalGPT}},
+   title={MedicalGPT: Training Medical GPT Model},
+   author={Ming Xu},
+   year={2023},
+   howpublished={\url{https://github.com/shibing624/MedicalGPT}},
 }
 ```
 
 ## 😍 Contribute
 
-项目代码还很粗糙，如果大家对代码有所改进，欢迎提交回本项目，在提交之前，注意以下两点：
+The project code is still very rough. If you have improved the code, you are welcome to submit it back to this project. Before submitting, please pay attention to the following two points:
 
-- 在`tests`添加相应的单元测试
-- 使用`python -m pytest`来运行所有单元测试，确保所有单测都是通过的
+- Add corresponding unit tests in `tests`
+- Use `python -m pytest` to run all unit tests to ensure that all unit tests are passed
 
-之后即可提交PR。
+Then you can submit a PR.
 
 ## 💕 Acknowledgements 
 

@@ -182,9 +182,9 @@ python scripts/inference.py \
 
 ## ✅ Todo
 
-1. [ ] 新增多轮对话数据微调方法
-2. [x] add reward model finetuning
-3. [x] add rl finetuning
+1. [ ] Added multi-round dialogue data fine-tuning method
+2. [x] add reward model fine-tuning
+3. [x] add rl fine-tuning
 4. [x] add medical reward dataset
 5. [x] add llama in8/int4 training
 6. [ ] add all training and predict demo in colab
