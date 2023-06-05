@@ -2,7 +2,7 @@
 
 <div align="center">
   <a href="https://github.com/shibing624/MedicalGPT">
-    <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/logo.png" width="120" alt="Logo">
+    <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/logo.png" height="80" alt="Logo">
   </a>
 </div>
 
