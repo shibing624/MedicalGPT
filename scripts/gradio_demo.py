@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 @author:XuMing(xuming624@qq.com)
-@description: 
+@description:
+
+pip install gradio
+pip install mdtex2html
 """
 import argparse
 import os
@@ -152,9 +155,8 @@ def main():
         return chatbot, history
 
     with gr.Blocks() as demo:
-        gr.HTML("""<h1 align="center">Chinese LLaMA & Alpaca LLM</h1>""")
+        gr.HTML("""<h1 align="center">MedicalGPT</h1>""")
         current_file_path = os.path.abspath(os.path.dirname(__file__))
-        gr.Image(f'{current_file_path}/../pics/banner.png', label='Chinese LLaMA & Alpaca LLM')
         gr.Markdown(
             "> 为了促进医疗行业大模型的开放研究，本项目开源了MedicalGPT医疗大模型")
         chatbot = gr.Chatbot()

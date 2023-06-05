@@ -21,10 +21,9 @@ import math
 import os
 from dataclasses import dataclass, field
 from glob import glob
-from typing import Optional, Dict, Sequence
+from typing import Optional
 
 import torch
-import transformers
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
@@ -147,7 +146,7 @@ class PeftArguments(TrainingArguments):
     target_modules: Optional[str] = field(default="all")
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
-    lora_alpha: Optional[float] = field(default=16.0)
+    lora_alpha: Optional[float] = field(default=32.0)
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
 
@@ -160,45 +159,6 @@ PROMPT_TEMPLATE = (
     "Write a response that appropriately completes the request.\n\n"
     "### Instruction:\n{instruction}\n\n### Response: "
 )
-
-
-def find_all_linear_names(peft_model, int4=False, int8=False):
-    """Find all linear layer names in the model. reference from qlora paper."""
-    cls = torch.nn.Linear
-    if int4 or int8:
-        import bitsandbytes as bnb
-        if int4:
-            cls = bnb.nn.Linear4bit
-        elif int8:
-            cls = bnb.nn.Linear8bitLt
-    lora_module_names = set()
-    for name, module in peft_model.named_modules():
-        if isinstance(module, cls):
-            # last layer is not add to lora_module_names
-            if 'lm_head' in name:
-                continue
-            names = name.split('.')
-            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
-    return sorted(lora_module_names)
-
-
-@dataclass
-class DataCollatorForSupervisedDataset(object):
-    """Collate examples for supervised fine-tuning."""
-
-    tokenizer: transformers.PreTrainedTokenizer
-
-    def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
-        input_ids = torch.nn.utils.rnn.pad_sequence(
-            input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id
-        )
-        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=IGNORE_INDEX)
-        return dict(
-            input_ids=input_ids,
-            labels=labels,
-            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
-        )
 
 
 class SavePeftModelTrainer(Trainer):
@@ -224,6 +184,26 @@ def save_model(output_dir, model, tokenizer, args):
     torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
 
 
+def find_all_linear_names(peft_model, int4=False, int8=False):
+    """Find all linear layer names in the model. reference from qlora paper."""
+    cls = torch.nn.Linear
+    if int4 or int8:
+        import bitsandbytes as bnb
+        if int4:
+            cls = bnb.nn.Linear4bit
+        elif int8:
+            cls = bnb.nn.Linear8bitLt
+    lora_module_names = set()
+    for name, module in peft_model.named_modules():
+        if isinstance(module, cls):
+            # last layer is not add to lora_module_names
+            if 'lm_head' in name:
+                continue
+            names = name.split('.')
+            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+    return sorted(lora_module_names)
+
+
 def resize_model_embeddings(model, tokenizer_vocab_size):
     """Resizes model embeddings to match the tokenizer vocab size."""
     model_vocab_size = model.get_input_embeddings().weight.size(0)
@@ -242,6 +222,7 @@ def main():
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
     send_example_telemetry("run_sft", model_args, data_args)
+
     logger.warning(f"Model args: {model_args}")
     logger.warning(f"Data args: {data_args}")
     logger.warning(f"Training args: {training_args}")
@@ -249,7 +230,6 @@ def main():
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
-    logger.warning(f"Training args: {training_args}")
 
     # Detecting last checkpoint.
     last_checkpoint = None
@@ -280,7 +260,6 @@ def main():
             model_args.model_name_or_path,
             load_in_8bit=model_args.load_in_8bit,
             cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
             torch_dtype=torch_dtype,
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,
@@ -298,7 +277,6 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
-
     # Required for llama
     if tokenizer.pad_token is None:
         tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
@@ -327,6 +305,7 @@ def main():
         model = get_peft_model(model, peft_config)
     if model_args.load_in_8bit:
         model = prepare_model_for_int8_training(model)
+    resize_model_embeddings(model, len(tokenizer))
     model.print_trainable_parameters()
 
     # Get datasets
@@ -432,7 +411,7 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
-            logger.debug(f"Num train_dataset: {len(train_dataset)}")
+            logger.debug(f"Num train_samples: {len(train_dataset)}")
             logger.debug("Tokenized training example:")
             logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
 
@@ -455,7 +434,7 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
-            logger.debug(f"Num eval_dataset: {len(eval_dataset)}")
+            logger.debug(f"Num eval_samples: {len(eval_dataset)}")
             logger.debug("Tokenized eval example:")
             logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
 
@@ -488,7 +467,6 @@ def main():
     # Training
     if training_args.do_train:
         logger.info("*** Train ***")
-        # Check train datasets
         logger.debug(f"Train dataloader example: {list(trainer.get_train_dataloader())[0]}")
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
@@ -510,6 +488,7 @@ def main():
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
         metrics = trainer.evaluate()
+
         metrics["eval_samples"] = max_eval_samples
         try:
             perplexity = math.exp(metrics["eval_loss"])

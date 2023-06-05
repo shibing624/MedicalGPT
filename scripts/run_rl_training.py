@@ -1,37 +1,28 @@
 # -*- coding: utf-8 -*-
 """
 @author:XuMing(xuming624@qq.com)
-@description:
-
-usage:
-accelerate launch --multi_gpu --num_machines 1  --num_processes 8 rlhf/rl_training.py --log_with=wandb
---model_name=<LLAMA_SFT_MODEL> --reward_model_name=<LLAMA_SFT_RM_MODEL>
---tokenizer_name=<LLAMA_TOKENIZER> --save_freq=100 --output_max_length=128 --batch_size=8
---gradient_accumulation_steps=8 --batched_gen=True --ppo_epochs=4 --seed=0 --learning_rate=1.4e-5
---early_stopping=True --output_dir=llama-sft-rl-finetune-128
+@description: Train a model from SFT using PPO
 """
 
-import logging
 import os
-import sys
 from dataclasses import dataclass, field
 from glob import glob
 from typing import Optional
 
-import datasets
 import torch
-import transformers
 from accelerate import Accelerator
 from datasets import load_dataset
-from peft import LoraConfig
-from peft import TaskType, get_peft_model, PeftModel
+from loguru import logger
+from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
 from tqdm import tqdm
-from transformers import AutoTokenizer, HfArgumentParser, pipeline
 from transformers import (
-    LlamaTokenizer,
+    AutoTokenizer,
+    HfArgumentParser,
     Trainer,
     TrainingArguments,
+    set_seed,
 )
+from transformers import pipeline
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import send_example_telemetry
@@ -53,13 +44,7 @@ class ModelArguments:
             )
         },
     )
-    reward_model_name: Optional[str] = field(default="", metadata={"help": "The reward model name"})
-    config_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
-    )
-    tokenizer_name: Optional[str] = field(
-        default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
-    )
+    reward_model_name_or_path: Optional[str] = field(default=None, metadata={"help": "The reward model name"})
     tokenizer_name_or_path: Optional[str] = field(
         default=None,
         metadata={
@@ -77,10 +62,6 @@ class ModelArguments:
         default=True,
         metadata={"help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."},
     )
-    model_revision: str = field(
-        default="main",
-        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
-    )
     torch_dtype: Optional[str] = field(
         default=None,
         metadata={
@@ -94,6 +75,10 @@ class ModelArguments:
     device_map: Optional[str] = field(
         default="auto",
         metadata={"help": "Device to map model to. If `auto` is passed, the device will be selected automatically. "},
+    )
+    trust_remote_code: bool = field(
+        default=True,
+        metadata={"help": "Whether to trust remote code when loading a model from a remote checkpoint."},
     )
 
 
@@ -111,12 +96,9 @@ class DataTrainingArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The input jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."}, )
-    output_dir: str = field(
-        default="./outputs-rl",
-        metadata={"help": "The output directory where the model predictions and checkpoints will be written."}
-    )
-    max_length: Optional[int] = field(default=512, metadata={"help": "Max length of input text"})
-    output_max_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
+    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
+    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
+    min_target_length: Optional[int] = field(default=4, metadata={"help": "Min length of output text"})
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -148,42 +130,6 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
-    local_rank: int = field(default=-1, metadata={"help": "For distributed training: local_rank"})
-    resume_from_checkpoint: Optional[str] = field(
-        default=None,
-        metadata={"help": "The path to a folder with a valid checkpoint for your model."},
-    )
-    deepspeed: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": (
-                "Enable deepspeed and pass the path to deepspeed json config file (e.g. ds_config.json) or an already"
-                " loaded json file as a dict"
-            )
-        },
-    )
-    per_device_train_batch_size: int = field(default=8, metadata={"help": "Batch size per GPU for training."})
-    per_device_eval_batch_size: int = field(default=8, metadata={"help": "Batch size per GPU for evaluation."})
-    gradient_accumulation_steps: Optional[int] = field(default=4)
-    learning_rate: Optional[float] = field(default=1.41e-5)
-    weight_decay: Optional[int] = field(default=0.001)
-    num_train_epochs: float = field(default=3.0, metadata={"help": "Total number of training epochs to perform."})
-    eval_steps: Optional[int] = field(default=500, metadata={"help": "Run an evaluation every X steps."})
-    evaluation_strategy: str = field(default="steps", metadata={"help": "The evaluation strategy to use."})
-    save_steps: Optional[int] = field(default=500, metadata={"help": "Run an save every X steps."})
-    save_strategy: str = field(default="steps", metadata={"help": "The save strategy to use."})
-    save_total_limit: Optional[int] = field(default=3, metadata={"help": "Limit the total amount of checkpoints. "})
-    gradient_checkpointing: bool = field(
-        default=False,
-        metadata={
-            "help": "If True, use gradient checkpointing to save memory at the expense of slower backward pass."
-        },
-    )
-    seed: Optional[int] = field(default=42, metadata={"help": "the seed"})
-    optim: Optional[str] = field(default="adamw_hf", metadata={"help": "The optimizer to use."})
-    report_to: Optional[str] = field(
-        default="tensorboard", metadata={"help": "The list of integrations to report the results and logs to."}
-    )
     mini_batch_size: Optional[int] = field(default=1, metadata={"help": "PPO minibatch size"})
     early_stopping: Optional[bool] = field(default=False, metadata={"help": "Whether to early stop"})
     target_kl: Optional[float] = field(default=0.1, metadata={"help": "The kl target for early stopping"})
@@ -195,7 +141,7 @@ class DataTrainingArguments:
 
 @dataclass
 class PeftArguments(TrainingArguments):
-    target_modules: Optional[str] = field(default="q_proj,v_proj,k_proj,o_proj,gate_proj,down_proj,up_proj")
+    target_modules: Optional[str] = field(default="all")
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
     lora_alpha: Optional[float] = field(default=32.0)
@@ -203,8 +149,12 @@ class PeftArguments(TrainingArguments):
     peft_path: Optional[str] = field(default=None)
 
 
-logger = logging.getLogger(__name__)
 DEFAULT_PAD_TOKEN = "[PAD]"
+PROMPT_TEMPLATE = (
+    "Below is an instruction that describes a task. "
+    "Write a response that appropriately completes the request.\n\n"
+    "### Instruction:\n{instruction}\n\n### Response: "
+)
 
 
 class RLTrainer(Trainer):
@@ -230,6 +180,25 @@ def save_model(output_dir, model, tokenizer, args):
     torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
 
 
+def find_all_linear_names(peft_model, int4=False, int8=False):
+    cls = torch.nn.Linear
+    if int4 or int8:
+        import bitsandbytes as bnb
+        if int4:
+            cls = bnb.nn.Linear4bit
+        elif int8:
+            cls = bnb.nn.Linear8bitLt
+    lora_module_names = set()
+    for name, module in peft_model.named_modules():
+        if isinstance(module, cls):
+            # last layer is not add to lora_module_names
+            if 'lm_head' in name:
+                continue
+            names = name.split('.')
+            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+    return sorted(lora_module_names)
+
+
 def resize_model_embeddings(model, tokenizer_vocab_size):
     """Resizes model embeddings to match the tokenizer vocab size."""
     model_vocab_size = model.get_input_embeddings().weight.size(0)
@@ -249,25 +218,13 @@ def main():
 
     send_example_telemetry("run_rl", model_args, data_args)
 
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s", datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.DEBUG,
-        handlers=[logging.StreamHandler(sys.stdout)]
-    )
-    if training_args.should_log:
-        transformers.utils.logging.set_verbosity_info()
-    log_level = training_args.get_process_log_level()
-    logger.setLevel(log_level)
-    datasets.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.enable_default_handler()
-    transformers.utils.logging.enable_explicit_format()
-
+    logger.warning(f"Model args: {model_args}")
+    logger.warning(f"Data args: {data_args}")
+    logger.warning(f"Training args: {training_args}")
     logger.warning(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
-    logger.warning(f"Training args: {training_args}")
 
     # Detecting last checkpoint.
     last_checkpoint = None
@@ -284,25 +241,7 @@ def main():
                 "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
             )
 
-    tokenizer_kwargs = {
-        "cache_dir": model_args.cache_dir,
-        "use_fast": model_args.use_fast_tokenizer,
-        "revision": model_args.model_revision,
-    }
-    if model_args.tokenizer_name:
-        tokenizer = AutoTokenizer.from_pretrained(model_args.tokenizer_name, **tokenizer_kwargs)
-    elif model_args.tokenizer_name_or_path:
-        tokenizer = LlamaTokenizer.from_pretrained(model_args.tokenizer_name_or_path, **tokenizer_kwargs)
-    else:
-        raise ValueError(
-            "You are instantiating a new tokenizer from scratch. This is not supported by this script."
-            "You can do it from another script, save it, and load it from here, using --tokenizer_name."
-        )
-
-    # Required for llama
-    if tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
-
+    # Load model
     if model_args.model_name_or_path:
         torch_dtype = (
             model_args.torch_dtype
@@ -313,20 +252,35 @@ def main():
             model_args.model_name_or_path,
             load_in_8bit=model_args.load_in_8bit,
             cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
             torch_dtype=torch_dtype,
             device_map=model_args.device_map,
+            trust_remote_code=model_args.trust_remote_code,
         )
     else:
-        raise ValueError(f"Error, model_name_or_path is None, SFT must be loaded from a pre-trained model")
-    # Resizes model embeddings to match the tokenizer vocab size
-    resize_model_embeddings(model, tokenizer)
+        raise ValueError(f"Error, model_name_or_path is None, RL must be loaded from a pre-trained model")
+
+    # Load tokenizer
+    tokenizer_kwargs = {
+        "cache_dir": model_args.cache_dir,
+        "use_fast": model_args.use_fast_tokenizer,
+        "trust_remote_code": model_args.trust_remote_code,
+    }
+    tokenizer_name_or_path = model_args.tokenizer_name_or_path
+    if not tokenizer_name_or_path:
+        tokenizer_name_or_path = model_args.model_name_or_path
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    # Required for llama
+    if tokenizer.pad_token is None:
+        tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
+
     if training_args.peft_path is not None:
         logger.info("Peft from pre-trained model")
         model = PeftModel.from_pretrained(model, training_args.peft_path)
     else:
         logger.info("Init new peft model")
-        target_modules = training_args.target_modules.split(',')
+        target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
+        if target_modules and 'all' in target_modules:
+            target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
         modules_to_save = training_args.modules_to_save
         if modules_to_save is not None:
             modules_to_save = modules_to_save.split(',')
@@ -341,6 +295,8 @@ def main():
             lora_dropout=training_args.lora_dropout,
             modules_to_save=modules_to_save)
         model = get_peft_model(model, peft_config)
+    if model_args.load_in_8bit:
+        model = prepare_model_for_int8_training(model)
     model.print_trainable_parameters()
 
     # Get datasets
@@ -395,31 +351,38 @@ def main():
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
             )
-    # Tokenize the dataset
-    max_length = data_args.max_length  # Set max length of input text
+    logger.info(f"Raw datasets: {raw_datasets}")
+
+    # Preprocessing the datasets
+    max_source_length = data_args.max_source_length
+    max_target_length = data_args.max_target_length
 
     def preprocess_function(examples):
         new_examples = {
             "query": [],
             "input_ids": [],
         }
-        for question in examples["question"]:
-            query = "Question: " + question + "\n\nAnswer: "
-            tokenized_question = tokenizer(query, truncation=True)
-            new_examples["query"].append(query)
+        for instruction, input in zip(examples['instruction'], examples['input']):
+            if input:
+                instruction = instruction + "\n" + input
+            source = PROMPT_TEMPLATE.format_map({"instruction": instruction})
+            tokenized_question = tokenizer(source, truncation=True, max_length=max_source_length)
+            new_examples["query"].append(source)
             new_examples["input_ids"].append(tokenized_question["input_ids"])
 
         return new_examples
 
     # Preprocess the dataset
     train_dataset = None
+    max_train_samples = None
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets['train']
-        if data_args.max_train_samples is not None:
+        if data_args.max_train_samples is not None and data_args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
+        logger.debug(f"Example train_dataset[0]: {train_dataset[0]}")
         with training_args.main_process_first(desc="Train dataset tokenization"):
             tokenized_dataset = train_dataset.shuffle().map(
                 preprocess_function,
@@ -430,21 +393,23 @@ def main():
                 desc="Running tokenizer on dataset",
             )
             train_dataset = tokenized_dataset.filter(
-                lambda x: 0 < len(x['input_ids']) <= max_length
+                lambda x: len(x['input_ids']) > 0
             )
-            logger.debug(f"Num train_samples  {len(train_dataset)}")
-            logger.debug("Training example:")
+            logger.debug(f"Num train_samples: {len(train_dataset)}")
+            logger.debug("Tokenized training example:")
             logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
 
     eval_dataset = None
+    max_eval_samples = None
     if training_args.do_eval:
         with training_args.main_process_first(desc="Eval dataset tokenization"):
             if "validation" not in raw_datasets:
                 raise ValueError("--do_eval requires a validation dataset")
             eval_dataset = raw_datasets["validation"]
-            if data_args.max_eval_samples is not None:
+            if data_args.max_eval_samples is not None and data_args.max_eval_samples > 0:
                 max_eval_samples = min(len(eval_dataset), data_args.max_eval_samples)
                 eval_dataset = eval_dataset.select(range(max_eval_samples))
+            logger.debug(f"Example eval_dataset[0]: {eval_dataset[0]}")
             tokenized_dataset = eval_dataset.map(
                 preprocess_function,
                 batched=True,
@@ -454,10 +419,10 @@ def main():
                 desc="Running tokenizer on dataset",
             )
             eval_dataset = tokenized_dataset.filter(
-                lambda x: 0 < len(x['input_ids']) <= max_length
+                lambda x: len(x['input_ids']) > 0
             )
             logger.debug(f"Num eval_samples: {len(eval_dataset)}")
-            logger.debug("Eval example:")
+            logger.debug("Tokenized eval example:")
             logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
 
     def collator(data):
@@ -492,7 +457,7 @@ def main():
     current_device = Accelerator().local_process_index
     sentiment_pipe = pipeline(
         "sentiment-analysis",
-        model=model_args.reward_model_name,
+        model=model_args.reward_model_name_or_path,
         device_map={"": current_device},
         model_kwargs={"load_in_8bit": model_args.load_in_8bit},
         tokenizer=tokenizer,
@@ -506,8 +471,7 @@ def main():
         "pad_token_id": tokenizer.pad_token_id,
         "eos_token_id": tokenizer.eos_token_id,
     }
-    output_min_length = 4
-    output_length_sampler = LengthSampler(output_min_length, training_args.output_max_length)
+    output_length_sampler = LengthSampler(data_args.min_target_length, max_target_length)
     # We then define the arguments to pass to the sentiment analysis pipeline.
     sent_kwargs = {"return_all_scores": True, "function_to_apply": "none",
                    "batch_size": training_args.per_device_train_batch_size, "truncation": True}

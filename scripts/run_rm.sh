@@ -1,10 +1,10 @@
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 run_supervised_finetuning.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 run_reward_modeling.py \
     --model_name_or_path shibing624/chinese-alpaca-plus-7b-hf \
     --dataset_name shibing624/medical \
-    --dataset_config_name finetune \
+    --dataset_config_name reward \
     --validation_split_percentage 0.001 \
-    --per_device_train_batch_size 8 \
-    --per_device_eval_batch_size 8 \
+    --per_device_train_batch_size 4 \
+    --per_device_eval_batch_size 4 \
     --do_train \
     --do_eval \
     --seed 42 \
@@ -26,7 +26,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 run_supervis
     --preprocessing_num_workers 1 \
     --max_source_length 256 \
     --max_target_length 256 \
-    --output_dir outputs-medical-llama-sft-v1 \
+    --output_dir outputs-medical-llama-rm-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
