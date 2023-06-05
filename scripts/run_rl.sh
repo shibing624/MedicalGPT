@@ -1,12 +1,15 @@
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 run_reward_modeling.py \
-    --model_name_or_path <LLAMA_SFT_MODEL> \
-    --reward_model_name_or_path <LLAMA_REWARD_MODEL> \
+SFT_MODEL=path/to/SFT_MODEL
+REWARD_MODEL=path/to/REWARD_MODEL
+
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 rl_training.py \
+    --model_name_or_path ${SFT_MODEL} \
+    --reward_model_name_or_path ${REWARD_MODEL} \
     --dataset_name shibing624/medical \
     --dataset_config_name finetune \
     --validation_split_percentage 0.001 \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 1 \
     --mini_batch_size 1 \
-    --per_device_eval_batch_size 4 \
+    --per_device_eval_batch_size 1 \
     --do_train \
     --seed 42 \
     --fp16 \

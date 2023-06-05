@@ -380,8 +380,8 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
 
     if training_args.peft_path is not None:
-        logger.info("Peft from pre-trained model")
-        model = PeftModel.from_pretrained(model, training_args.peft_path)
+        logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
+        model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
     else:
         logger.info("Init new peft model")
         target_modules = training_args.target_modules.split(',') if training_args.target_modules else None

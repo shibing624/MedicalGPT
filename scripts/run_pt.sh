@@ -1,20 +1,20 @@
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 run_supervised_finetuning.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 pretraining.py \
     --model_name_or_path shibing624/chinese-alpaca-plus-7b-hf \
     --dataset_name shibing624/medical \
     --dataset_config_name finetune \
     --validation_split_percentage 0.001 \
-    --per_device_train_batch_size 12 \
-    --per_device_eval_batch_size 12 \
+    --per_device_train_batch_size 8 \
+    --per_device_eval_batch_size 8 \
     --do_train \
     --do_eval \
     --seed 42 \
     --fp16 \
-    --max_train_samples 1000 \
+    --max_train_samples 100000 \
     --max_eval_samples 10 \
     --num_train_epochs 1 \
-    --learning_rate 2e-5 \
+    --learning_rate 2e-4 \
     --warmup_ratio 0.05 \
-    --weight_decay 0 \
+    --weight_decay 0.01 \
     --logging_strategy steps \
     --logging_steps 10 \
     --eval_steps 50 \

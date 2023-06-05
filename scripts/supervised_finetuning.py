@@ -282,8 +282,8 @@ def main():
         tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
 
     if training_args.peft_path is not None:
-        logger.info("Peft from pre-trained model")
-        model = PeftModel.from_pretrained(model, training_args.peft_path)
+        logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
+        model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
     else:
         logger.info("Init new peft model")
         target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
@@ -430,7 +430,7 @@ def main():
                 preprocess_function,
                 batched=True,
                 num_proc=data_args.preprocessing_num_workers,
-                remove_columns=train_dataset.column_names,
+                remove_columns=eval_dataset.column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )

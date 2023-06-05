@@ -61,7 +61,7 @@ class ModelArguments:
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
     use_fast_tokenizer: bool = field(
-        default=True,
+        default=False,
         metadata={"help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."},
     )
     torch_dtype: Optional[str] = field(
@@ -342,8 +342,8 @@ def main():
         tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
 
     if training_args.peft_path is not None:
-        logger.info("Peft from pre-trained model")
-        model = PeftModel.from_pretrained(model, training_args.peft_path)
+        logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
+        model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
     else:
         logger.info("Init new peft model")
         target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
@@ -473,7 +473,7 @@ def main():
             )
             logger.debug(f"Num train_samples: {len(train_dataset)}")
             logger.debug("Tokenized training example:")
-            logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
+            logger.debug(tokenizer.decode(train_dataset[0]['input_ids_chosen']))
 
     eval_dataset = None
     max_eval_samples = None
@@ -500,7 +500,7 @@ def main():
             )
             logger.debug(f"Num eval_samples: {len(eval_dataset)}")
             logger.debug("Tokenized eval example:")
-            logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
+            logger.debug(tokenizer.decode(eval_dataset[0]['input_ids_chosen']))
 
     # Initialize our Trainer
     if training_args.gradient_checkpointing:
