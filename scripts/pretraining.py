@@ -31,7 +31,11 @@ from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
 from sklearn.metrics import accuracy_score
 from transformers import (
-    AutoModelForCausalLM,
+    BloomForCausalLM,
+    AutoModel,
+    LlamaTokenizer,
+    LlamaForCausalLM,
+    BloomTokenizerFast,
     AutoTokenizer,
     HfArgumentParser,
     Trainer,
@@ -44,6 +48,12 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import send_example_telemetry
 from transformers.utils.versions import require_version
 
+MODEL_CLASSES = {
+    "bloom": (BloomForCausalLM, BloomTokenizerFast),
+    "chatglm": (AutoModel, AutoTokenizer),
+    "llama": (LlamaForCausalLM, LlamaTokenizer),
+}
+
 
 @dataclass
 class ModelArguments:
@@ -51,6 +61,10 @@ class ModelArguments:
     Arguments pertaining to which model/config/tokenizer we are going to fine-tune, or train from scratch.
     """
 
+    model_type: str = field(
+        default="llama",
+        metadata={"help": "Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys())}
+    )
     model_name_or_path: Optional[str] = field(
         default=None,
         metadata={
@@ -352,13 +366,16 @@ def main():
     set_seed(training_args.seed)
 
     # Load pretrained model and tokenizer
-    if model_args.model_name_or_path:
+    if not model_args.model_type:
+        raise ValueError("Please specify a model_type")
+    model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
+    if model_args.model_type and model_args.model_name_or_path:
         torch_dtype = (
             model_args.torch_dtype
             if model_args.torch_dtype in ["auto", None]
             else getattr(torch, model_args.torch_dtype)
         )
-        model = AutoModelForCausalLM.from_pretrained(
+        model = model_class.from_pretrained(
             model_args.model_name_or_path,
             load_in_8bit=model_args.load_in_8bit,
             cache_dir=model_args.cache_dir,
@@ -377,7 +394,7 @@ def main():
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
 
     if training_args.peft_path is not None:
         logger.info(f"Peft from pre-trained model: {training_args.peft_path}")

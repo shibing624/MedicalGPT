@@ -28,9 +28,21 @@ from transformers import (
     TrainingArguments,
     set_seed,
 )
+from transformers import (
+    BloomForSequenceClassification,
+    LlamaForSequenceClassification,
+    LlamaTokenizer,
+    BloomTokenizerFast,
+)
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import send_example_telemetry
+
+MODEL_CLASSES = {
+    "bloom": (BloomForSequenceClassification, BloomTokenizerFast),
+    "chatglm": (AutoModelForSequenceClassification, AutoTokenizer),
+    "llama": (LlamaForSequenceClassification, LlamaTokenizer),
+}
 
 
 @dataclass
@@ -39,6 +51,10 @@ class ModelArguments:
     Arguments pertaining to which model/config/tokenizer we are going to fine-tune, or train from scratch.
     """
 
+    model_type: str = field(
+        default="llama",
+        metadata={"help": "Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys())}
+    )
     model_name_or_path: Optional[str] = field(
         default=None,
         metadata={
@@ -309,13 +325,16 @@ def main():
     set_seed(training_args.seed)
 
     # Load model
+    if not model_args.model_type:
+        raise ValueError("Please specify a model_type")
+    model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
     if model_args.model_name_or_path:
         torch_dtype = (
             model_args.torch_dtype
             if model_args.torch_dtype in ["auto", None]
             else getattr(torch, model_args.torch_dtype)
         )
-        model = AutoModelForSequenceClassification.from_pretrained(
+        model = model_class.from_pretrained(
             model_args.model_name_or_path,
             num_labels=1,
             load_in_8bit=model_args.load_in_8bit,
@@ -336,9 +355,9 @@ def main():
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     # Required for llama
-    if tokenizer.pad_token is None:
+    if model_args.model_type == "llama" and tokenizer.pad_token is None:
         tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
 
     if training_args.peft_path is not None:
