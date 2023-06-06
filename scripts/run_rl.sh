@@ -27,7 +27,6 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 rl_training.
     --min_target_length 4 \
     --output_dir outputs-medical-llama-rl-v1 \
     --overwrite_output_dir \
-    --target_modules all \
     --lora_rank 8 \
     --lora_alpha 16 \
     --lora_dropout 0.05 \

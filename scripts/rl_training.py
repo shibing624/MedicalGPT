@@ -10,7 +10,6 @@ from glob import glob
 from typing import Optional
 
 import torch
-from accelerate import Accelerator
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType
@@ -28,6 +27,9 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import send_example_telemetry
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
 from trl.core import LengthSampler
+
+os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
 @dataclass
@@ -123,23 +125,8 @@ class DataTrainingArguments:
         },
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
-        metadata={"help": "The number of processes to use for the preprocessing."},
+        default=None, metadata={"help": "The number of processes to use for the preprocessing."},
     )
-    mini_batch_size: Optional[int] = field(default=1, metadata={"help": "PPO minibatch size"})
-    early_stopping: Optional[bool] = field(default=False, metadata={"help": "Whether to early stop"})
-    target_kl: Optional[float] = field(default=0.1, metadata={"help": "The kl target for early stopping"})
-    reward_baseline: Optional[float] = field(
-        default=0.0,
-        metadata={"help": "Baseline value that is subtracted from the reward"},
-    )
-    max_steps: Optional[int] = field(default=20000, metadata={"help": "Number of total steps"})
-    init_kl_coef: Optional[float] = field(
-        default=0.2,
-        metadata={"help": "Initial KL penalty coefficient (used for adaptive and linear control)"},
-    )
-
-    adap_kl_ctrl: Optional[bool] = field(default=True, metadata={"help": "Use adaptive KL control, otherwise linear"})
 
 
 @dataclass
@@ -155,12 +142,10 @@ class PeftArguments(TrainingArguments):
     early_stopping: Optional[bool] = field(default=False, metadata={"help": "Whether to early stop"})
     target_kl: Optional[float] = field(default=0.1, metadata={"help": "The kl target for early stopping"})
     reward_baseline: Optional[float] = field(
-        default=0.0,
-        metadata={"help": "Baseline value that is subtracted from the reward"},
+        default=0.0, metadata={"help": "Baseline value that is subtracted from the reward"},
     )
     init_kl_coef: Optional[float] = field(
-        default=0.2,
-        metadata={"help": "Initial KL penalty coefficient (used for adaptive and linear control)"},
+        default=0.2, metadata={"help": "Initial KL penalty coefficient (used for adaptive and linear control)"},
     )
     adap_kl_ctrl: Optional[bool] = field(default=True, metadata={"help": "Use adaptive KL control, otherwise linear"})
 
@@ -416,6 +401,7 @@ def main():
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
 
+    output_dir = training_args.output_dir
     config = PPOConfig(
         steps=training_args.max_steps,
         model_name=model_args.model_name_or_path,
@@ -430,6 +416,7 @@ def main():
         seed=training_args.seed,
         init_kl_coef=training_args.init_kl_coef,
         adap_kl_ctrl=training_args.adap_kl_ctrl,
+        accelerator_kwargs={"project_dir": output_dir},
     )
     # Set seed before initializing value head for deterministic eval
     set_seed(config.seed)
@@ -444,11 +431,10 @@ def main():
         data_collator=collator,
     )
 
-    current_device = Accelerator().local_process_index
     sentiment_pipe = pipeline(
         "sentiment-analysis",
         model=model_args.reward_model_name_or_path,
-        device_map={"": current_device},
+        device_map=model_args.device_map,
         model_kwargs={"load_in_8bit": model_args.load_in_8bit},
         tokenizer=tokenizer,
         return_token_type_ids=False,
@@ -470,7 +456,6 @@ def main():
         "batch_size": training_args.per_device_train_batch_size,
         "truncation": True,
     }
-    output_dir = training_args.output_dir
 
     # Training
     if training_args.do_train:
