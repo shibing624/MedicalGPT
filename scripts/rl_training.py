@@ -15,16 +15,26 @@ from loguru import logger
 from peft import LoraConfig, TaskType
 from tqdm import tqdm
 from transformers import (
+    AutoModelForSequenceClassification,
+    BloomForCausalLM,
+    AutoModel,
+    LlamaTokenizer,
+    LlamaForCausalLM,
+    BloomTokenizerFast,
     AutoTokenizer,
     HfArgumentParser,
     set_seed,
-    AutoModelForSequenceClassification,
 )
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
-from trl.core import LengthSampler
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+MODEL_CLASSES = {
+    "bloom": (BloomForCausalLM, BloomTokenizerFast),
+    "chatglm": (AutoModel, AutoTokenizer),
+    "llama": (LlamaForCausalLM, LlamaTokenizer),
+}
 
 
 @dataclass
@@ -33,6 +43,10 @@ class ScriptArguments:
     The name of the Casual LM model we wish to fine with PPO
     """
     # Model arguments
+    model_type: str = field(
+        default=None,
+        metadata={"help": "Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys())}
+    )
     model_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "The model checkpoint for weights initialization."}
     )
@@ -182,6 +196,7 @@ def main():
 
     logger.warning(f"Parse args: {args}")
 
+    model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     # Load tokenizer
     tokenizer_kwargs = {
         "cache_dir": args.cache_dir,
@@ -191,7 +206,7 @@ def main():
     tokenizer_name_or_path = args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = args.model_name_or_path
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     # Required for llama
     if tokenizer.pad_token is None:
         tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
@@ -229,7 +244,9 @@ def main():
         torch_dtype=torch_dtype,
     )
     reward_model.to(device)
-    reward_tokenizer = AutoTokenizer.from_pretrained(args.reward_model_name_or_path, **tokenizer_kwargs)
+    reward_tokenizer = AutoTokenizer.from_pretrained(
+        args.reward_model_name_or_path, **tokenizer_kwargs
+    )
 
     # Get datasets
     if args.dataset_name is not None:
@@ -298,7 +315,9 @@ def main():
             if input:
                 instruction = instruction + "\n" + input
             source = PROMPT_TEMPLATE.format_map({"instruction": instruction})
-            tokenized_question = tokenizer(source, truncation=True, max_length=max_source_length)
+            tokenized_question = tokenizer(
+                source, truncation=True, max_length=max_source_length, padding="max_length"
+            )
             new_examples["query"].append(source)
             new_examples["input_ids"].append(tokenized_question["input_ids"])
 
