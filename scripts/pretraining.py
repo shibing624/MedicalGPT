@@ -559,11 +559,12 @@ def main():
             )
 
     train_dataset = None
-    max_train_samples = None
+    max_train_samples = 0
     if training_args.do_train:
         if "train" not in tokenized_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = lm_datasets['train']
+        max_train_samples = len(train_dataset)
         if data_args.max_train_samples is not None and data_args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
@@ -572,11 +573,12 @@ def main():
         logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
 
     eval_dataset = None
-    max_eval_samples = None
+    max_eval_samples = 0
     if training_args.do_eval:
         if "validation" not in tokenized_datasets:
             raise ValueError("--do_eval requires a validation dataset")
         eval_dataset = lm_datasets["validation"]
+        max_eval_samples = len(eval_dataset)
         if data_args.max_eval_samples is not None and data_args.max_eval_samples > 0:
             max_eval_samples = min(len(eval_dataset), data_args.max_eval_samples)
             eval_dataset = eval_dataset.select(range(max_eval_samples))

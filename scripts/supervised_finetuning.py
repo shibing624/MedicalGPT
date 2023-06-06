@@ -283,6 +283,7 @@ def main():
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,
         )
+        model.lm_head = CastOutputToFloat(model.lm_head)
     else:
         raise ValueError(f"Error, model_name_or_path is None, SFT must be loaded from a pre-trained model")
 
@@ -411,11 +412,12 @@ def main():
         return results
 
     train_dataset = None
-    max_train_samples = None
+    max_train_samples = 0
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets['train']
+        max_train_samples = len(train_dataset)
         if data_args.max_train_samples is not None and data_args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
@@ -434,12 +436,13 @@ def main():
             logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
 
     eval_dataset = None
-    max_eval_samples = None
+    max_eval_samples = 0
     if training_args.do_eval:
         with training_args.main_process_first(desc="Eval dataset tokenization"):
             if "validation" not in raw_datasets:
                 raise ValueError("--do_eval requires a validation dataset")
             eval_dataset = raw_datasets["validation"]
+            max_eval_samples = len(eval_dataset)
             if data_args.max_eval_samples is not None and data_args.max_eval_samples > 0:
                 max_eval_samples = min(len(eval_dataset), data_args.max_eval_samples)
                 eval_dataset = eval_dataset.select(range(max_eval_samples))
@@ -463,7 +466,7 @@ def main():
     else:
         model.config.use_cache = True
     model.enable_input_require_grads()
-    model.lm_head = CastOutputToFloat(model.lm_head)
+
     if torch.cuda.device_count() > 1:
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True
@@ -495,6 +498,7 @@ def main():
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
 
         metrics = train_result.metrics
+
         metrics["train_samples"] = max_train_samples
         logger.debug(f"Training metrics: {metrics}")
         trainer.log_metrics("train", metrics)

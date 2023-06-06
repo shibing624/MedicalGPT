@@ -133,6 +133,13 @@ class DataTrainingArguments:
         default=0.0,
         metadata={"help": "Baseline value that is subtracted from the reward"},
     )
+    max_steps: Optional[int] = field(default=20000, metadata={"help": "Number of total steps"})
+    init_kl_coef: Optional[float] = field(
+        default=0.2,
+        metadata={"help": "Initial KL penalty coefficient (used for adaptive and linear control)"},
+    )
+
+    adap_kl_ctrl: Optional[bool] = field(default=True, metadata={"help": "Use adaptive KL control, otherwise linear"})
 
 
 @dataclass
@@ -412,6 +419,7 @@ def main():
         return dict((key, [d[key] for d in data]) for key in data[0])
 
     config = PPOConfig(
+        steps=training_args.max_steps,
         model_name=model_args.model_name_or_path,
         learning_rate=training_args.learning_rate,
         log_with=training_args.report_to,
@@ -423,6 +431,8 @@ def main():
         target_kl=training_args.target_kl,
         ppo_epochs=training_args.num_train_epoch,
         seed=training_args.seed,
+        init_kl_coef=training_args.init_kl_coef,
+        adap_kl_ctrl=training_args.adap_kl_ctrl,
     )
     # Set seed before initializing value head for deterministic eval
     set_seed(config.seed)
@@ -444,6 +454,7 @@ def main():
         device_map={"": current_device},
         model_kwargs={"load_in_8bit": model_args.load_in_8bit},
         tokenizer=tokenizer,
+        return_token_type_ids=False,
     )
 
     # These arguments are passed to the `generate` function of the PPOTrainer
@@ -456,14 +467,20 @@ def main():
     }
     output_length_sampler = LengthSampler(data_args.min_target_length, max_target_length)
     # We then define the arguments to pass to the sentiment analysis pipeline.
-    sent_kwargs = {"return_all_scores": True, "function_to_apply": "none",
-                   "batch_size": training_args.per_device_train_batch_size, "truncation": True}
+    sent_kwargs = {
+        "return_all_scores": True,
+        "function_to_apply": "none",
+        "batch_size": training_args.per_device_train_batch_size,
+        "truncation": True,
+    }
     output_dir = training_args.output_dir
 
     # Training
     if training_args.do_train:
         logger.info("*** Train ***")
         for step, batch in tqdm(enumerate(trainer.dataloader)):
+            if step >= config.total_ppo_epochs:
+                break
             question_tensors = batch["input_ids"]
 
             response_tensors = trainer.generate(

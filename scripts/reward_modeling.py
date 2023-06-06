@@ -18,21 +18,15 @@ from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
 from sklearn.metrics import accuracy_score
 from transformers import (
-    AutoModelForSequenceClassification,
     PreTrainedTokenizerBase,
-)
-from transformers import (
-    AutoTokenizer,
-    HfArgumentParser,
-    Trainer,
-    TrainingArguments,
-    set_seed,
-)
-from transformers import (
     BloomForSequenceClassification,
     LlamaForSequenceClassification,
     LlamaTokenizer,
     BloomTokenizerFast,
+    HfArgumentParser,
+    Trainer,
+    TrainingArguments,
+    set_seed,
 )
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.trainer_utils import get_last_checkpoint
@@ -40,7 +34,6 @@ from transformers.utils import send_example_telemetry
 
 MODEL_CLASSES = {
     "bloom": (BloomForSequenceClassification, BloomTokenizerFast),
-    "chatglm": (AutoModelForSequenceClassification, AutoTokenizer),
     "llama": (LlamaForSequenceClassification, LlamaTokenizer),
 }
 
@@ -242,10 +235,7 @@ class RewardTrainer(Trainer):
 
     def compute_loss(self, model, inputs, return_outputs=False):
         rewards_chosen = model(input_ids=inputs["input_ids_chosen"],
-                               attention_mask=inputs["attention_mask_chosen"])
-        print(rewards_chosen.shape)
-        rewards_chosen = rewards_chosen[0]
-        print(rewards_chosen.shape)
+                               attention_mask=inputs["attention_mask_chosen"])[0]
         rewards_rejected = model(input_ids=inputs["input_ids_rejected"],
                                  attention_mask=inputs["attention_mask_rejected"])[0]
         loss = -torch.nn.functional.logsigmoid(rewards_chosen - rewards_rejected).mean()
@@ -271,6 +261,13 @@ def save_model(output_dir, model, tokenizer, args):
     torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
 
 
+class CastOutputToFloat(torch.nn.Sequential):
+    """Cast the output of the model to float"""
+
+    def forward(self, x):
+        return super().forward(x).to(torch.float32)
+
+
 def find_all_linear_names(peft_model, int4=False, int8=False):
     cls = torch.nn.Linear
     if int4 or int8:
@@ -284,6 +281,8 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
         if isinstance(module, cls):
             # last layer is not add to lora_module_names
             if 'lm_head' in name:
+                continue
+            if 'score' in name:
                 continue
             names = name.split('.')
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
@@ -341,6 +340,7 @@ def main():
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,
         )
+        model.score = CastOutputToFloat(model.score)
     else:
         raise ValueError(f"Error, model_name_or_path is None, RM must be loaded from a pre-trained model")
 
@@ -454,8 +454,8 @@ def main():
         }
         for question, chosen, rejected in zip(examples["question"], examples["response_chosen"],
                                               examples["response_rejected"]):
-            tokenized_chosen = tokenizer("Question: " + question + "\n\nAnswer: " + chosen, truncation=True)
-            tokenized_rejected = tokenizer("Question: " + question + "\n\nAnswer: " + rejected, truncation=True)
+            tokenized_chosen = tokenizer("Question: " + question + "\n\nAnswer: " + chosen)
+            tokenized_rejected = tokenizer("Question: " + question + "\n\nAnswer: " + rejected)
 
             new_examples["input_ids_chosen"].append(tokenized_chosen["input_ids"])
             new_examples["attention_mask_chosen"].append(tokenized_chosen["attention_mask"])
@@ -465,11 +465,12 @@ def main():
         return new_examples
 
     train_dataset = None
-    max_train_samples = None
+    max_train_samples = 0
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets['train']
+        max_train_samples = len(train_dataset)
         if data_args.max_train_samples is not None and data_args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
@@ -492,12 +493,13 @@ def main():
             logger.debug(tokenizer.decode(train_dataset[0]['input_ids_chosen']))
 
     eval_dataset = None
-    max_eval_samples = None
+    max_eval_samples = 0
     if training_args.do_eval:
         with training_args.main_process_first(desc="Eval dataset tokenization"):
             if "validation" not in raw_datasets:
                 raise ValueError("--do_eval requires a validation dataset")
             eval_dataset = raw_datasets["validation"]
+            max_eval_samples = len(eval_dataset)
             if data_args.max_eval_samples is not None and data_args.max_eval_samples > 0:
                 max_eval_samples = min(len(eval_dataset), data_args.max_eval_samples)
                 eval_dataset = eval_dataset.select(range(max_eval_samples))
@@ -536,7 +538,9 @@ def main():
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
         compute_metrics=compute_metrics,
-        data_collator=RewardDataCollatorWithPadding(tokenizer=tokenizer, max_length=max_length),
+        data_collator=RewardDataCollatorWithPadding(
+            tokenizer=tokenizer, max_length=max_length, padding="max_length"
+        ),
     )
 
     # Training

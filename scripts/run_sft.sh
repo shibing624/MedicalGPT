@@ -15,7 +15,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 supervised_f
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
     --warmup_ratio 0.05 \
-    --weight_decay 0 \
+    --weight_decay 0.05 \
     --logging_strategy steps \
     --logging_steps 10 \
     --eval_steps 50 \
