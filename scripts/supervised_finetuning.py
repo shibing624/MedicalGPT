@@ -58,7 +58,7 @@ class ModelArguments:
     """
 
     model_type: str = field(
-        default="llama",
+        default=None,
         metadata={"help": "Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys())}
     )
     model_name_or_path: Optional[str] = field(
@@ -272,7 +272,7 @@ def main():
 
     # Load model
     if not model_args.model_type:
-        raise ValueError("Please specify a model_type")
+        raise ValueError("Please specify a model_type, e.g. llama, chatglm, bloom, etc.")
     model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
     if model_args.model_name_or_path:
         torch_dtype = (
