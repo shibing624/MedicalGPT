@@ -99,6 +99,14 @@ class ModelArguments:
         metadata={"help": "Whether to trust remote code when loading a model from a remote checkpoint."},
     )
 
+    def __post_init__(self):
+        if self.model_type is None:
+            raise ValueError(
+                "You must specify a valid model_type to run training. Available model types are " + ", ".join(
+                    MODEL_CLASSES.keys()))
+        if self.model_name_or_path is None:
+            raise ValueError("You must specify a valid model_name_or_path to run training.")
+
 
 @dataclass
 class DataTrainingArguments:
@@ -234,7 +242,10 @@ class RewardTrainer(Trainer):
 
     def compute_loss(self, model, inputs, return_outputs=False):
         rewards_chosen = model(input_ids=inputs["input_ids_chosen"],
-                               attention_mask=inputs["attention_mask_chosen"])[0]
+                               attention_mask=inputs["attention_mask_chosen"])
+        print(rewards_chosen.shape)
+        rewards_chosen = rewards_chosen[0]
+        print(rewards_chosen.shape)
         rewards_rejected = model(input_ids=inputs["input_ids_rejected"],
                                  attention_mask=inputs["attention_mask_rejected"])[0]
         loss = -torch.nn.functional.logsigmoid(rewards_chosen - rewards_rejected).mean()
@@ -277,19 +288,6 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
             names = name.split('.')
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
     return sorted(lora_module_names)
-
-
-def resize_model_embeddings(model, tokenizer_vocab_size):
-    """Resizes model embeddings to match the tokenizer vocab size."""
-    model_vocab_size = model.get_input_embeddings().weight.size(0)
-    if model_vocab_size != tokenizer_vocab_size:
-        logger.info(
-            f"Resize model embeddings to fit tokenizer, "
-            f"Vocab of the base model: {model_vocab_size}, "
-            f"Vocab of the tokenizer: {tokenizer_vocab_size}"
-        )
-        model.resize_token_embeddings(tokenizer_vocab_size)
-        logger.info(f"Model token embeddings updated, size: {tokenizer_vocab_size}")
 
 
 def main():
@@ -384,7 +382,6 @@ def main():
         model = get_peft_model(model, peft_config)
     if model_args.load_in_8bit:
         model = prepare_model_for_int8_training(model)
-    resize_model_embeddings(model, len(tokenizer))
     model.print_trainable_parameters()
 
     # Get reward dataset for tuning the reward model.

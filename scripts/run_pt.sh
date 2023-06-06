@@ -1,4 +1,5 @@
 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 pretraining.py \
+    --model_type llama \
     --model_name_or_path shibing624/chinese-alpaca-plus-7b-hf \
     --dataset_name shibing624/medical \
     --dataset_config_name finetune \

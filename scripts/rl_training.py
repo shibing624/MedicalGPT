@@ -37,21 +37,11 @@ class ModelArguments:
     """
 
     model_name_or_path: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": (
-                "The model checkpoint for weights initialization.Don't set if you want to train a model from scratch."
-            )
-        },
+        default=None, metadata={"help": "The model checkpoint for weights initialization."}
     )
     reward_model_name_or_path: Optional[str] = field(default=None, metadata={"help": "The reward model name"})
     tokenizer_name_or_path: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": (
-                "The tokenizer for weights initialization.Don't set if you want to train a model from scratch."
-            )
-        },
+        default=None, metadata={"help": "The tokenizer for weights initialization."}
     )
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
     cache_dir: Optional[str] = field(
@@ -80,6 +70,12 @@ class ModelArguments:
         default=True,
         metadata={"help": "Whether to trust remote code when loading a model from a remote checkpoint."},
     )
+
+    def __post_init__(self):
+        if self.model_name_or_path is None:
+            raise ValueError("You must specify a valid model_name_or_path to run training.")
+        if self.reward_model_name_or_path is None:
+            raise ValueError("You must specify a valid reward_model_name_or_path to run training.")
 
 
 @dataclass
@@ -197,19 +193,6 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
             names = name.split('.')
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
     return sorted(lora_module_names)
-
-
-def resize_model_embeddings(model, tokenizer_vocab_size):
-    """Resizes model embeddings to match the tokenizer vocab size."""
-    model_vocab_size = model.get_input_embeddings().weight.size(0)
-    if model_vocab_size != tokenizer_vocab_size:
-        logger.info(
-            f"Resize model embeddings to fit tokenizer, "
-            f"Vocab of the base model: {model_vocab_size}, "
-            f"Vocab of the tokenizer: {tokenizer_vocab_size}"
-        )
-        model.resize_token_embeddings(tokenizer_vocab_size)
-        logger.info(f"Model token embeddings updated, size: {tokenizer_vocab_size}")
 
 
 def main():
