@@ -13,7 +13,7 @@ import torch
 from accelerate import Accelerator
 from datasets import load_dataset
 from loguru import logger
-from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
+from peft import LoraConfig, TaskType
 from tqdm import tqdm
 from transformers import (
     AutoTokenizer,
@@ -144,12 +144,25 @@ class DataTrainingArguments:
 
 @dataclass
 class PeftArguments(TrainingArguments):
-    target_modules: Optional[str] = field(default="all")
+    target_modules: Optional[str] = field(default=None)
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
     lora_alpha: Optional[float] = field(default=32.0)
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
+
+    mini_batch_size: Optional[int] = field(default=1, metadata={"help": "PPO minibatch size"})
+    early_stopping: Optional[bool] = field(default=False, metadata={"help": "Whether to early stop"})
+    target_kl: Optional[float] = field(default=0.1, metadata={"help": "The kl target for early stopping"})
+    reward_baseline: Optional[float] = field(
+        default=0.0,
+        metadata={"help": "Baseline value that is subtracted from the reward"},
+    )
+    init_kl_coef: Optional[float] = field(
+        default=0.2,
+        metadata={"help": "Initial KL penalty coefficient (used for adaptive and linear control)"},
+    )
+    adap_kl_ctrl: Optional[bool] = field(default=True, metadata={"help": "Use adaptive KL control, otherwise linear"})
 
 
 DEFAULT_PAD_TOKEN = "[PAD]"
@@ -231,24 +244,6 @@ def main():
                 "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
             )
 
-    # Load model
-    if model_args.model_name_or_path:
-        torch_dtype = (
-            model_args.torch_dtype
-            if model_args.torch_dtype in ["auto", None]
-            else getattr(torch, model_args.torch_dtype)
-        )
-        model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            model_args.model_name_or_path,
-            load_in_8bit=model_args.load_in_8bit,
-            cache_dir=model_args.cache_dir,
-            torch_dtype=torch_dtype,
-            device_map=model_args.device_map,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-    else:
-        raise ValueError(f"Error, model_name_or_path is None, RL must be loaded from a pre-trained model")
-
     # Load tokenizer
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
@@ -263,31 +258,32 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
 
-    if training_args.peft_path is not None:
-        logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
-        model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
+    logger.info("Init new peft model")
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=training_args.target_modules,
+        inference_mode=False,
+        r=training_args.lora_rank,
+        lora_alpha=training_args.lora_alpha,
+        lora_dropout=training_args.lora_dropout,
+    )
+    if model_args.model_name_or_path:
+        torch_dtype = (
+            model_args.torch_dtype
+            if model_args.torch_dtype in ["auto", None]
+            else getattr(torch, model_args.torch_dtype)
+        )
+        model = AutoModelForCausalLMWithValueHead.from_pretrained(
+            model_args.model_name_or_path,
+            load_in_8bit=model_args.load_in_8bit,
+            cache_dir=model_args.cache_dir,
+            torch_dtype=torch_dtype,
+            device_map=model_args.device_map,
+            trust_remote_code=model_args.trust_remote_code,
+            peft_config=peft_config,
+        )
     else:
-        logger.info("Init new peft model")
-        target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
-        if target_modules and 'all' in target_modules:
-            target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
-        modules_to_save = training_args.modules_to_save
-        if modules_to_save is not None:
-            modules_to_save = modules_to_save.split(',')
-        logger.info(f"Peft target_modules: {target_modules}")
-        logger.info(f"Peft lora_rank: {training_args.lora_rank}")
-        peft_config = LoraConfig(
-            task_type=TaskType.CAUSAL_LM,
-            target_modules=target_modules,
-            inference_mode=False,
-            r=training_args.lora_rank,
-            lora_alpha=training_args.lora_alpha,
-            lora_dropout=training_args.lora_dropout,
-            modules_to_save=modules_to_save)
-        model = get_peft_model(model, peft_config)
-    if model_args.load_in_8bit:
-        model = prepare_model_for_int8_training(model)
-    model.print_trainable_parameters()
+        raise ValueError(f"Error, model_name_or_path is None, RL must be loaded from a pre-trained model")
 
     # Get datasets
     if data_args.dataset_name is not None:
@@ -364,11 +360,12 @@ def main():
 
     # Preprocess the dataset
     train_dataset = None
-    max_train_samples = None
+    max_train_samples = 0
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets['train']
+        max_train_samples = len(train_dataset)
         if data_args.max_train_samples is not None and data_args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
@@ -390,12 +387,13 @@ def main():
             logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
 
     eval_dataset = None
-    max_eval_samples = None
+    max_eval_samples = 0
     if training_args.do_eval:
         with training_args.main_process_first(desc="Eval dataset tokenization"):
             if "validation" not in raw_datasets:
                 raise ValueError("--do_eval requires a validation dataset")
             eval_dataset = raw_datasets["validation"]
+            max_eval_samples = len(eval_dataset)
             if data_args.max_eval_samples is not None and data_args.max_eval_samples > 0:
                 max_eval_samples = min(len(eval_dataset), data_args.max_eval_samples)
                 eval_dataset = eval_dataset.select(range(max_eval_samples))
@@ -429,7 +427,6 @@ def main():
         optimize_cuda_cache=True,
         early_stopping=training_args.early_stopping,
         target_kl=training_args.target_kl,
-        ppo_epochs=training_args.num_train_epoch,
         seed=training_args.seed,
         init_kl_coef=training_args.init_kl_coef,
         adap_kl_ctrl=training_args.adap_kl_ctrl,

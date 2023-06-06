@@ -125,6 +125,7 @@ RL(Reinforcement Learning)模型的目的是最大化奖励模型的输出，基
 Reinforcement Learning fine-tuning of llama-7b-sft with the llama-7b-reward reward model to create llama-7b-rl
 
 ```shell
+pip install git+https://github.com/lvwerra/trl
 cd scripts
 sh run_rl.sh
 ```

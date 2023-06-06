@@ -15,7 +15,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 rl_training.
     --fp16 \
     --max_train_samples 1000 \
     --max_eval_samples 10 \
-    --num_train_epochs 1 \
+    --max_steps 1000 \
     --learning_rate 1e-5 \
     --save_steps 50 \
     --save_strategy steps \
