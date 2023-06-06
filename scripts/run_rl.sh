@@ -7,7 +7,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 rl_training.
     --dataset_name shibing624/medical \
     --dataset_config_name finetune \
     --validation_split_percentage 0.001 \
-    --per_device_train_batch_size 1 \
+    --per_device_train_batch_size 2 \
     --mini_batch_size 1 \
     --per_device_eval_batch_size 1 \
     --do_train \
@@ -32,7 +32,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 rl_training.
     --lora_dropout 0.05 \
     --torch_dtype float16 \
     --device_map auto \
-    --report_to tensorboard \
+    --report_to none \
     --gradient_checkpointing True \
     --early_stopping True \
     --target_kl 0.1 \

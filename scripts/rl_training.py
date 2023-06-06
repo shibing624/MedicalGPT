@@ -21,7 +21,6 @@ from transformers import (
     set_seed,
     AutoModelForSequenceClassification,
 )
-from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.utils import send_example_telemetry
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
 from trl.core import LengthSampler
@@ -156,34 +155,19 @@ PROMPT_TEMPLATE = (
 )
 
 
-def save_model(output_dir, model, tokenizer, args):
-    """Save the model and the tokenizer."""
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Take care of distributed/parallel training
-    model_to_save = model.module if hasattr(model, "module") else model
-    model_to_save.save_pretrained(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
-
-
-def find_all_linear_names(peft_model, int4=False, int8=False):
-    cls = torch.nn.Linear
-    if int4 or int8:
-        import bitsandbytes as bnb
-        if int4:
-            cls = bnb.nn.Linear4bit
-        elif int8:
-            cls = bnb.nn.Linear8bitLt
-    lora_module_names = set()
-    for name, module in peft_model.named_modules():
-        if isinstance(module, cls):
-            # last layer is not add to lora_module_names
-            if 'lm_head' in name:
-                continue
-            names = name.split('.')
-            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
-    return sorted(lora_module_names)
+def print_trainable_parameters(model):
+    """
+    Prints the number of trainable parameters in the model.
+    """
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+    print(
+        f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
+    )
 
 
 def get_reward_score(reward_model, reward_tokenizer, question, answer):
@@ -244,6 +228,7 @@ def main():
         trust_remote_code=model_args.trust_remote_code,
         peft_config=peft_config,
     )
+    print_trainable_parameters(model)
     # Load reward model
     reward_model = AutoModelForSequenceClassification.from_pretrained(
         model_args.reward_model_name_or_path,
