@@ -17,13 +17,11 @@ from tqdm import tqdm
 from transformers import (
     AutoTokenizer,
     HfArgumentParser,
-    Trainer,
     TrainingArguments,
     set_seed,
+    AutoModelForSequenceClassification,
 )
-from transformers import pipeline
 from transformers.trainer import TRAINING_ARGS_NAME
-from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import send_example_telemetry
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
 from trl.core import LengthSampler
@@ -158,18 +156,6 @@ PROMPT_TEMPLATE = (
 )
 
 
-class RLTrainer(Trainer):
-    """
-    Trainer for RL models
-    """
-
-    def save_model(self, output_dir=None, _internal_call=False):
-        """Save the LoRA model."""
-        os.makedirs(output_dir, exist_ok=True)
-        torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
-        self.model.save_pretrained(output_dir)
-
-
 def save_model(output_dir, model, tokenizer, args):
     """Save the model and the tokenizer."""
     os.makedirs(output_dir, exist_ok=True)
@@ -200,6 +186,13 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
     return sorted(lora_module_names)
 
 
+def get_reward_score(reward_model, reward_tokenizer, question, answer):
+    inputs = reward_tokenizer(question, answer, return_tensors='pt')
+    score = reward_model(**inputs).logits[0].cpu().detach()
+
+    return score
+
+
 def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, PeftArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
@@ -213,21 +206,6 @@ def main():
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
-
-    # Detecting last checkpoint.
-    last_checkpoint = None
-    if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
-        last_checkpoint = get_last_checkpoint(training_args.output_dir)
-        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
-            raise ValueError(
-                f"Output directory ({training_args.output_dir}) already exists and is not empty. "
-                "Use --overwrite_output_dir to overcome."
-            )
-        elif last_checkpoint is not None and training_args.resume_from_checkpoint is None:
-            logger.info(
-                f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
-                "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
-            )
 
     # Load tokenizer
     tokenizer_kwargs = {
@@ -252,23 +230,29 @@ def main():
         lora_alpha=training_args.lora_alpha,
         lora_dropout=training_args.lora_dropout,
     )
-    if model_args.model_name_or_path:
-        torch_dtype = (
-            model_args.torch_dtype
-            if model_args.torch_dtype in ["auto", None]
-            else getattr(torch, model_args.torch_dtype)
-        )
-        model = AutoModelForCausalLMWithValueHead.from_pretrained(
-            model_args.model_name_or_path,
-            load_in_8bit=model_args.load_in_8bit,
-            cache_dir=model_args.cache_dir,
-            torch_dtype=torch_dtype,
-            device_map=model_args.device_map,
-            trust_remote_code=model_args.trust_remote_code,
-            peft_config=peft_config,
-        )
-    else:
-        raise ValueError(f"Error, model_name_or_path is None, RL must be loaded from a pre-trained model")
+    torch_dtype = (
+        model_args.torch_dtype
+        if model_args.torch_dtype in ["auto", None]
+        else getattr(torch, model_args.torch_dtype)
+    )
+    model = AutoModelForCausalLMWithValueHead.from_pretrained(
+        model_args.model_name_or_path,
+        load_in_8bit=model_args.load_in_8bit,
+        cache_dir=model_args.cache_dir,
+        torch_dtype=torch_dtype,
+        device_map=model_args.device_map,
+        trust_remote_code=model_args.trust_remote_code,
+        peft_config=peft_config,
+    )
+    # Load reward model
+    reward_model = AutoModelForSequenceClassification.from_pretrained(
+        model_args.reward_model_name_or_path,
+        load_in_8bit=model_args.load_in_8bit,
+        cache_dir=model_args.cache_dir,
+        torch_dtype=torch_dtype,
+        device_map=model_args.device_map,
+    )
+    reward_tokenizer = AutoTokenizer.from_pretrained(model_args.reward_model_name_or_path, **tokenizer_kwargs)
 
     # Get datasets
     if data_args.dataset_name is not None:
@@ -431,15 +415,6 @@ def main():
         data_collator=collator,
     )
 
-    sentiment_pipe = pipeline(
-        "sentiment-analysis",
-        model=model_args.reward_model_name_or_path,
-        device_map=model_args.device_map,
-        model_kwargs={"load_in_8bit": model_args.load_in_8bit},
-        tokenizer=tokenizer,
-        return_token_type_ids=False,
-    )
-
     # These arguments are passed to the `generate` function of the PPOTrainer
     generation_kwargs = {
         "top_k": 0.0,
@@ -449,13 +424,6 @@ def main():
         "eos_token_id": tokenizer.eos_token_id,
     }
     output_length_sampler = LengthSampler(data_args.min_target_length, max_target_length)
-    # We then define the arguments to pass to the sentiment analysis pipeline.
-    sent_kwargs = {
-        "return_all_scores": True,
-        "function_to_apply": "none",
-        "batch_size": training_args.per_device_train_batch_size,
-        "truncation": True,
-    }
 
     # Training
     if training_args.do_train:
@@ -473,10 +441,12 @@ def main():
             )
             batch["response"] = tokenizer.batch_decode(response_tensors, skip_special_tokens=True)
 
-            # Compute sentiment score
-            texts = [q + r for q, r in zip(batch["query"], batch["response"])]
-            pipe_outputs = sentiment_pipe(texts, **sent_kwargs)
-            rewards = [torch.tensor(output[0]["score"] - training_args.reward_baseline) for output in pipe_outputs]
+            # Compute reward score
+            score_outputs = [
+                get_reward_score(reward_model, reward_tokenizer, q, r) for q, r in
+                zip(batch["query"], batch["response"])
+            ]
+            rewards = [torch.tensor(float(score) - training_args.reward_baseline) for score in score_outputs]
 
             # Run PPO step
             stats = trainer.step(question_tensors, response_tensors, rewards)
