@@ -1,18 +1,18 @@
-CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 pretraining.py \
-    --model_type llama \
-    --model_name_or_path shibing624/chinese-alpaca-plus-7b-hf \
-    --dataset_name shibing624/medical \
-    --dataset_config_name finetune \
-    --validation_split_percentage 0.001 \
-    --per_device_train_batch_size 8 \
-    --per_device_eval_batch_size 8 \
+CUDA_VISIBLE_DEVICES=0 torchrun --nnodes 1 --nproc_per_node 1 pretraining.py \
+    --model_type bloom \
+    --model_name_or_path bigscience/bloomz-560m \
+    --train_file_dir ../data/pretrain \
+    --validation_file_dir ../data/pretrain \
+    --per_device_train_batch_size 4 \
+    --per_device_eval_batch_size 4 \
     --do_train \
     --do_eval \
+    --use_peft True \
     --seed 42 \
     --fp16 \
-    --max_train_samples 100000 \
+    --max_train_samples 10000 \
     --max_eval_samples 10 \
-    --num_train_epochs 1 \
+    --num_train_epochs 0.5 \
     --learning_rate 2e-4 \
     --warmup_ratio 0.05 \
     --weight_decay 0.01 \
@@ -26,7 +26,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nnodes 1 --nproc_per_node 4 pretraining.
     --gradient_accumulation_steps 1 \
     --preprocessing_num_workers 1 \
     --block_size 1024 \
-    --output_dir outputs-medical-llama-pt-v1 \
+    --output_dir outputs-pt-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
