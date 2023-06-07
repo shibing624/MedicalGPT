@@ -355,16 +355,26 @@ def main():
             if model_args.torch_dtype in ["auto", None]
             else getattr(torch, model_args.torch_dtype)
         )
-        model = model_class.from_pretrained(
-            model_args.model_name_or_path,
-            num_labels=1,
-            load_in_8bit=model_args.load_in_8bit,
-            cache_dir=model_args.cache_dir,
-            torch_dtype=torch_dtype,
-            device_map=model_args.device_map,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-        model.score = CastOutputToFloat(model.score)
+        if model_args.model_type in ['bloom', 'llama']:
+            model = model_class.from_pretrained(
+                model_args.model_name_or_path,
+                num_labels=1,
+                load_in_8bit=model_args.load_in_8bit,
+                cache_dir=model_args.cache_dir,
+                torch_dtype=torch_dtype,
+                device_map=model_args.device_map,
+                trust_remote_code=model_args.trust_remote_code,
+            )
+            model.score = CastOutputToFloat(model.score)
+        else:
+            model = model_class.from_pretrained(
+                model_args.model_name_or_path,
+                num_labels=1,
+                cache_dir=model_args.cache_dir,
+                torch_dtype=torch_dtype,
+                ignore_mismatched_sizes=True
+            )
+            model.to(training_args.device)
     else:
         raise ValueError(f"Error, model_name_or_path is None, RM must be loaded from a pre-trained model")
 
