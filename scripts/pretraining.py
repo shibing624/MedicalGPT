@@ -188,6 +188,7 @@ class DataTrainingArguments:
 
 @dataclass
 class PeftArguments(TrainingArguments):
+    use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
     target_modules: Optional[str] = field(default="all")
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
@@ -306,6 +307,21 @@ def save_model(output_dir, model, tokenizer, args):
     torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
 
 
+def print_trainable_parameters(model):
+    """
+    Prints the number of trainable parameters in the model.
+    """
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+    print(
+        f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
+    )
+
+
 def find_all_linear_names(peft_model, int4=False, int8=False):
     """Find all linear layer names in the model. reference from qlora paper."""
     cls = torch.nn.Linear
@@ -391,31 +407,35 @@ def main():
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
 
-    if training_args.peft_path is not None:
-        logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
-        model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
+    if training_args.use_peft:
+        if training_args.peft_path is not None:
+            logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
+            model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
+        else:
+            logger.info("Init new peft model")
+            target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
+            if target_modules and 'all' in target_modules:
+                target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
+            modules_to_save = training_args.modules_to_save
+            if modules_to_save is not None:
+                modules_to_save = modules_to_save.split(',')
+            logger.info(f"Peft target_modules: {target_modules}")
+            logger.info(f"Peft lora_rank: {training_args.lora_rank}")
+            peft_config = LoraConfig(
+                task_type=TaskType.CAUSAL_LM,
+                target_modules=target_modules,
+                inference_mode=False,
+                r=training_args.lora_rank,
+                lora_alpha=training_args.lora_alpha,
+                lora_dropout=training_args.lora_dropout,
+                modules_to_save=modules_to_save)
+            model = get_peft_model(model, peft_config)
+        if model_args.load_in_8bit:
+            model = prepare_model_for_int8_training(model)
+        model.print_trainable_parameters()
     else:
-        logger.info("Init new peft model")
-        target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
-        if target_modules and 'all' in target_modules:
-            target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
-        modules_to_save = training_args.modules_to_save
-        if modules_to_save is not None:
-            modules_to_save = modules_to_save.split(',')
-        logger.info(f"Peft target_modules: {target_modules}")
-        logger.info(f"Peft lora_rank: {training_args.lora_rank}")
-        peft_config = LoraConfig(
-            task_type=TaskType.CAUSAL_LM,
-            target_modules=target_modules,
-            inference_mode=False,
-            r=training_args.lora_rank,
-            lora_alpha=training_args.lora_alpha,
-            lora_dropout=training_args.lora_dropout,
-            modules_to_save=modules_to_save)
-        model = get_peft_model(model, peft_config)
-    if model_args.load_in_8bit:
-        model = prepare_model_for_int8_training(model)
-    model.print_trainable_parameters()
+        logger.info("Full parameters training")
+        print_trainable_parameters(model)
 
     # Preprocessing the datasets.
     def tokenize_function(examples):

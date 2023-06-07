@@ -37,6 +37,8 @@ MODEL_CLASSES = {
     "llama": (LlamaForSequenceClassification, LlamaTokenizer),
 }
 
+DEFAULT_PAD_TOKEN = "[PAD]"
+
 
 @dataclass
 class ModelArguments:
@@ -152,15 +154,13 @@ class DataTrainingArguments:
 
 @dataclass
 class PeftArguments(TrainingArguments):
+    use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
     target_modules: Optional[str] = field(default="all")
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
     lora_alpha: Optional[float] = field(default=32.0)
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
-
-
-DEFAULT_PAD_TOKEN = "[PAD]"
 
 
 def accuracy(predictions, references, normalize=True, sample_weight=None):
@@ -268,6 +268,21 @@ class CastOutputToFloat(torch.nn.Sequential):
         return super().forward(x).to(torch.float32)
 
 
+def print_trainable_parameters(model):
+    """
+    Prints the number of trainable parameters in the model.
+    """
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+    print(
+        f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
+    )
+
+
 def find_all_linear_names(peft_model, int4=False, int8=False):
     cls = torch.nn.Linear
     if int4 or int8:
@@ -358,31 +373,35 @@ def main():
     if model_args.model_type == "llama" and tokenizer.pad_token is None:
         tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
 
-    if training_args.peft_path is not None:
-        logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
-        model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
+    if training_args.use_peft:
+        if training_args.peft_path is not None:
+            logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
+            model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
+        else:
+            logger.info("Init new peft model")
+            target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
+            if target_modules and 'all' in target_modules:
+                target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
+            modules_to_save = training_args.modules_to_save
+            if modules_to_save is not None:
+                modules_to_save = modules_to_save.split(',')
+            logger.info(f"Peft target_modules: {target_modules}")
+            logger.info(f"Peft lora_rank: {training_args.lora_rank}")
+            peft_config = LoraConfig(
+                task_type=TaskType.SEQ_CLS,
+                target_modules=target_modules,
+                inference_mode=False,
+                r=training_args.lora_rank,
+                lora_alpha=training_args.lora_alpha,
+                lora_dropout=training_args.lora_dropout,
+                modules_to_save=modules_to_save)
+            model = get_peft_model(model, peft_config)
+        if model_args.load_in_8bit:
+            model = prepare_model_for_int8_training(model)
+        model.print_trainable_parameters()
     else:
-        logger.info("Init new peft model")
-        target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
-        if target_modules and 'all' in target_modules:
-            target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
-        modules_to_save = training_args.modules_to_save
-        if modules_to_save is not None:
-            modules_to_save = modules_to_save.split(',')
-        logger.info(f"Peft target_modules: {target_modules}")
-        logger.info(f"Peft lora_rank: {training_args.lora_rank}")
-        peft_config = LoraConfig(
-            task_type=TaskType.SEQ_CLS,
-            target_modules=target_modules,
-            inference_mode=False,
-            r=training_args.lora_rank,
-            lora_alpha=training_args.lora_alpha,
-            lora_dropout=training_args.lora_dropout,
-            modules_to_save=modules_to_save)
-        model = get_peft_model(model, peft_config)
-    if model_args.load_in_8bit:
-        model = prepare_model_for_int8_training(model)
-    model.print_trainable_parameters()
+        logger.info("Full parameters training")
+        print_trainable_parameters(model)
 
     # Get reward dataset for tuning the reward model.
     if data_args.dataset_name is not None:

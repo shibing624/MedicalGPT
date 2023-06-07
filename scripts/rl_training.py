@@ -23,7 +23,6 @@ from transformers import (
     BloomTokenizerFast,
     AutoTokenizer,
     HfArgumentParser,
-    set_seed,
 )
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
 
@@ -36,6 +35,13 @@ MODEL_CLASSES = {
     "llama": (LlamaForCausalLM, LlamaTokenizer),
 }
 
+
+DEFAULT_PAD_TOKEN = "[PAD]"
+PROMPT_TEMPLATE = (
+    "Below is an instruction that describes a task. "
+    "Write a response that appropriately completes the request.\n\n"
+    "### Instruction:\n{instruction}\n\n### Response: "
+)
 
 @dataclass
 class ScriptArguments:
@@ -91,6 +97,7 @@ class ScriptArguments:
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The input jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."}, )
     batch_size: Optional[int] = field(default=8, metadata={"help": "Batch size"})
+    mini_batch_size: Optional[int] = field(default=1, metadata={"help": "PPO minibatch size"})
     max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
     max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     min_target_length: Optional[int] = field(default=4, metadata={"help": "Min length of output text"})
@@ -125,6 +132,7 @@ class ScriptArguments:
         default=None, metadata={"help": "The number of processes to use for the preprocessing."},
     )
     # Training arguments
+    use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
     target_modules: Optional[str] = field(default=None)
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
@@ -132,7 +140,8 @@ class ScriptArguments:
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
 
-    mini_batch_size: Optional[int] = field(default=1, metadata={"help": "PPO minibatch size"})
+    do_train: bool = field(default=False, metadata={"help": "Whether to run training."})
+    do_eval: bool = field(default=False, metadata={"help": "Whether to run eval on the validation set."})
     early_stopping: Optional[bool] = field(default=False, metadata={"help": "Whether to early stop"})
     target_kl: Optional[float] = field(default=0.1, metadata={"help": "The kl target for early stopping"})
     reward_baseline: Optional[float] = field(
@@ -143,15 +152,14 @@ class ScriptArguments:
     )
     adap_kl_ctrl: Optional[bool] = field(default=True, metadata={"help": "Use adaptive KL control, otherwise linear"})
     learning_rate: Optional[float] = field(default=1.5e-5, metadata={"help": "Learning rate"})
-    ppo_epochs: Optional[int] = field(default=4, metadata={"help": "the number of ppo epochs"})
     gradient_accumulation_steps: Optional[int] = field(
-        default=4, metadata={"help": "the number of gradient accumulation steps"}
+        default=1, metadata={"help": "the number of gradient accumulation steps"}
     )
-    save_steps: Optional[int] = field(default=None, metadata={"help": "X steps to save the model"})
-    output_dir: Optional[str] = field(default="outputs", metadata={"help": "n steps to save the model"})
+    save_steps: Optional[int] = field(default=50, metadata={"help": "X steps to save the model"})
+    output_dir: Optional[str] = field(default="outputs-rl", metadata={"help": "The output directory"})
     seed: Optional[int] = field(default=0, metadata={"help": "the seed"})
-    max_steps: Optional[int] = field(default=20000, metadata={"help": "number of epochs"})
-    log_with: Optional[str] = field(default="none", metadata={"help": "log with wandb or tensorboard or none"})
+    max_steps: Optional[int] = field(default=200, metadata={"help": "number of steps to train"})
+    log_with: Optional[str] = field(default="tensorboard", metadata={"help": "log with wandb or tensorboard"})
 
     def __post_init__(self):
         if self.model_name_or_path is None:
@@ -159,13 +167,6 @@ class ScriptArguments:
         if self.reward_model_name_or_path is None:
             raise ValueError("You must specify a valid reward_model_name_or_path to run training.")
 
-
-DEFAULT_PAD_TOKEN = "[PAD]"
-PROMPT_TEMPLATE = (
-    "Below is an instruction that describes a task. "
-    "Write a response that appropriately completes the request.\n\n"
-    "### Instruction:\n{instruction}\n\n### Response: "
-)
 
 
 def print_trainable_parameters(model):
@@ -183,8 +184,11 @@ def print_trainable_parameters(model):
     )
 
 
-def get_reward_score(reward_model, reward_tokenizer, question, answer):
-    inputs = reward_tokenizer(question, answer, return_tensors='pt')
+def get_reward_score(reward_model, reward_tokenizer, question, answer, device):
+    """
+    Get the reward score for a given question and answer pair.
+    """
+    inputs = reward_tokenizer(question, answer, return_tensors='pt').to(device)
     score = reward_model(**inputs).logits[0].cpu().detach()
 
     return score
@@ -211,7 +215,7 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
 
-    logger.info("Init new peft model")
+    logger.info("Load model")
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
         target_modules=args.target_modules,
@@ -232,7 +236,7 @@ def main():
         torch_dtype=torch_dtype,
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,
-        peft_config=peft_config,
+        peft_config=peft_config if args.use_peft else None,
     )
     print_trainable_parameters(model)
     # Load reward model
@@ -316,7 +320,8 @@ def main():
                 instruction = instruction + "\n" + input
             source = PROMPT_TEMPLATE.format_map({"instruction": instruction})
             tokenized_question = tokenizer(
-                source, truncation=True, max_length=max_source_length, padding="max_length"
+                source, truncation=True, max_length=max_source_length, padding="max_length",
+                return_tensors="pt"
             )
             new_examples["query"].append(source)
             new_examples["input_ids"].append(tokenized_question["input_ids"])
@@ -335,48 +340,21 @@ def main():
             max_train_samples = min(len(train_dataset), args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
         logger.debug(f"Example train_dataset[0]: {train_dataset[0]}")
-        with args.main_process_first(desc="Train dataset tokenization"):
-            tokenized_dataset = train_dataset.shuffle().map(
-                preprocess_function,
-                batched=True,
-                num_proc=args.preprocessing_num_workers,
-                remove_columns=train_dataset.column_names,
-                load_from_cache_file=not args.overwrite_cache,
-                desc="Running tokenizer on dataset",
-            )
-            train_dataset = tokenized_dataset.filter(
-                lambda x: len(x['input_ids']) > 0
-            )
-            logger.debug(f"Num train_samples: {len(train_dataset)}")
-            logger.debug("Tokenized training example:")
-            logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
+        tokenized_dataset = train_dataset.shuffle().map(
+            preprocess_function,
+            batched=True,
+            num_proc=args.preprocessing_num_workers,
+            remove_columns=train_dataset.column_names,
+            load_from_cache_file=not args.overwrite_cache,
+            desc="Running tokenizer on dataset",
+        )
+        train_dataset = tokenized_dataset.filter(
+            lambda x: len(x['input_ids']) > 0
+        )
+        logger.debug(f"Num train_samples: {len(train_dataset)}")
+        logger.debug("Tokenized training example:")
+        # logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
 
-    eval_dataset = None
-    max_eval_samples = 0
-    if args.do_eval:
-        with args.main_process_first(desc="Eval dataset tokenization"):
-            if "validation" not in raw_datasets:
-                raise ValueError("--do_eval requires a validation dataset")
-            eval_dataset = raw_datasets["validation"]
-            max_eval_samples = len(eval_dataset)
-            if args.max_eval_samples is not None and args.max_eval_samples > 0:
-                max_eval_samples = min(len(eval_dataset), args.max_eval_samples)
-                eval_dataset = eval_dataset.select(range(max_eval_samples))
-            logger.debug(f"Example eval_dataset[0]: {eval_dataset[0]}")
-            tokenized_dataset = eval_dataset.map(
-                preprocess_function,
-                batched=True,
-                num_proc=args.preprocessing_num_workers,
-                remove_columns=eval_dataset.column_names,
-                load_from_cache_file=not args.overwrite_cache,
-                desc="Running tokenizer on dataset",
-            )
-            eval_dataset = tokenized_dataset.filter(
-                lambda x: len(x['input_ids']) > 0
-            )
-            logger.debug(f"Num eval_samples: {len(eval_dataset)}")
-            logger.debug("Tokenized eval example:")
-            logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
@@ -413,7 +391,7 @@ def main():
 
     # These arguments are passed to the `generate` function of the PPOTrainer
     generation_kwargs = {
-        "max_length": max_target_length,
+        "max_new_tokens": max_target_length,
         "temperature": 1.0,
         "repetition_penalty": 1.0,
         "top_p": 1.0,
@@ -423,34 +401,52 @@ def main():
         "bos_token_id": tokenizer.bos_token_id,
     }
 
+    def save_model(save_dir):
+        trainer.accelerator.unwrap_model(trainer.model).save_pretrained(save_dir)
+        trainer.tokenizer.save_pretrained(save_dir)
+
     # Training
     if args.do_train:
         logger.info("*** Train ***")
+        total_steps = config.total_ppo_epochs
         for step, batch in tqdm(enumerate(trainer.dataloader)):
-            if step >= config.total_ppo_epochs:
+            if step >= total_steps:
                 break
             question_tensors = batch["input_ids"]
+            question_tensors = [torch.LongTensor(i).to(device).squeeze(0) for i in question_tensors]
+            responses = []
             response_tensors = []
-            for q in question_tensors:
-                response_tensor = model.generate(torch.LongTensor(q), **generation_kwargs)
-                response_tensors.append(response_tensor)
-            batch['response'] = tokenizer.batch_decode(torch.LongTensor(response_tensors), skip_special_tokens=True)
+            for q_tensor in question_tensors:
+                response_tensor = trainer.generate(
+                    q_tensor,
+                    return_prompt=False,
+                    **generation_kwargs,
+                )
+                r = tokenizer.batch_decode(response_tensor, skip_special_tokens=True)[0]
+                responses.append(r)
+                response_tensors.append(response_tensor.squeeze(0))
+            batch["response"] = responses
 
             # Compute reward score
             score_outputs = [
-                get_reward_score(reward_model, reward_tokenizer, q, r) for q, r in
+                get_reward_score(reward_model, reward_tokenizer, q, r, device) for q, r in
                 zip(batch["query"], batch["response"])
             ]
             rewards = [torch.tensor(float(score) - args.reward_baseline) for score in score_outputs]
 
             # Run PPO step
-            stats = trainer.step(question_tensors, response_tensors, rewards)
-            trainer.log_stats(stats, batch, rewards)
+            try:
+                stats = trainer.step(question_tensors, response_tensors, rewards)
+                trainer.log_stats(stats, batch, rewards)
+                logger.debug(f"Step {step}/{total_steps}: reward score:{score_outputs}")
+            except ValueError as e:
+                logger.warning(f"Failed to log stats for step {step}, because of {e}")
 
             if step and step % args.save_steps == 0:
-                trainer.save_pretrained(os.path.join(output_dir, f"checkpoint-{step}"))
-        # Save model and tokenizer
-        trainer.save_pretrained(output_dir)
+                save_dir = os.path.join(output_dir, f"checkpoint-{step}")
+                save_model(save_dir)
+        # Save final model
+        save_model(output_dir)
 
 
 if __name__ == "__main__":
