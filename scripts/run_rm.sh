@@ -30,8 +30,9 @@ CUDA_VISIBLE_DEVICES=0 torchrun --nnodes 1 --nproc_per_node 1 reward_modeling.py
     --lora_rank 8 \
     --lora_alpha 16 \
     --lora_dropout 0.05 \
-    --torch_dtype float16 \
+    --torch_dtype float32 \
     --device_map auto \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
+    --remove_unused_columns False \
     --gradient_checkpointing True

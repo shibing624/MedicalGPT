@@ -23,6 +23,12 @@ from transformers import (
     LlamaForSequenceClassification,
     LlamaTokenizer,
     BloomTokenizerFast,
+    AlbertForSequenceClassification,
+    BertForSequenceClassification,
+    BertTokenizer,
+    AutoTokenizer,
+    RobertaForSequenceClassification,
+    RobertaTokenizer,
     HfArgumentParser,
     Trainer,
     TrainingArguments,
@@ -33,6 +39,9 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import send_example_telemetry
 
 MODEL_CLASSES = {
+    "bert": (BertForSequenceClassification, BertTokenizer),
+    "roberta": (RobertaForSequenceClassification, RobertaTokenizer),
+    "albert": (AlbertForSequenceClassification, AutoTokenizer),
     "bloom": (BloomForSequenceClassification, BloomTokenizerFast),
     "llama": (LlamaForSequenceClassification, LlamaTokenizer),
 }
