@@ -10,12 +10,11 @@ from dataclasses import dataclass, field
 from glob import glob
 from typing import Any, List, Union, Optional, Dict
 
-import numpy as np
 import torch
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 from torch.utils.data import Dataset
 from transformers import (
     PreTrainedTokenizerBase,
@@ -170,18 +169,19 @@ class PeftArguments(TrainingArguments):
     peft_path: Optional[str] = field(default=None)
 
 
-def accuracy(predictions, references, normalize=True, sample_weight=None):
-    return {
-        "accuracy": float(accuracy_score(references, predictions, normalize=normalize, sample_weight=sample_weight))
-    }
-
-
 def compute_metrics(eval_preds):
     preds, labels = eval_preds
     # Here, predictions is rewards_chosen and rewards_rejected.
-    preds = np.argmax(preds, axis=0)
-    labels = np.argmax(labels, axis=0)
-    return accuracy(predictions=preds, references=labels)
+    if isinstance(preds, torch.Tensor):
+        preds = preds.detach().cpu().numpy()
+    if isinstance(labels, torch.Tensor):
+        labels = labels.detach().cpu().numpy()
+    # MSE
+    mse = mean_squared_error(labels, preds)
+    # MAE
+    mae = mean_absolute_error(labels, preds)
+
+    return {"mse": mse, "mae": mae}
 
 
 @dataclass
