@@ -28,12 +28,17 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 分四阶段训练GPT模型，来自Andrej Karpathy的演讲PDF[State of GPT](https://karpathy.ai/stateofgpt.pdf)，视频[Video](https://build.microsoft.com/en-US/sessions/db3f4859-cd30-4445-a0cd-553c3304f8e2)
 
-基于此，训练领域模型--医疗模型，分四阶段：
+## 😊 Feature
+基于ChatGPT Training Pipeline，本项目实现了领域模型--医疗模型的四阶段训练：
 
-- 第一阶段：PT(Continue PreTraining)增量预训练，在海量领域文档数据上二次预训练LLaMA模型，以注入领域知识
+- 第一阶段：PT(Continue PreTraining)增量预训练，在海量领域文档数据上二次预训练GPT模型，以注入领域知识
 - 第二阶段：SFT(Supervised Fine-tuning)有监督微调，构造指令微调数据集，在预训练模型基础上做指令精调，以对齐指令意图
 - 第三阶段：RM(Reward Model)奖励模型建模，构造人类偏好排序数据集，训练奖励模型，用来对齐人类偏好，主要是"HHH"原则，具体是"helpful, honest, harmless"
 - 第四阶段：RL(Reinforcement Learning)基于人类反馈的强化学习(RLHF)，用奖励模型来训练SFT模型，生成模型使用奖励或惩罚来更新其策略，以便生成更高质量、更符合人类偏好的文本
+
+## 🔥 Release Models
+
+
 
 ## ▶️ Demo
 
@@ -68,7 +73,7 @@ Training Stage:
 
 
 [训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E7%BB%86%E8%8A%82%E8%AF%B4%E6%98%8E)
-## 🔥 Inference 
+## 💻 Inference 
 训练完成后，现在我们加载训练好的模型，验证模型生成文本的效果。
 
 ```shell

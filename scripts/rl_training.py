@@ -230,6 +230,9 @@ def main():
         if args.torch_dtype in ["auto", None]
         else getattr(torch, args.torch_dtype)
     )
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    if world_size > 1:
+        args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
     model = AutoModelForCausalLMWithValueHead.from_pretrained(
         args.model_name_or_path,
         load_in_8bit=args.load_in_8bit,
