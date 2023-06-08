@@ -16,7 +16,8 @@ CUDA_VISIBLE_DEVICES=0 torchrun --nnodes 1 --nproc_per_node 1 reward_modeling.py
     --weight_decay 0.001 \
     --logging_strategy steps \
     --logging_steps 10 \
-    --evaluation_strategy no \
+    --eval_steps 50 \
+    --evaluation_strategy steps \
     --save_steps 500 \
     --save_strategy steps \
     --save_total_limit 3 \
