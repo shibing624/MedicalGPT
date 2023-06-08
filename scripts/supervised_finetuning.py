@@ -51,7 +51,6 @@ MODEL_CLASSES = {
 }
 
 IGNORE_INDEX = -100
-DEFAULT_PAD_TOKEN = "[PAD]"
 PROMPT_TEMPLATE = (
     "Below is an instruction that describes a task. "
     "Write a response that appropriately completes the request.\n\n"
@@ -313,7 +312,7 @@ def main():
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     # Required for llama
     if model_args.model_type == "llama" and tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
+        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
     if training_args.use_peft:
         if training_args.peft_path is not None:
@@ -484,7 +483,6 @@ def main():
     else:
         model.config.use_cache = True
     model.enable_input_require_grads()
-
     if torch.cuda.device_count() > 1:
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True

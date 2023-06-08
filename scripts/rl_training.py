@@ -36,7 +36,6 @@ MODEL_CLASSES = {
 }
 
 
-DEFAULT_PAD_TOKEN = "[PAD]"
 PROMPT_TEMPLATE = (
     "Below is an instruction that describes a task. "
     "Write a response that appropriately completes the request.\n\n"
@@ -162,6 +161,8 @@ class ScriptArguments:
     log_with: Optional[str] = field(default="tensorboard", metadata={"help": "log with wandb or tensorboard"})
 
     def __post_init__(self):
+        if self.model_type is None:
+            raise ValueError("You must specify a valid model_type to run training.")
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
         if self.reward_model_name_or_path is None:
@@ -212,8 +213,8 @@ def main():
         tokenizer_name_or_path = args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     # Required for llama
-    if tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
+    if args.model_type == "llama" and tokenizer.pad_token is None:
+        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
     logger.info("Load model")
     peft_config = LoraConfig(

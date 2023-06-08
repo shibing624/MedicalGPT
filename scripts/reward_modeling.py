@@ -46,8 +46,6 @@ MODEL_CLASSES = {
     "llama": (LlamaForSequenceClassification, LlamaTokenizer),
 }
 
-DEFAULT_PAD_TOKEN = "[PAD]"
-
 
 @dataclass
 class ModelArguments:
@@ -390,7 +388,7 @@ def main():
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     # Required for llama
     if model_args.model_type == "llama" and tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({"pad_token": DEFAULT_PAD_TOKEN})
+        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
 
     if training_args.use_peft:
         if training_args.peft_path is not None:
