@@ -8,8 +8,7 @@ import math
 import os
 from dataclasses import dataclass, field
 from glob import glob
-from typing import Any, List, Union
-from typing import Optional, Dict
+from typing import Any, List, Union, Optional, Dict
 
 import numpy as np
 import torch
@@ -17,6 +16,7 @@ from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
 from sklearn.metrics import accuracy_score
+from torch.utils.data import Dataset
 from transformers import (
     PreTrainedTokenizerBase,
     BloomForSequenceClassification,
@@ -177,12 +177,11 @@ def accuracy(predictions, references, normalize=True, sample_weight=None):
 
 
 def compute_metrics(eval_preds):
-    preds, _ = eval_preds
+    preds, labels = eval_preds
     # Here, predictions is rewards_chosen and rewards_rejected.
-    # We want to see how much of the time rewards_chosen > rewards_rejected.
     preds = np.argmax(preds, axis=0)
-    labels = np.zeros(preds.shape)
-    return accuracy.compute(predictions=preds, references=labels)
+    labels = np.argmax(labels, axis=0)
+    return accuracy(predictions=preds, references=labels)
 
 
 @dataclass
@@ -249,6 +248,41 @@ class RewardTrainer(Trainer):
         if return_outputs:
             return loss, {"rewards_chosen": rewards_chosen, "rewards_rejected": rewards_rejected}
         return loss
+
+    def evaluate(
+            self,
+            eval_dataset: Optional[Dataset] = None,
+            ignore_keys: Optional[List[str]] = None,
+            metric_key_prefix: str = "eval",
+    ) -> Dict[str, float]:
+        if eval_dataset is None:
+            eval_dataset = self.eval_dataset
+        return super().evaluate(eval_dataset=eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
+
+    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
+        # Prepare inputs for chosen and rejected separately
+        device = model.device
+
+        inputs_chosen = {
+            "input_ids": inputs["input_ids_chosen"].to(device),
+            "attention_mask": inputs["attention_mask_chosen"].to(device),
+        }
+        outputs_chosen = model(**inputs_chosen)
+        rewards_chosen = outputs_chosen.logits.detach()
+
+        inputs_rejected = {
+            "input_ids": inputs["input_ids_rejected"].to(device),
+            "attention_mask": inputs["attention_mask_rejected"].to(device),
+        }
+        outputs_rejected = model(**inputs_rejected)
+        rewards_rejected = outputs_rejected.logits.detach()
+
+        # Keep the compute_loss method
+        loss = -torch.nn.functional.logsigmoid(rewards_chosen - rewards_rejected).mean()
+        if prediction_loss_only:
+            return (loss, None, None)
+
+        return (loss, rewards_chosen, rewards_rejected)
 
     def save_model(self, output_dir=None, _internal_call=False):
         """Save the LoRA model."""
