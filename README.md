@@ -39,6 +39,9 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 ## 🔥 Release Models
 
 
+| Model Name                     | Backbone                                               | LoRA Link                                                         | 
+|:-------------------------------|:-------------------------------------------------------|:------------------------------------------------------------------|
+| Chinese-LLaMA-13B-Medical-LoRA | [IDEA-CCNL/Ziya-LLaMA-13B-v1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1) | [shibing624/ziya-llama-13b-medical-lora](https://huggingface.co/shibing624/ziya-llama-13b-medical-lora) |
 
 ## ▶️ Demo
 
