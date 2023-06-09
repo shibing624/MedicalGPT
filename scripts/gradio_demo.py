@@ -13,11 +13,24 @@ import gradio as gr
 import mdtex2html
 import torch
 from peft import PeftModel
-from transformers import LlamaForCausalLM, LlamaTokenizer, GenerationConfig
+from transformers import (
+    AutoModel,
+    AutoTokenizer,
+    BloomForCausalLM,
+    BloomTokenizerFast,
+    LlamaTokenizer,
+    LlamaForCausalLM,
+)
 
+MODEL_CLASSES = {
+    "bloom": (BloomForCausalLM, BloomTokenizerFast),
+    "chatglm": (AutoModel, AutoTokenizer),
+    "llama": (LlamaForCausalLM, LlamaTokenizer),
+}
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--model_type', default=None, type=str, required=True)
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default=None, type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
@@ -61,13 +74,15 @@ def main():
         args.tokenizer_path = args.lora_model
     else:
         args.tokenizer_path = args.base_model
-    tokenizer = LlamaTokenizer.from_pretrained(args.tokenizer_path)
-    base_model = LlamaForCausalLM.from_pretrained(
+    model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path,trust_remote_code=True)
+    base_model = model_class.from_pretrained(
         args.base_model,
         load_in_8bit=False,
         torch_dtype=load_type,
         low_cpu_mem_usage=True,
         device_map='auto',
+        trust_remote_code=True,
     )
     if args.resize_emb:
         model_vocab_size = base_model.get_input_embeddings().weight.size(0)

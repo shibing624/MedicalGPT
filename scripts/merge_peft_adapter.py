@@ -14,11 +14,26 @@ import argparse
 
 import torch
 from peft import PeftModel, PeftConfig
-from transformers import AutoModelForCausalLM, AutoModelForSequenceClassification, AutoTokenizer
+from transformers import (
+    AutoModel,
+    AutoTokenizer,
+    BloomForCausalLM,
+    BloomTokenizerFast,
+    LlamaTokenizer,
+    LlamaForCausalLM,
+    AutoModelForSequenceClassification,
+)
+
+MODEL_CLASSES = {
+    "bloom": (BloomForCausalLM, BloomTokenizerFast),
+    "chatglm": (AutoModel, AutoTokenizer),
+    "llama": (LlamaForCausalLM, LlamaTokenizer),
+}
 
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--model_type', default=None, type=str, required=True)
     parser.add_argument('--base_model_name_or_path', default=None, required=True, type=str,
                         help="Base model name or path")
     parser.add_argument('--peft_model_path', default=None, required=True, type=str,
@@ -34,24 +49,30 @@ def main():
     print(f"Base model: {base_model_path}")
     print(f"LoRA model: {peft_model_path}")
     peft_config = PeftConfig.from_pretrained(peft_model_path)
+
+    model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     if peft_config.task_type == "SEQ_CLS":
         print("Loading LoRA for sequence classification model")
+        if args.model_type == "chatglm":
+            raise ValueError("chatglm does not support sequence classification")
         base_model = AutoModelForSequenceClassification.from_pretrained(
             base_model_path,
             num_labels=1,
             load_in_8bit=False,
             torch_dtype=torch.float16,
+            trust_remote_code=True,
             device_map="auto",
         )
     else:
         print("Loading LoRA for causal language model")
-        base_model = AutoModelForCausalLM.from_pretrained(
+        base_model = model_class.from_pretrained(
             base_model_path,
             load_in_8bit=False,
             torch_dtype=torch.float16,
+            trust_remote_code=True,
             device_map="auto",
         )
-    tokenizer = AutoTokenizer.from_pretrained(peft_model_path)
+    tokenizer = tokenizer_class.from_pretrained(peft_model_path, trust_remote_code=True)
     if base_model.get_input_embeddings().weight.size(0) != len(tokenizer):
         base_model.resize_token_embeddings(len(tokenizer))
         print(f"Extended vocabulary size to {len(tokenizer)}")
