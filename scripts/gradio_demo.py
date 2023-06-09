@@ -8,7 +8,6 @@ pip install mdtex2html
 """
 import argparse
 import os
-import sys
 
 import gradio as gr
 import mdtex2html
@@ -74,7 +73,6 @@ def main():
     print(f"Vocab of the base model: {model_vocab_size}")
     print(f"Vocab of the tokenizer: {tokenzier_vocab_size}")
     if model_vocab_size != tokenzier_vocab_size:
-        assert tokenzier_vocab_size > model_vocab_size
         print("Resize model embeddings to fit tokenizer")
         base_model.resize_token_embeddings(tokenzier_vocab_size)
     if args.lora_model is not None:
@@ -101,9 +99,6 @@ def main():
     {instruction}
     
     ### Response: """
-
-    if torch.__version__ >= "2" and sys.platform != "win32":
-        model = torch.compile(model)
 
     def predict(
             input,
@@ -156,7 +151,6 @@ def main():
 
     with gr.Blocks() as demo:
         gr.HTML("""<h1 align="center">MedicalGPT</h1>""")
-        current_file_path = os.path.abspath(os.path.dirname(__file__))
         gr.Markdown(
             "> 为了促进医疗行业大模型的开放研究，本项目开源了MedicalGPT医疗大模型")
         chatbot = gr.Chatbot()
