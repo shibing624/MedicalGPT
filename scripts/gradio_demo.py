@@ -23,6 +23,7 @@ def main():
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--gpus', default="0", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
+    parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     args = parser.parse_args()
     if args.only_cpu is True:
         args.gpus = ""
@@ -54,12 +55,13 @@ def main():
         device = torch.device(0)
     else:
         device = torch.device('cpu')
-    if args.tokenizer_path is None:
-        args.tokenizer_path = args.lora_model
-        if args.lora_model is None:
-            args.tokenizer_path = args.base_model
-    tokenizer = LlamaTokenizer.from_pretrained(args.tokenizer_path)
 
+    if args.tokenizer_path is None and os.path.exists(
+            os.path.join(args.lora_model, "tokenizer_config.json")):
+        args.tokenizer_path = args.lora_model
+    else:
+        args.tokenizer_path = args.base_model
+    tokenizer = LlamaTokenizer.from_pretrained(args.tokenizer_path)
     base_model = LlamaForCausalLM.from_pretrained(
         args.base_model,
         load_in_8bit=False,
@@ -67,17 +69,17 @@ def main():
         low_cpu_mem_usage=True,
         device_map='auto',
     )
-
-    model_vocab_size = base_model.get_input_embeddings().weight.size(0)
-    tokenzier_vocab_size = len(tokenizer)
-    print(f"Vocab of the base model: {model_vocab_size}")
-    print(f"Vocab of the tokenizer: {tokenzier_vocab_size}")
-    if model_vocab_size != tokenzier_vocab_size:
-        print("Resize model embeddings to fit tokenizer")
-        base_model.resize_token_embeddings(tokenzier_vocab_size)
+    if args.resize_emb:
+        model_vocab_size = base_model.get_input_embeddings().weight.size(0)
+        tokenzier_vocab_size = len(tokenizer)
+        print(f"Vocab of the base model: {model_vocab_size}")
+        print(f"Vocab of the tokenizer: {tokenzier_vocab_size}")
+        if model_vocab_size != tokenzier_vocab_size:
+            print("Resize model embeddings to fit tokenizer")
+            base_model.resize_token_embeddings(tokenzier_vocab_size)
     if args.lora_model is not None:
-        print("loading peft model")
-        model = PeftModel.from_pretrained(base_model, args.lora_model, torch_dtype=load_type, device_map='auto', )
+        model = PeftModel.from_pretrained(base_model, args.lora_model, torch_dtype=load_type, device_map='auto')
+        print("loaded lora model")
     else:
         model = base_model
 
