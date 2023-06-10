@@ -20,6 +20,7 @@ from transformers import (
     BloomTokenizerFast,
     LlamaTokenizer,
     LlamaForCausalLM,
+    GenerationConfig,
 )
 
 MODEL_CLASSES = {
@@ -27,6 +28,7 @@ MODEL_CLASSES = {
     "chatglm": (AutoModel, AutoTokenizer),
     "llama": (LlamaForCausalLM, LlamaTokenizer),
 }
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -75,7 +77,7 @@ def main():
     else:
         args.tokenizer_path = args.base_model
     model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path,trust_remote_code=True)
+    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
     base_model = model_class.from_pretrained(
         args.base_model,
         load_in_8bit=False,
