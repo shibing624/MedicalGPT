@@ -314,8 +314,10 @@ def main():
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     # Required for llama
-    if model_args.model_type == "llama" and tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+    if model_args.model_type == "llama":
+        if tokenizer.pad_token is None:
+            tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+        tokenizer.paddding_side = "left"  # Set padding side equal to the collator's padding side
 
     if training_args.use_peft:
         if training_args.peft_path is not None:

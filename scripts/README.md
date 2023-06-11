@@ -4,7 +4,15 @@
 ### Stage 1: Continue Pretraining
 第一阶段：PT(Continue PreTraining)增量预训练
 
-基于llama-7b模型，使用医疗百科类数据继续预训练，期望注入医疗知识到预训练模型，得到llama-7b-pt模型，此步骤可选
+使用百科类文档类数据集，用来在领域数据集上增量预训练或二次预训练，期望能把领域知识注入给模型，以医疗领域为例，希望增量预训练，能让模型理解感冒的症状、病因、治疗药品、治疗方法、药品疗效等知识，便于后续的SFT监督微调能激活这些内在知识。
+
+这里说明一点，像GPT3、LLaMA这样的大模型理论上是可以从增量预训练中获益，但增量预训练需要满足两个要求：1）高质量的预训练样本；2）较大的计算资源，显存要求高，即使是用LoRA技术，也要满足block_size=1024或2048长度的文本加载到显存中。
+
+其次，如果你的项目用到的数据是模型预训练中已经使用了的，如维基百科、ArXiv等LLaMA模型预训练用了的，则这些数据是没有必要再喂给LLaMA增量预训练，而且预训练样本的质量如果不够高，也可能会损害原模型的生成能力。
+
+tips：PT阶段是可选项，请慎重处理。
+
+基于llama-7b模型，使用医疗百科类数据继续预训练，期望注入医疗知识到预训练模型，得到llama-7b-pt模型
 
 Continue pretraining of the base llama-7b model to create llama-7b-pt:
 
@@ -14,6 +22,8 @@ sh run_pt.sh
 ```
 
 [训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E7%BB%86%E8%8A%82%E8%AF%B4%E6%98%8E)
+- 如果你的显存不足，可以改小batch_size=1, block_size=512（影响训练的上下文最大长度）;
+- 如果你的显存更大，可以改大block_size=2048, 此为llama原始预训练长度，不能更大啦；调大batch_size。
 
 ### Stage 2: Supervised FineTuning
 第二阶段：SFT(Supervised Fine-tuning)有监督微调
