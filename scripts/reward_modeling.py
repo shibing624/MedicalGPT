@@ -414,6 +414,8 @@ def main():
         raise ValueError(f"Error, model_name_or_path is None, RM must be loaded from a pre-trained model")
 
     # Load tokenizer
+    if model_args.model_type == "bloom":
+        model_args.use_fast_tokenizer = True
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
         "use_fast": model_args.use_fast_tokenizer,

@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0 torchrun --nnodes 1 --nproc_per_node 1 rl_training.py \
+CUDA_VISIBLE_DEVICES=0 torchrun --nproc_per_node 1 rl_training.py \
     --model_type bloom \
     --model_name_or_path bigscience/bloomz-560m \
     --reward_model_name_or_path OpenAssistant/reward-model-deberta-v3-large-v2 \
