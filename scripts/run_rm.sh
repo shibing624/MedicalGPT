@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 reward_modeling.py \
+CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --model_type bloom \
     --model_name_or_path bigscience/bloomz-560m \
     --train_file_dir ../data/reward \

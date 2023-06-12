@@ -29,7 +29,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', default=None, type=str, required=True)
     parser.add_argument('--base_model', default=None, type=str, required=True)
-    parser.add_argument('--lora_model', default=None, type=str, help="If None, perform inference on the base model")
+    parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--data_file', default=None, type=str,
                         help="A file that contains instructions (one instruction per line)")
@@ -101,7 +101,7 @@ def main():
             print("Resize model embeddings to fit tokenizer")
             base_model.resize_token_embeddings(tokenzier_vocab_size)
 
-    if args.lora_model is not None:
+    if args.lora_model:
         model = PeftModel.from_pretrained(base_model, args.lora_model, torch_dtype=load_type, device_map='auto')
         print("Loaded lora model")
     else:
