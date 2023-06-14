@@ -4,8 +4,8 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 rl_training.py \
     --reward_model_name_or_path OpenAssistant/reward-model-deberta-v3-large-v2 \
     --torch_dtype float16 \
     --device_map auto \
-    --train_file_dir ../data/finetune \
-    --validation_file_dir ../data/finetune \
+    --train_file_dir ./data/finetune \
+    --validation_file_dir ./data/finetune \
     --batch_size 8 \
     --max_source_length 256 \
     --max_target_length 256 \

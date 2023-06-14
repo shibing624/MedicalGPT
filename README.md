@@ -51,7 +51,7 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 启动服务，命令如下：
 ```shell
-python scripts/gradio_demo.py --model_type base_model_type --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
+python gradio_demo.py --model_type base_model_type --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
 ```
 
 参数说明：
@@ -82,7 +82,7 @@ Training Stage:
 训练完成后，现在我们加载训练好的模型，验证模型生成文本的效果。
 
 ```shell
-python scripts/inference.py \
+python inference.py \
     --model_type base_model_type \
     --base_model path_to_llama_hf_dir \
     --lora_model path_to_lora \
