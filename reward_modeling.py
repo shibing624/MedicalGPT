@@ -514,7 +514,7 @@ def main():
     logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets
-    max_length = data_args.max_source_length + data_args.max_target_length
+    full_max_length = data_args.max_source_length + data_args.max_target_length
 
     def preprocess_reward_function(examples):
         """
@@ -560,8 +560,8 @@ def main():
                 desc="Running tokenizer on dataset",
             )
             train_dataset = tokenized_dataset.filter(
-                lambda x: 0 < len(x['input_ids_rejected']) <= max_length and 0 < len(
-                    x['input_ids_chosen']) <= max_length
+                lambda x: 0 < len(x['input_ids_rejected']) <= full_max_length and 0 < len(
+                    x['input_ids_chosen']) <= full_max_length
             )
             logger.debug(f"Num train_samples: {len(train_dataset)}")
             logger.debug("Tokenized training example:")
@@ -588,8 +588,8 @@ def main():
                 desc="Running tokenizer on dataset",
             )
             eval_dataset = tokenized_dataset.filter(
-                lambda x: 0 < len(x['input_ids_rejected']) <= max_length and 0 < len(
-                    x['input_ids_chosen']) <= max_length
+                lambda x: 0 < len(x['input_ids_rejected']) <= full_max_length and 0 < len(
+                    x['input_ids_chosen']) <= full_max_length
             )
             logger.debug(f"Num eval_samples: {len(eval_dataset)}")
             logger.debug("Tokenized eval example:")
@@ -614,7 +614,7 @@ def main():
         tokenizer=tokenizer,
         compute_metrics=compute_metrics,
         data_collator=RewardDataCollatorWithPadding(
-            tokenizer=tokenizer, max_length=max_length, padding="max_length"
+            tokenizer=tokenizer, max_length=full_max_length, padding="max_length"
         ),
     )
 

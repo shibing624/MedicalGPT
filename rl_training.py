@@ -35,12 +35,12 @@ MODEL_CLASSES = {
     "llama": (LlamaForCausalLM, LlamaTokenizer),
 }
 
-
 PROMPT_TEMPLATE = (
     "Below is an instruction that describes a task. "
     "Write a response that appropriately completes the request.\n\n"
     "### Instruction:\n{instruction}\n\n### Response: "
 )
+
 
 @dataclass
 class ScriptArguments:
@@ -169,7 +169,6 @@ class ScriptArguments:
             raise ValueError("You must specify a valid reward_model_name_or_path to run training.")
 
 
-
 def print_trainable_parameters(model):
     """
     Prints the number of trainable parameters in the model.
@@ -202,6 +201,8 @@ def main():
     logger.warning(f"Parse args: {args}")
 
     model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+    if args.model_type == 'bloom':
+        args.use_fast_tokenizer = True
     # Load tokenizer
     tokenizer_kwargs = {
         "cache_dir": args.cache_dir,
@@ -358,7 +359,6 @@ def main():
         logger.debug(f"Num train_samples: {len(train_dataset)}")
         logger.debug("Tokenized training example:")
         # logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
-
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
