@@ -407,6 +407,7 @@ def main():
     # Preprocessing the datasets
     max_source_length = data_args.max_source_length
     max_target_length = data_args.max_target_length
+    full_max_length = max_source_length + max_target_length
 
     def preprocess_function(examples):
         sources = []
@@ -427,7 +428,8 @@ def main():
         all_labels = []
         for s, t in zip(tokenized_sources['input_ids'], tokenized_targets['input_ids']):
             input_ids = torch.LongTensor(s + t)
-            labels = torch.LongTensor([IGNORE_INDEX] * (max_source_length + max_target_length - len(t)) + t)
+            # Padding labels to full max length for Seq2SeqCollator
+            labels = torch.LongTensor([IGNORE_INDEX] * (full_max_length - len(t)) + t)
             all_input_ids.append(input_ids)
             all_labels.append(labels)
         results = {'input_ids': all_input_ids, 'labels': all_labels}
@@ -497,7 +499,7 @@ def main():
         tokenizer,
         return_tensors="pt",
         padding="max_length",
-        max_length=max_source_length + max_target_length
+        max_length=full_max_length,
     )
     trainer = SavePeftModelTrainer(
         model=model,
