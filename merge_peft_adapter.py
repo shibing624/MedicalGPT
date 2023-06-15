@@ -73,9 +73,10 @@ def main():
             device_map="auto",
         )
     tokenizer = tokenizer_class.from_pretrained(peft_model_path, trust_remote_code=True)
-    if base_model.get_input_embeddings().weight.size(0) != len(tokenizer):
+    base_model_token_size = base_model.get_input_embeddings().weight.size(0)
+    if base_model_token_size != len(tokenizer):
         base_model.resize_token_embeddings(len(tokenizer))
-        print(f"Extended vocabulary size to {len(tokenizer)}")
+        print(f"Resize vocabulary size {base_model_token_size} to {len(tokenizer)}")
 
     lora_model = PeftModel.from_pretrained(
         base_model,
