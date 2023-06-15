@@ -42,7 +42,6 @@ from transformers import (
     DataCollatorForSeq2Seq,
 )
 from transformers.trainer import TRAINING_ARGS_NAME
-from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import send_example_telemetry
 
 MODEL_CLASSES = {
@@ -262,21 +261,6 @@ def main():
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
 
-    # Detecting last checkpoint.
-    last_checkpoint = None
-    if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
-        last_checkpoint = get_last_checkpoint(training_args.output_dir)
-        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
-            raise ValueError(
-                f"Output directory ({training_args.output_dir}) already exists and is not empty. "
-                "Use --overwrite_output_dir to overcome."
-            )
-        elif last_checkpoint is not None and training_args.resume_from_checkpoint is None:
-            logger.info(
-                f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
-                "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
-            )
-
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
@@ -320,6 +304,8 @@ def main():
         if tokenizer.pad_token is None:
             tokenizer.add_special_tokens({"pad_token": "[PAD]"})
     tokenizer.paddding_side = "left"  # Set padding side equal to the collator's padding side
+    if model_args.model_type != "chatglm":
+        tokenizer.pad_token_id = 0  # Set pad token id to 0
     logger.debug(f"Tokenizer: {tokenizer}")
     logger.debug(f"Base model: {model}")
 
@@ -521,12 +507,9 @@ def main():
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
             checkpoint = training_args.resume_from_checkpoint
-        elif last_checkpoint is not None:
-            checkpoint = last_checkpoint
         train_result = trainer.train(resume_from_checkpoint=checkpoint)
 
         metrics = train_result.metrics
-
         metrics["train_samples"] = max_train_samples
         logger.debug(f"Training metrics: {metrics}")
         trainer.log_metrics("train", metrics)
