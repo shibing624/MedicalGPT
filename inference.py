@@ -11,12 +11,12 @@ import torch
 from peft import PeftModel
 from transformers import (
     AutoModel,
+    AutoModelForCausalLM,
     AutoTokenizer,
     BloomForCausalLM,
     BloomTokenizerFast,
     LlamaTokenizer,
     LlamaForCausalLM,
-AutoModelForCausalLM,
 )
 
 MODEL_CLASSES = {
@@ -77,10 +77,7 @@ def main():
         device = torch.device(0)
     else:
         device = torch.device('cpu')
-    if args.tokenizer_path is None and os.path.exists(
-            os.path.join(args.lora_model, "tokenizer_config.json")):
-        args.tokenizer_path = args.lora_model
-    else:
+    if args.tokenizer_path is None:
         args.tokenizer_path = args.base_model
 
     model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
@@ -145,7 +142,6 @@ def main():
                 inputs = tokenizer(input_text, return_tensors="pt")
                 generation_output = model.generate(
                     input_ids=inputs["input_ids"].to(device),
-                    attention_mask=inputs['attention_mask'].to(device),
                     bos_token_id=tokenizer.bos_token_id,
                     eos_token_id=tokenizer.eos_token_id,
                     pad_token_id=tokenizer.pad_token_id,
@@ -170,7 +166,6 @@ def main():
                 inputs = tokenizer(input_text, return_tensors="pt")
                 generation_output = model.generate(
                     input_ids=inputs["input_ids"].to(device),
-                    attention_mask=inputs['attention_mask'].to(device),
                     eos_token_id=tokenizer.eos_token_id,
                     pad_token_id=tokenizer.pad_token_id,
                     **generation_config

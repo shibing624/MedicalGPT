@@ -17,6 +17,7 @@ from tqdm import tqdm
 from transformers import (
     AutoModelForSequenceClassification,
     BloomForCausalLM,
+    AutoModelForCausalLM,
     AutoModel,
     LlamaTokenizer,
     LlamaForCausalLM,
@@ -33,6 +34,7 @@ MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoModel, AutoTokenizer),
     "llama": (LlamaForCausalLM, LlamaTokenizer),
+    "auto": (AutoModelForCausalLM, AutoTokenizer),
 }
 
 PROMPT_TEMPLATE = (

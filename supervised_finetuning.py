@@ -30,6 +30,7 @@ from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_
 from transformers import (
     BloomForCausalLM,
     AutoModel,
+    AutoModelForCausalLM,
     LlamaTokenizer,
     LlamaForCausalLM,
     BloomTokenizerFast,
@@ -48,6 +49,7 @@ MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoModel, AutoTokenizer),
     "llama": (LlamaForCausalLM, LlamaTokenizer),
+    "auto": (AutoModelForCausalLM, AutoTokenizer),
 }
 
 IGNORE_INDEX = -100
@@ -317,7 +319,9 @@ def main():
     if model_args.model_type == "llama":
         if tokenizer.pad_token is None:
             tokenizer.add_special_tokens({"pad_token": "[PAD]"})
-        tokenizer.paddding_side = "left"  # Set padding side equal to the collator's padding side
+    tokenizer.paddding_side = "left"  # Set padding side equal to the collator's padding side
+    logger.debug(f"Tokenizer: {tokenizer}")
+    logger.debug(f"Base model: {model}")
 
     if training_args.use_peft:
         if training_args.peft_path is not None:

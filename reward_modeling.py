@@ -27,6 +27,7 @@ from transformers import (
     BertTokenizer,
     AutoTokenizer,
     RobertaForSequenceClassification,
+    AutoModelForSequenceClassification,
     RobertaTokenizer,
     HfArgumentParser,
     Trainer,
@@ -43,6 +44,7 @@ MODEL_CLASSES = {
     "albert": (AlbertForSequenceClassification, AutoTokenizer),
     "bloom": (BloomForSequenceClassification, BloomTokenizerFast),
     "llama": (LlamaForSequenceClassification, LlamaTokenizer),
+    "auto": (AutoModelForSequenceClassification, AutoTokenizer),
 }
 
 

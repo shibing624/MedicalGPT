@@ -16,6 +16,7 @@ from peft import PeftModel
 from transformers import (
     AutoModel,
     AutoTokenizer,
+    AutoModelForCausalLM,
     BloomForCausalLM,
     BloomTokenizerFast,
     LlamaTokenizer,
@@ -27,6 +28,7 @@ MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoModel, AutoTokenizer),
     "llama": (LlamaForCausalLM, LlamaTokenizer),
+    "gpt": (AutoModelForCausalLM, AutoTokenizer),
 }
 
 
@@ -71,10 +73,7 @@ def main():
     else:
         device = torch.device('cpu')
 
-    if args.tokenizer_path is None and os.path.exists(
-            os.path.join(args.lora_model, "tokenizer_config.json")):
-        args.tokenizer_path = args.lora_model
-    else:
+    if args.tokenizer_path is None:
         args.tokenizer_path = args.base_model
     model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)

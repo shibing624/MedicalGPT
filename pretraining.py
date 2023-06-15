@@ -32,6 +32,7 @@ from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_
 from sklearn.metrics import accuracy_score
 from transformers import (
     BloomForCausalLM,
+    AutoModelForCausalLM,
     AutoModel,
     LlamaTokenizer,
     LlamaForCausalLM,
@@ -52,6 +53,7 @@ MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoModel, AutoTokenizer),
     "llama": (LlamaForCausalLM, LlamaTokenizer),
+    "auto": (AutoModelForCausalLM, AutoTokenizer),
 }
 
 
