@@ -299,15 +299,9 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
-    # Required for llama
-    if model_args.model_type == "llama":
-        if tokenizer.pad_token is None:
-            tokenizer.add_special_tokens({"pad_token": "[PAD]"})
     tokenizer.padding_side = "left"  # Set padding side equal to the collator's padding side
     if model_args.model_type != "chatglm":
         tokenizer.pad_token_id = 0  # Set pad token id to 0
-    logger.debug(f"Tokenizer: {tokenizer}")
-    logger.debug(f"Base model: {model}")
 
     if training_args.use_peft:
         if training_args.peft_path is not None:
@@ -338,6 +332,9 @@ def main():
     else:
         logger.info("Full parameters training")
         print_trainable_parameters(model)
+
+    logger.debug(f"Tokenizer: {tokenizer}")
+    logger.debug(f"Model: {model}")
 
     # Get datasets
     if data_args.dataset_name is not None:
