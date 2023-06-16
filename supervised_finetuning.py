@@ -303,7 +303,7 @@ def main():
     if model_args.model_type == "llama":
         if tokenizer.pad_token is None:
             tokenizer.add_special_tokens({"pad_token": "[PAD]"})
-    tokenizer.paddding_side = "left"  # Set padding side equal to the collator's padding side
+    tokenizer.padding_side = "left"  # Set padding side equal to the collator's padding side
     if model_args.model_type != "chatglm":
         tokenizer.pad_token_id = 0  # Set pad token id to 0
     logger.debug(f"Tokenizer: {tokenizer}")
