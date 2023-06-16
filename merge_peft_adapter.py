@@ -19,6 +19,7 @@ from transformers import (
     AutoTokenizer,
     BloomForCausalLM,
     BloomTokenizerFast,
+    AutoModelForCausalLM,
     LlamaTokenizer,
     LlamaForCausalLM,
     AutoModelForSequenceClassification,
@@ -28,6 +29,7 @@ MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoModel, AutoTokenizer),
     "llama": (LlamaForCausalLM, LlamaTokenizer),
+    "auto": (AutoModelForCausalLM, AutoTokenizer),
 }
 
 
