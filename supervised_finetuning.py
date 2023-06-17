@@ -179,7 +179,7 @@ class PeftArguments(TrainingArguments):
     lora_dropout: Optional[float] = field(default=0.05)
     lora_alpha: Optional[float] = field(default=32.0)
     modules_to_save: Optional[str] = field(default=None)
-    peft_path: Optional[str] = field(default=None)
+    peft_path: Optional[str] = field(default=None, metadata={"help": "The path to the peft model"})
 
 
 class CastOutputToFloat(torch.nn.Sequential):
