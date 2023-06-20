@@ -100,6 +100,7 @@ llama:
 - [minlik/chinese-llama-plus-7b-merged](https://huggingface.co/minlik/chinese-llama-plus-7b-merged)
 - [shibing624/chinese-llama-plus-13b-hf](https://huggingface.co/shibing624/chinese-llama-plus-13b-hf)
 - [decapoda-research/llama-7b-hf](https://huggingface.co/decapoda-research/llama-7b-hf)
+- [IDEA-CCNL/Ziya-LLaMA-13B-v1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1)
 
 chatglm:
 - [THUDM/chatglm-6b](https://huggingface.co/THUDM/chatglm-6b)
