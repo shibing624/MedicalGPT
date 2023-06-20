@@ -337,12 +337,10 @@ def main():
 
     # Preprocess the dataset
     train_dataset = None
-    max_train_samples = 0
     if args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets['train']
-        max_train_samples = len(train_dataset)
         if args.max_train_samples is not None and args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
@@ -359,8 +357,6 @@ def main():
             lambda x: len(x['input_ids']) > 0
         )
         logger.debug(f"Num train_samples: {len(train_dataset)}")
-        logger.debug("Tokenized training example:")
-        # logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])

@@ -412,8 +412,8 @@ def main():
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     # Required for llama
-    if model_args.model_type == "llama" and tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({"pad_token": "[PAD]"})
+    if model_args.model_type == "llama":
+        tokenizer.pad_token_id = 0
 
     if training_args.use_peft:
         if training_args.peft_path is not None:
@@ -607,7 +607,7 @@ def main():
     # Training
     if training_args.do_train:
         logger.info("*** Train ***")
-        logger.debug(f"Train dataloader example: {list(trainer.get_train_dataloader())[0]}")
+        logger.debug(f"Train dataloader example: {next(iter(trainer.get_train_dataloader()))}")
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
             checkpoint = training_args.resume_from_checkpoint
