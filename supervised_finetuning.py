@@ -489,7 +489,7 @@ def main():
 
     try:
         model.enable_input_require_grads()
-    except AttributeError:
+    except:
         logger.warning(f"Could not enable input require_grads on model, skipping.")
     if torch.cuda.device_count() > 1:
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
