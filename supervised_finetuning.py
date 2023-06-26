@@ -286,7 +286,8 @@ def main():
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,
         )
-        model.lm_head = CastOutputToFloat(model.lm_head)
+        if hasattr(model, 'lm_head'):
+            model.lm_head = CastOutputToFloat(model.lm_head)
     else:
         raise ValueError(f"Error, model_name_or_path is None, SFT must be loaded from a pre-trained model")
 
@@ -303,6 +304,13 @@ def main():
     tokenizer.padding_side = "left"  # Set padding side equal to the collator's padding side
     if model_args.model_type != "chatglm":
         tokenizer.pad_token_id = 0  # Set pad token id to 0
+    # Set special tokens for chatglm2
+    if tokenizer.eos_token is None:
+        tokenizer.add_special_tokens({
+            "eos_token": "</s>",
+            "bos_token": "<sop>",
+            "unk_token": "<unk>",
+        })
 
     if training_args.use_peft:
         if training_args.peft_path is not None:
@@ -478,7 +486,11 @@ def main():
         model.config.use_cache = False
     else:
         model.config.use_cache = True
-    model.enable_input_require_grads()
+
+    try:
+        model.enable_input_require_grads()
+    except AttributeError:
+        logger.warning(f"Could not enable input require_grads on model, skipping.")
     if torch.cuda.device_count() > 1:
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True
