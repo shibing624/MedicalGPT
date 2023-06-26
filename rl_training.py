@@ -376,7 +376,7 @@ def main():
         seed=args.seed,
         init_kl_coef=args.init_kl_coef,
         adap_kl_ctrl=args.adap_kl_ctrl,
-        accelerator_kwargs={"project_dir": output_dir},
+        project_kwargs={"logging_dir": output_dir},
     )
     # Set seed before initializing value head for deterministic eval
     set_seed(config.seed)
