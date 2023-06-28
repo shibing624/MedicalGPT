@@ -348,10 +348,6 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, PeftArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-    # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
-    # information sent is the one passed as arguments along with your Python/PyTorch versions.
-    send_example_telemetry("run_pt", model_args, data_args)
-
     logger.warning(f"Model args: {model_args}")
     logger.warning(f"Data args: {data_args}")
     logger.warning(f"Training args: {training_args}")

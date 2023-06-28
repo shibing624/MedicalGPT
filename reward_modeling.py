@@ -351,8 +351,6 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, PeftArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-    send_example_telemetry("run_rm", model_args, data_args)
-
     logger.warning(f"Model args: {model_args}")
     logger.warning(f"Data args: {data_args}")
     logger.warning(f"Training args: {training_args}")
