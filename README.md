@@ -72,6 +72,17 @@ python gradio_demo.py --model_type base_model_type --base_model path_to_llama_hf
 - `--gpus {gpu_ids}`: 指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
 
 
+## 💾 Install
+#### Updating the requirements
+From time to time, the `requirements.txt` changes. To update, use this command:
+
+```markdown
+git clone https://github.com/shibing624/MedicalGPT
+conda activate gpt
+cd MedicalGPT
+pip install -r requirements.txt --upgrade
+```
+
 ## 🚀 Training Pipeline
 
 Training Stage:
