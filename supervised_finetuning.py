@@ -40,9 +40,10 @@ from transformers import (
     TrainingArguments,
     set_seed,
     DataCollatorForSeq2Seq,
+    BitsAndBytesConfig,
+    deepspeed,
 )
 from transformers.trainer import TRAINING_ARGS_NAME
-from transformers.utils import send_example_telemetry
 
 MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
@@ -181,6 +182,7 @@ class PeftArguments(TrainingArguments):
     lora_alpha: Optional[float] = field(default=32.0)
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None, metadata={"help": "The path to the peft model"})
+    qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
 
 
 class CastOutputToFloat(torch.nn.Sequential):
@@ -278,6 +280,9 @@ def main():
         world_size = int(os.environ.get("WORLD_SIZE", 1))
         if world_size > 1:
             model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+        if len(training_args.fsdp) > 0 or deepspeed.is_deepspeed_zero3_enabled():
+            logger.error("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
+
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             load_in_8bit=model_args.load_in_8bit,
@@ -285,6 +290,12 @@ def main():
             torch_dtype=torch_dtype,
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch_dtype,
+            ) if training_args.qlora else None,
         )
         if hasattr(model, 'lm_head'):
             model.lm_head = CastOutputToFloat(model.lm_head)
