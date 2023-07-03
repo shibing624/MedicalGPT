@@ -280,8 +280,8 @@ def main():
         world_size = int(os.environ.get("WORLD_SIZE", 1))
         if world_size > 1:
             model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
-        if len(training_args.fsdp) > 0 or deepspeed.is_deepspeed_zero3_enabled():
-            logger.error("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
+        if training_args.qlora and (len(training_args.fsdp) > 0 or deepspeed.is_deepspeed_zero3_enabled()):
+            logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
 
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
