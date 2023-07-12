@@ -18,6 +18,7 @@ from transformers import (
     LlamaTokenizer,
     LlamaForCausalLM,
 )
+from transformers.generation import GenerationConfig
 
 MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
@@ -45,17 +46,7 @@ def main():
     if args.only_cpu is True:
         args.gpus = ""
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
-
-    generation_config = dict(
-        temperature=0.2,
-        top_k=40,
-        top_p=0.9,
-        do_sample=True,
-        num_beams=1,
-        repetition_penalty=1.3,
-        max_new_tokens=400
-    )
-
+    print(args)
     # The prompt template below is taken from llama.cpp
     # and is slightly different from the one used in training.
     # But we find it gives better results
@@ -90,6 +81,17 @@ def main():
         device_map='auto',
         trust_remote_code=True,
     )
+    generation_config = GenerationConfig.from_pretrained(args.base_model)
+    custom_config = dict(
+        temperature=0.2,
+        top_k=40,
+        top_p=0.9,
+        do_sample=True,
+        num_beams=1,
+        repetition_penalty=1.3,
+        max_new_tokens=400
+    )
+    generation_config.update(**custom_config)
 
     if args.resize_emb:
         model_vocab_size = base_model.get_input_embeddings().weight.size(0)
@@ -142,10 +144,7 @@ def main():
                 inputs = tokenizer(input_text, return_tensors="pt")
                 generation_output = model.generate(
                     input_ids=inputs["input_ids"].to(device),
-                    bos_token_id=tokenizer.bos_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
-                    pad_token_id=tokenizer.pad_token_id,
-                    **generation_config
+                    generation_config=generation_config,
                 )
                 s = generation_output[0]
                 output = tokenizer.decode(s, skip_special_tokens=True)
