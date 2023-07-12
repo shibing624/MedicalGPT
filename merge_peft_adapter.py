@@ -38,6 +38,8 @@ def main():
     parser.add_argument('--model_type', default=None, type=str, required=True)
     parser.add_argument('--base_model_name_or_path', default=None, required=True, type=str,
                         help="Base model name or path")
+    parser.add_argument('--tokenizer_path', default=None, type=str,
+                        help="Please specify tokenization path.")
     parser.add_argument('--peft_model_path', default=None, required=True, type=str,
                         help="Please specify LoRA model to be merged.")
     parser.add_argument('--output_dir', default='./merged', type=str)
@@ -74,7 +76,10 @@ def main():
             trust_remote_code=True,
             device_map="auto",
         )
-    tokenizer = tokenizer_class.from_pretrained(peft_model_path, trust_remote_code=True)
+    if args.tokenizer_path:
+        tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
+    else:
+        tokenizer = tokenizer_class.from_pretrained(peft_model_path, trust_remote_code=True)
     base_model_token_size = base_model.get_input_embeddings().weight.size(0)
     if base_model_token_size != len(tokenizer):
         base_model.resize_token_embeddings(len(tokenizer))

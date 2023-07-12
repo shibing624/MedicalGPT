@@ -15,7 +15,7 @@
 """
 Fine-tuning the library models for causal language modeling (GPT, GPT-2, CTRL, ...) on a text file or a dataset.
 
-part of this code is adapted from https://github.com/shibing624/textgen/blob/main/textgen/llama/llama_model.py
+part of this code is adapted from https://github.com/shibing624/textgen
 """
 import math
 import os
