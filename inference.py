@@ -105,7 +105,7 @@ def main():
         print("Loaded lora model")
     else:
         model = base_model
-
+    print(tokenizer)
     if device == torch.device('cpu'):
         model.float()
     # test data
