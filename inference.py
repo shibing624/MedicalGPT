@@ -165,9 +165,7 @@ def main():
                 inputs = tokenizer(input_text, return_tensors="pt")
                 generation_output = model.generate(
                     input_ids=inputs["input_ids"].to(device),
-                    eos_token_id=tokenizer.eos_token_id,
-                    pad_token_id=tokenizer.pad_token_id,
-                    **generation_config
+                    generation_config=generation_config,
                 )
                 s = generation_output[0]
                 output = tokenizer.decode(s, skip_special_tokens=True)

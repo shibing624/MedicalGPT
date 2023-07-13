@@ -29,6 +29,8 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 分四阶段训练GPT模型，来自Andrej Karpathy的演讲PDF [State of GPT](https://karpathy.ai/stateofgpt.pdf)，视频 [Video](https://build.microsoft.com/en-US/sessions/db3f4859-cd30-4445-a0cd-553c3304f8e2)
 
 ## 🔥 News
+[2023/07/13] v1.1版本: 发布中文医疗LLaMA-13B模型[shibing624/ziya-llama-13b-medical-merged](https://huggingface.co/shibing624/ziya-llama-13b-medical-merged)，基于Ziya-LLaMA-13B-v1模型，SFT微调了一版医疗模型，医疗问答效果有提升，发布微调后的完整模型权重，详见[Release-v1.1](https://github.com/shibing624/MedicalGPT/releases/tag/1.1.0)
+
 [2023/06/15] v1.0版本: 发布中文医疗LoRA模型[shibing624/ziya-llama-13b-medical-lora](https://huggingface.co/shibing624/ziya-llama-13b-medical-lora)，基于Ziya-LLaMA-13B-v1模型，SFT微调了一版医疗模型，医疗问答效果有提升，发布微调后的LoRA权重，详见[Release-v1.0](https://github.com/shibing624/MedicalGPT/releases/tag/1.0.0)
 
 [2023/06/05] v0.2版本: 以医疗为例，训练领域大模型，实现了四阶段训练：包括二次预训练、有监督微调、奖励建模、强化学习训练。详见[Release-v0.2](https://github.com/shibing624/MedicalGPT/releases/tag/0.2.0)
@@ -125,7 +127,8 @@ baichuan:
 ```shell
 python inference.py \
     --model_type base_model_type \
-    --base_model path_to_llama_hf_dir \
+    --base_model path_to_model_hf_dir \
+    --tokenizer_path path_to_model_hf_dir \
     --lora_model path_to_lora \
     --with_prompt \
     --interactive
@@ -135,6 +138,7 @@ python inference.py \
 
 - `--model_type {base_model_type}`：预训练模型类型，如llama、bloom、chatglm等
 - `--base_model {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录
+- `--tokenizer_path {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录
 - `--lora_model {lora_model}`：LoRA解压后文件所在目录，也可使用HF Model Hub模型调用名称。如果已经合并了LoRA权重到预训练模型，则可以不提供此参数
 - `--tokenizer_path {tokenizer_path}`：存放对应tokenizer的目录。若不提供此参数，则其默认值与--base_model相同
 - `--with_prompt`：是否将输入与prompt模版进行合并。如果加载Alpaca模型，请务必启用此选项！
@@ -148,7 +152,7 @@ python inference.py \
 
 
 #### Inference Examples
-[shibing624/ziya-llama-13b-medical-lora](https://huggingface.co/shibing624/ziya-llama-13b-medical-lora) inference examples:
+[shibing624/ziya-llama-13b-medical-merged](https://huggingface.co/shibing624/ziya-llama-13b-medical-merged) inference examples:
 
 <details><summary>Model output case</summary>
 
