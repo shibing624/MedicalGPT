@@ -81,17 +81,15 @@ def main():
         device_map='auto',
         trust_remote_code=True,
     )
-    generation_config = GenerationConfig.from_pretrained(args.base_model)
-    custom_config = dict(
+    generation_config = dict(
+        max_new_tokens=400,
         temperature=0.2,
         top_k=40,
         top_p=0.9,
         do_sample=True,
         num_beams=1,
         repetition_penalty=1.3,
-        max_new_tokens=400
     )
-    generation_config.update(**custom_config)
 
     if args.resize_emb:
         model_vocab_size = base_model.get_input_embeddings().weight.size(0)
@@ -144,7 +142,7 @@ def main():
                 inputs = tokenizer(input_text, return_tensors="pt")
                 generation_output = model.generate(
                     input_ids=inputs["input_ids"].to(device),
-                    generation_config=generation_config,
+                    **generation_config,
                 )
                 s = generation_output[0]
                 output = tokenizer.decode(s, skip_special_tokens=True)
@@ -165,7 +163,7 @@ def main():
                 inputs = tokenizer(input_text, return_tensors="pt")
                 generation_output = model.generate(
                     input_ids=inputs["input_ids"].to(device),
-                    generation_config=generation_config,
+                    **generation_config,
                 )
                 s = generation_output[0]
                 output = tokenizer.decode(s, skip_special_tokens=True)
