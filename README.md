@@ -117,9 +117,12 @@ llama:
 
 chatglm:
 - [THUDM/chatglm-6b](https://huggingface.co/THUDM/chatglm-6b)
+- [THUDM/chatglm2-6b](https://huggingface.co/THUDM/chatglm2-6b)
 
 baichuan:
 - [baichuan-inc/baichuan-7B](https://huggingface.co/baichuan-inc/baichuan-7B)
+- [baichuan-inc/Baichuan-13B-Base](https://huggingface.co/baichuan-inc/Baichuan-13B-Base)
+- [baichuan-inc/Baichuan-13B-Chat](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat)
 
 ## 💻 Inference 
 训练完成后，现在我们加载训练好的模型，验证模型生成文本的效果。

@@ -6,8 +6,11 @@
 Usage:
 python merge_peft_adapter.py \
     --base_model_name_or_path path/to/llama/model \
-    --peft_model_path path/to/first/lora/model \
+    --tokenizer_path path/to/llama/tokenizer \
+    --peft_model_path path/to/lora/model \
     --output_dir path/to/output/dir
+
+after merged, chatglm and baichuan model need copy python script to output dir.
 """
 
 import argparse
@@ -29,6 +32,7 @@ MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoModel, AutoTokenizer),
     "llama": (LlamaForCausalLM, LlamaTokenizer),
+    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoModelForCausalLM, AutoTokenizer),
 }
 
