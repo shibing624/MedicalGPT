@@ -113,10 +113,11 @@ def main():
     def generate_prompt(instruction):
         return f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
     
-    ### Instruction:
-    {instruction}
-    
-    ### Response: """
+### Instruction:
+{instruction}
+
+### Response: 
+"""
 
     def predict(
             input,
