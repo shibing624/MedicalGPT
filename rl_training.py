@@ -15,6 +15,7 @@ from loguru import logger
 from peft import LoraConfig, TaskType
 from tqdm import tqdm
 from transformers import (
+    AutoConfig,
     AutoModelForSequenceClassification,
     BloomForCausalLM,
     AutoModelForCausalLM,
@@ -31,11 +32,11 @@ os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 MODEL_CLASSES = {
-    "bloom": (BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, LlamaTokenizer),
-    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoModelForCausalLM, AutoTokenizer),
+    "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
+    "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
+    "llama": (AutoConfig, LlamaForCausalLM, LlamaTokenizer),
+    "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
+    "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
 }
 
 PROMPT_TEMPLATE = (
@@ -203,7 +204,7 @@ def main():
 
     logger.warning(f"Parse args: {args}")
 
-    model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+    config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     if args.model_type == 'bloom':
         args.use_fast_tokenizer = True
     # Load tokenizer
@@ -237,8 +238,10 @@ def main():
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     if world_size > 1:
         args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+    config = config_class.from_pretrained(args.model_name_or_path)
     model = AutoModelForCausalLMWithValueHead.from_pretrained(
         args.model_name_or_path,
+        config=config,
         load_in_8bit=args.load_in_8bit,
         cache_dir=args.cache_dir,
         torch_dtype=torch_dtype,
@@ -251,6 +254,7 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     reward_model = AutoModelForSequenceClassification.from_pretrained(
         args.reward_model_name_or_path,
+        config=config,
         load_in_8bit=args.load_in_8bit,
         cache_dir=args.cache_dir,
         torch_dtype=torch_dtype,

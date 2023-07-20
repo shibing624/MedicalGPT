@@ -28,6 +28,7 @@ from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
 from transformers import (
+    AutoConfig,
     BloomForCausalLM,
     AutoModel,
     AutoModelForCausalLM,
@@ -46,11 +47,11 @@ from transformers import (
 from transformers.trainer import TRAINING_ARGS_NAME
 
 MODEL_CLASSES = {
-    "bloom": (BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, LlamaTokenizer),
-    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoModelForCausalLM, AutoTokenizer),
+    "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
+    "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
+    "llama": (AutoConfig, LlamaForCausalLM, LlamaTokenizer),
+    "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
+    "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
 }
 
 IGNORE_INDEX = -100
@@ -270,7 +271,7 @@ def main():
     # Load model
     if not model_args.model_type:
         raise ValueError("Please specify a model_type, e.g. llama, chatglm, bloom, etc.")
-    model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
+    config_class, model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
     if model_args.model_name_or_path:
         torch_dtype = (
             model_args.torch_dtype
@@ -282,9 +283,10 @@ def main():
             model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
         if training_args.qlora and (len(training_args.fsdp) > 0 or deepspeed.is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
-
+        config = config_class.from_pretrained(model_args.model_name_or_path)
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
+            config=config,
             load_in_8bit=model_args.load_in_8bit,
             cache_dir=model_args.cache_dir,
             torch_dtype=torch_dtype,
