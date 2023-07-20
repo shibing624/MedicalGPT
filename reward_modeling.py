@@ -377,6 +377,7 @@ def main():
             model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
         config = config_class.from_pretrained(
             model_args.model_name_or_path,
+            torch_dtype=torch_dtype,
             trust_remote_code=model_args.trust_remote_code,
             cache_dir=model_args.cache_dir
         )
@@ -386,7 +387,6 @@ def main():
                 config=config,
                 num_labels=1,
                 load_in_8bit=model_args.load_in_8bit,
-                torch_dtype=torch_dtype,
                 device_map=model_args.device_map,
                 trust_remote_code=model_args.trust_remote_code,
             )
@@ -397,7 +397,6 @@ def main():
                 config=config,
                 num_labels=1,
                 cache_dir=model_args.cache_dir,
-                torch_dtype=torch_dtype,
                 ignore_mismatched_sizes=True
             )
             model.to(training_args.device)

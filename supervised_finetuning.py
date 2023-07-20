@@ -287,13 +287,13 @@ def main():
         config = config_class.from_pretrained(
             model_args.model_name_or_path,
             trust_remote_code=model_args.trust_remote_code,
+            torch_dtype=torch_dtype,
             cache_dir=model_args.cache_dir
         )
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             config=config,
             load_in_8bit=model_args.load_in_8bit,
-            torch_dtype=torch_dtype,
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,
             quantization_config=BitsAndBytesConfig(
