@@ -383,6 +383,7 @@ def main():
             load_in_8bit=model_args.load_in_8bit,
             torch_dtype=torch_dtype,
             device_map=model_args.device_map,
+            trust_remote_code=model_args.trust_remote_code,
         )
     else:
         raise ValueError(f"Error, model_name_or_path is None, Continue PT must be loaded from a pre-trained model")

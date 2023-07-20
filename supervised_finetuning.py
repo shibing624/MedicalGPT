@@ -295,6 +295,7 @@ def main():
             load_in_8bit=model_args.load_in_8bit,
             torch_dtype=torch_dtype,
             device_map=model_args.device_map,
+            trust_remote_code=model_args.trust_remote_code,
             quantization_config=BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_use_double_quant=True,

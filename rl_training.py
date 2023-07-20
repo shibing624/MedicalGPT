@@ -249,6 +249,7 @@ def main():
         load_in_8bit=args.load_in_8bit,
         torch_dtype=torch_dtype,
         device_map=args.device_map,
+        trust_remote_code=args.trust_remote_code,
         peft_config=peft_config if args.use_peft else None,
     )
     print_trainable_parameters(model)
@@ -259,6 +260,7 @@ def main():
         config=config,
         load_in_8bit=args.load_in_8bit,
         torch_dtype=torch_dtype,
+        trust_remote_code=args.trust_remote_code,
     )
     reward_model.to(device)
     reward_tokenizer = AutoTokenizer.from_pretrained(

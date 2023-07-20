@@ -388,6 +388,7 @@ def main():
                 load_in_8bit=model_args.load_in_8bit,
                 torch_dtype=torch_dtype,
                 device_map=model_args.device_map,
+                trust_remote_code=model_args.trust_remote_code,
             )
             model.score = CastOutputToFloat(model.score)
         else:
