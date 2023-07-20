@@ -209,7 +209,7 @@ python inference.py \
 
 ## ✅ Todo
 
-1. [ ] add multi-round dialogue data fine-tuning method
+1. [x] add multi-round dialogue data fine-tuning method
 2. [x] add reward model fine-tuning
 3. [x] add rl fine-tuning
 4. [x] add medical reward dataset

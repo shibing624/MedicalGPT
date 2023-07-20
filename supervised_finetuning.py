@@ -20,8 +20,9 @@ part of this code is adapted from https://github.com/shibing624/textgen
 import math
 import os
 from dataclasses import dataclass, field
+from enum import auto, Enum
 from glob import glob
-from typing import Optional
+from typing import List, Sequence, Optional, Dict
 
 import torch
 from datasets import load_dataset
@@ -40,11 +41,12 @@ from transformers import (
     Trainer,
     TrainingArguments,
     set_seed,
-    DataCollatorForSeq2Seq,
     BitsAndBytesConfig,
     deepspeed,
+    PreTrainedTokenizer,
 )
 from transformers.trainer import TRAINING_ARGS_NAME
+from transformers.trainer_pt_utils import LabelSmoother
 
 MODEL_CLASSES = {
     "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
@@ -54,12 +56,7 @@ MODEL_CLASSES = {
     "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
 }
 
-IGNORE_INDEX = -100
-PROMPT_TEMPLATE = (
-    "Below is an instruction that describes a task. "
-    "Write a response that appropriately completes the request.\n\n"
-    "### Instruction:\n{instruction}\n\n### Response: "
-)
+IGNORE_INDEX = LabelSmoother.ignore_index
 
 
 @dataclass
@@ -139,8 +136,7 @@ class DataTrainingArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The train jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."})
-    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
-    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
+    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The template name."})
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -193,6 +189,350 @@ class CastOutputToFloat(torch.nn.Sequential):
         return super().forward(x).to(torch.float32)
 
 
+class SeparatorStyle(Enum):
+    ADD_COLON_SINGLE = auto()
+    ADD_COLON_TWO = auto()
+    NO_COLON_SINGLE = auto()
+    NO_COLON_TWO = auto()
+    LLAMA2 = auto()
+    CHATGLM = auto()
+    CHATML = auto()
+    CHATINTERN = auto()
+    PHOENIX = auto()
+
+
+@dataclass
+class Conversation:
+    """A class that manages prompt templates and keeps all conversation history."""
+
+    # The name of this template
+    name: str
+    # The system prompt
+    system: str
+    # Two roles
+    roles: Sequence[str]
+    # All messages. Each item is (role, message).
+    messages: List[List[str]]
+    # The number of few shot examples
+    offset: int
+    # Separators
+    sep_style: SeparatorStyle
+    sep: str
+    sep2: str = None
+    # Stop criteria (the default one is EOS token)
+    stop_str: str = None
+    # Stops generation if meeting any token in this list
+    stop_token_ids: List[int] = None
+
+    def get_prompt(self) -> str:
+        """Get the prompt for generation."""
+        if self.sep_style == SeparatorStyle.ADD_COLON_SINGLE:
+            ret = self.system + self.sep
+            for role, message in self.messages:
+                if message:
+                    ret += role + ": " + message + self.sep
+                else:
+                    ret += role + ":"
+            return ret
+        elif self.sep_style == SeparatorStyle.ADD_COLON_TWO:
+            seps = [self.sep, self.sep2]
+            ret = self.system + seps[0]
+            for i, (role, message) in enumerate(self.messages):
+                if message:
+                    ret += role + ": " + message + seps[i % 2]
+                else:
+                    ret += role + ":"
+            return ret
+        elif self.sep_style == SeparatorStyle.NO_COLON_SINGLE:
+            ret = self.system
+            for role, message in self.messages:
+                if message:
+                    ret += role + message + self.sep
+                else:
+                    ret += role
+            return ret
+        elif self.sep_style == SeparatorStyle.NO_COLON_TWO:
+            seps = [self.sep, self.sep2]
+            ret = self.system
+            for i, (role, message) in enumerate(self.messages):
+                if message:
+                    ret += role + message + seps[i % 2]
+                else:
+                    ret += role
+            return ret
+        elif self.sep_style == SeparatorStyle.LLAMA2:
+            seps = [self.sep, self.sep2]
+            ret = ""
+            for i, (role, message) in enumerate(self.messages):
+                if message:
+                    if i == 0:
+                        ret += self.system + message
+                    else:
+                        ret += role + " " + message + seps[i % 2]
+                else:
+                    ret += role
+            return ret
+        elif self.sep_style == SeparatorStyle.CHATGLM:
+            round_add_n = 1
+            if self.system:
+                ret = self.system + self.sep
+            else:
+                ret = ""
+
+            for i, (role, message) in enumerate(self.messages):
+                if i % 2 == 0:
+                    ret += f"[Round {i // 2 + round_add_n}]{self.sep}"
+
+                if message:
+                    ret += f"{role}：{message}{self.sep}"
+                else:
+                    ret += f"{role}："
+            return ret
+        elif self.sep_style == SeparatorStyle.CHATML:
+            ret = "" if self.system == "" else self.system + self.sep + "\n"
+            for role, message in self.messages:
+                if message:
+                    ret += role + "\n" + message + self.sep + "\n"
+                else:
+                    ret += role + "\n"
+            return ret
+        elif self.sep_style == SeparatorStyle.CHATINTERN:
+            # source: https://huggingface.co/internlm/internlm-chat-7b-8k/blob/bd546fa984b4b0b86958f56bf37f94aa75ab8831/modeling_internlm.py#L771
+            seps = [self.sep, self.sep2]
+            ret = self.system
+            for i, (role, message) in enumerate(self.messages):
+                if i % 2 == 0:
+                    ret += "<s>"
+                if message:
+                    ret += role + ":" + message + seps[i % 2] + "\n"
+                else:
+                    ret += role + ":"
+            return ret
+        elif self.sep_style == SeparatorStyle.PHOENIX:
+            ret = self.system
+            for role, message in self.messages:
+                if message:
+                    ret += role + ": " + "<s>" + message + "</s>"
+                else:
+                    ret += role + ": " + "<s>"
+            return ret
+        else:
+            raise ValueError(f"Invalid style: {self.sep_style}")
+
+    def append_message(self, role: str, message: str):
+        """Append a new message."""
+        self.messages.append([role, message])
+
+    def to_gradio_chatbot(self):
+        """Convert the conversation to gradio chatbot format."""
+        ret = []
+        for i, (role, msg) in enumerate(self.messages[self.offset:]):
+            if i % 2 == 0:
+                ret.append([msg, None])
+            else:
+                ret[-1][-1] = msg
+        return ret
+
+    def copy(self):
+        return Conversation(
+            name=self.name,
+            system=self.system,
+            roles=self.roles,
+            messages=[[x, y] for x, y in self.messages],
+            offset=self.offset,
+            sep_style=self.sep_style,
+            sep=self.sep,
+            sep2=self.sep2,
+            stop_str=self.stop_str,
+            stop_token_ids=self.stop_token_ids,
+        )
+
+    def dict(self):
+        return {
+            "template_name": self.name,
+            "system": self.system,
+            "roles": self.roles,
+            "messages": self.messages,
+            "offset": self.offset,
+        }
+
+
+# A global registry for all conversation templates
+conv_templates: Dict[str, Conversation] = {}
+
+
+def register_conv_template(template: Conversation, override: bool = False):
+    """Register a new conversation template."""
+    if not override:
+        assert (
+                template.name not in conv_templates
+        ), f"{template.name} has been registered."
+
+    conv_templates[template.name] = template
+
+
+# A template similar to the "one_shot" template above but remove the example.
+register_conv_template(
+    Conversation(
+        name="zero_shot",
+        system="A chat between a curious human and an artificial intelligence assistant. "
+               "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+        roles=("Human", "Assistant"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.ADD_COLON_SINGLE,
+        sep="\n### ",
+        stop_str="###",
+    )
+)
+
+# Vicuna v1.1 template
+register_conv_template(
+    Conversation(
+        name="vicuna",
+        system="A chat between a curious user and an artificial intelligence assistant. "
+               "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+        roles=("USER", "ASSISTANT"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.ADD_COLON_TWO,
+        sep=" ",
+        sep2="</s>",
+    )
+)
+
+# Alpaca default template
+register_conv_template(
+    Conversation(
+        name="alpaca",
+        system="Below is an instruction that describes a task. Write a response that appropriately completes the request.",
+        roles=("### Instruction", "### Response"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.ADD_COLON_TWO,
+        sep="\n\n",
+        sep2="</s>",
+    )
+)
+
+# ChatGLM default template
+register_conv_template(
+    Conversation(
+        name="chatglm",
+        system="",
+        roles=("问", "答"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.CHATGLM,
+        sep="\n\n",
+    )
+)
+# Phoenix default template
+register_conv_template(
+    Conversation(
+        name="phoenix",
+        system="A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n",
+        roles=("Human", "Assistant"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.PHOENIX,
+        sep="</s>",
+    )
+)
+
+# Internlm-chat template
+register_conv_template(
+    Conversation(
+        name="internlm-chat",
+        system="A chat between a curious <|User|> and an <|Bot|>. The <|Bot|> gives helpful, detailed, and polite answers to the <|User|>'s questions.\n\n",
+        roles=("<|User|>", "<|Bot|>"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.CHATINTERN,
+        sep="<eoh>",
+        sep2="<eoa>",
+        stop_token_ids=[1, 103028],
+        stop_str="<|User|>",
+    )
+)
+
+# StarChat template
+register_conv_template(
+    Conversation(
+        name="starchat",
+        system="<system>\n",
+        roles=("<|user|>", "<|assistant|>"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.CHATML,
+        sep="<|end|>",
+        stop_token_ids=[0, 49155],
+        stop_str="<|end|>",
+    )
+)
+
+# Baichuan-13B-Chat template
+register_conv_template(
+    # source: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/f5f47be2adbbdceb784f334d6fa1ca2c73e65097/modeling_baichuan.py#L507
+    # https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/main/generation_config.json
+    Conversation(
+        name="baichuan-chat",
+        system="",
+        roles=(" <reserved_102> ", " <reserved_103> "),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.NO_COLON_TWO,
+        sep="",
+        sep2="</s>",
+        stop_token_ids=[2, 195],
+    )
+)
+
+# llama2 template
+# reference: https://github.com/facebookresearch/llama/blob/cfc3fc8c1968d390eb830e65c63865e980873a06/llama/generation.py#L212
+register_conv_template(
+    Conversation(
+        name="llama-2",
+        system="<s>[INST] <<SYS>>\nYou are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. "
+               "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
+               "Please ensure that your responses are socially unbiased and positive in nature.\n\n"
+               "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
+               "If you don't know the answer to a question, please don't share false information.\n<</SYS>>\n\n",
+        roles=("[INST]", "[/INST]"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.LLAMA2,
+        sep=" ",
+        sep2=" </s><s>",
+        stop_token_ids=[2],
+    )
+)
+
+
+def get_conv_template(name: str) -> Conversation:
+    """Get a conversation template."""
+    return conv_templates[name].copy()
+
+
+@dataclass
+class DataCollatorForSupervisedDataset:
+    tokenizer: PreTrainedTokenizer
+
+    def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
+        input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
+        input_ids = torch.nn.utils.rnn.pad_sequence(
+            input_ids,
+            batch_first=True,
+            padding_value=self.tokenizer.pad_token_id
+        )
+        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=IGNORE_INDEX)
+        return dict(
+            input_ids=input_ids,
+            labels=labels,
+            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
+        )
+
+
 class SavePeftModelTrainer(Trainer):
     """
     Trainer for lora models
@@ -201,8 +541,9 @@ class SavePeftModelTrainer(Trainer):
     def save_model(self, output_dir=None, _internal_call=False):
         """Save the LoRA model."""
         os.makedirs(output_dir, exist_ok=True)
-        torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
-        self.model.save_pretrained(output_dir)
+        if self.args.local_rank in [-1, 0]:
+            torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+            self.model.save_pretrained(output_dir)
 
 
 def save_model(output_dir, model, tokenizer, args):
@@ -211,9 +552,10 @@ def save_model(output_dir, model, tokenizer, args):
 
     # Take care of distributed/parallel training
     model_to_save = model.module if hasattr(model, "module") else model
-    model_to_save.save_pretrained(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+    if args.local_rank in [-1, 0]:
+        model_to_save.save_pretrained(output_dir)
+        tokenizer.save_pretrained(output_dir)
+        torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
 
 
 def print_trainable_parameters(model):
@@ -409,37 +751,88 @@ def main():
             )
     logger.info(f"Raw datasets: {raw_datasets}")
 
-    # Preprocessing the datasets
-    max_source_length = data_args.max_source_length
-    max_target_length = data_args.max_target_length
-    full_max_length = max_source_length + max_target_length
+    def preprocess(
+            sources,
+            tokenizer: PreTrainedTokenizer,
+            template_name: str = "vicuna",
+    ) -> Dict:
+        """
+        Preprocessing the datasets.
+            copy from https://github.com/lm-sys/FastChat
+        :param sources:
+        :param tokenizer:
+        :param template_name:
+        :return:
+        """
+        conv = get_conv_template(template_name)
+        roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
+
+        # Apply prompt templates
+        conversations = []
+        for i, source in enumerate(sources):
+            if roles[source[0]["from"]] != conv.roles[0]:
+                # Skip the first one if it is not from human
+                source = source[1:]
+
+            conv.messages = []
+            for j, sentence in enumerate(source):
+                role = roles[sentence["from"]]
+                assert role == conv.roles[j % 2], f"{i}"
+                conv.append_message(role, sentence["value"])
+            conversations.append(conv.get_prompt())
+
+        # Tokenize conversations
+        input_ids = tokenizer(
+            conversations,
+            return_tensors="pt",
+            padding="max_length",
+            max_length=tokenizer.model_max_length,
+            truncation=True,
+        ).input_ids
+        targets = input_ids.clone()
+
+        # Mask targets. Only compute loss on the assistant outputs.
+        sep = conv.sep + conv.roles[1] + ": "
+        for conversation, target in zip(conversations, targets):
+            total_len = int(target.ne(tokenizer.pad_token_id).sum())
+
+            turns = conversation.split(conv.sep2)
+            cur_len = 1
+            target[:cur_len] = IGNORE_INDEX
+            for i, turn in enumerate(turns):
+                if turn == "":
+                    break
+                turn_len = len(tokenizer(turn).input_ids)
+
+                parts = turn.split(sep)
+                if len(parts) != 2:
+                    break
+                parts[0] += sep
+                # "-2" is hardcoded for the LLaMA tokenizer to make the offset correct.
+                instruction_len = len(tokenizer(parts[0]).input_ids) - 2
+
+                # Ignore the user instructions
+                target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
+                cur_len += turn_len
+
+            target[cur_len:] = IGNORE_INDEX
+
+            if cur_len < tokenizer.model_max_length:
+                if cur_len != total_len:
+                    target[:] = IGNORE_INDEX
+                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}.  (ignored)")
+
+        return dict(
+            input_ids=input_ids,
+            labels=targets,
+            attention_mask=input_ids.ne(tokenizer.pad_token_id),
+        )
 
     def preprocess_function(examples):
-        sources = []
-        targets = []
-        for instruction, input, output in zip(examples['instruction'], examples['input'], examples['output']):
-            if input:
-                instruction = instruction + '\n' + input
-            source = PROMPT_TEMPLATE.format_map({'instruction': instruction})
-            target = f"{output}{tokenizer.eos_token}"
+        sources = examples['conversations']
+        data_dict = preprocess(sources, tokenizer, template_name=data_args.template_name)
 
-            sources.append(source)
-            targets.append(target)
-
-        tokenized_sources = tokenizer(sources, truncation=True, max_length=max_source_length)
-        tokenized_targets = tokenizer(targets, add_special_tokens=False, truncation=True, max_length=max_target_length)
-
-        all_input_ids = []
-        all_labels = []
-        for s, t in zip(tokenized_sources['input_ids'], tokenized_targets['input_ids']):
-            input_ids = torch.LongTensor(s + t)
-            # Padding labels to full max length for Seq2SeqCollator
-            labels = torch.LongTensor([IGNORE_INDEX] * (full_max_length - len(t)) + t)
-            all_input_ids.append(input_ids)
-            all_labels.append(labels)
-        results = {'input_ids': all_input_ids, 'labels': all_labels}
-
-        return results
+        return data_dict
 
     train_dataset = None
     max_train_samples = 0
@@ -504,12 +897,7 @@ def main():
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True
         model.model_parallel = True
-    data_collator = DataCollatorForSeq2Seq(
-        tokenizer,
-        return_tensors="pt",
-        padding="max_length",
-        max_length=full_max_length,
-    )
+    data_collator = DataCollatorForSupervisedDataset(tokenizer)
     trainer = SavePeftModelTrainer(
         model=model,
         args=training_args,
