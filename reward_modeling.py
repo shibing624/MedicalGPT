@@ -375,17 +375,19 @@ def main():
         world_size = int(os.environ.get("WORLD_SIZE", 1))
         if world_size > 1:
             model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
-        config = config_class.from_pretrained(model_args.model_name_or_path)
+        config = config_class.from_pretrained(
+            model_args.model_name_or_path,
+            trust_remote_code=model_args.trust_remote_code,
+            cache_dir=model_args.cache_dir
+        )
         if model_args.model_type in ['bloom', 'llama']:
             model = model_class.from_pretrained(
                 model_args.model_name_or_path,
                 config=config,
                 num_labels=1,
                 load_in_8bit=model_args.load_in_8bit,
-                cache_dir=model_args.cache_dir,
                 torch_dtype=torch_dtype,
                 device_map=model_args.device_map,
-                trust_remote_code=model_args.trust_remote_code,
             )
             model.score = CastOutputToFloat(model.score)
         else:

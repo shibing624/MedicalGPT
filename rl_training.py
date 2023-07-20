@@ -238,15 +238,17 @@ def main():
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     if world_size > 1:
         args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
-    config = config_class.from_pretrained(args.model_name_or_path)
+    config = config_class.from_pretrained(
+        args.model_name_or_path,
+        trust_remote_code=args.trust_remote_code,
+        cache_dir=args.cache_dir
+    )
     model = AutoModelForCausalLMWithValueHead.from_pretrained(
         args.model_name_or_path,
         config=config,
         load_in_8bit=args.load_in_8bit,
-        cache_dir=args.cache_dir,
         torch_dtype=torch_dtype,
         device_map=args.device_map,
-        trust_remote_code=args.trust_remote_code,
         peft_config=peft_config if args.use_peft else None,
     )
     print_trainable_parameters(model)
@@ -256,7 +258,6 @@ def main():
         args.reward_model_name_or_path,
         config=config,
         load_in_8bit=args.load_in_8bit,
-        cache_dir=args.cache_dir,
         torch_dtype=torch_dtype,
     )
     reward_model.to(device)

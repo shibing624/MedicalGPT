@@ -279,19 +279,22 @@ def main():
             else getattr(torch, model_args.torch_dtype)
         )
         world_size = int(os.environ.get("WORLD_SIZE", 1))
-        if world_size > 1:
+        ddp = world_size != 1
+        if ddp:
             model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
         if training_args.qlora and (len(training_args.fsdp) > 0 or deepspeed.is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
-        config = config_class.from_pretrained(model_args.model_name_or_path)
+        config = config_class.from_pretrained(
+            model_args.model_name_or_path,
+            trust_remote_code=model_args.trust_remote_code,
+            cache_dir=model_args.cache_dir
+        )
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             config=config,
             load_in_8bit=model_args.load_in_8bit,
-            cache_dir=model_args.cache_dir,
             torch_dtype=torch_dtype,
             device_map=model_args.device_map,
-            trust_remote_code=model_args.trust_remote_code,
             quantization_config=BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_use_double_quant=True,
@@ -315,15 +318,7 @@ def main():
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     tokenizer.padding_side = "left"  # Set padding side equal to the collator's padding side
-    if model_args.model_type != "chatglm":
-        tokenizer.pad_token_id = 0  # Set pad token id to 0
-    # Set special tokens for chatglm2
-    if tokenizer.eos_token is None:
-        tokenizer.add_special_tokens({
-            "eos_token": "</s>",
-            "bos_token": "<sop>",
-            "unk_token": "<unk>",
-        })
+    tokenizer.pad_token = tokenizer.unk_token
 
     if training_args.use_peft:
         if training_args.peft_path is not None:
@@ -504,7 +499,7 @@ def main():
         model.enable_input_require_grads()
     except:
         logger.warning(f"Could not enable input require_grads on model, skipping.")
-    if torch.cuda.device_count() > 1:
+    if not ddp and torch.cuda.device_count() > 1:
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True
         model.model_parallel = True
