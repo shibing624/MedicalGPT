@@ -773,10 +773,6 @@ def main():
         # Apply prompt templates
         conversations = []
         for i, source in enumerate(sources):
-            if roles[source[0]["from"]] != conv.roles[0]:
-                # Skip the first one if it is not from human
-                source = source[1:]
-
             conv.messages = []
             for j, sentence in enumerate(source):
                 role = roles[sentence["from"]]
@@ -851,8 +847,7 @@ def main():
         with training_args.main_process_first(desc="Train dataset tokenization"):
             train_dataset = train_dataset.shuffle().map(
                 preprocess_function,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
+                batched=False,
                 remove_columns=train_dataset.column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
@@ -875,8 +870,7 @@ def main():
             logger.debug(f"Example eval_dataset[0]: {eval_dataset[0]}")
             eval_dataset = eval_dataset.map(
                 preprocess_function,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
+                batched=False,
                 remove_columns=eval_dataset.column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
