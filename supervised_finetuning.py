@@ -136,7 +136,7 @@ class DataTrainingArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The train jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."})
-    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The template name."})
+    template_name: Optional[str] = field(default="alpaca", metadata={"help": "The template name."})
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
