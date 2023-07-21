@@ -20,7 +20,6 @@ part of this code is adapted from https://github.com/shibing624/textgen
 import math
 import os
 from dataclasses import dataclass, field
-from enum import auto, Enum
 from glob import glob
 from typing import List, Sequence, Optional, Dict
 
