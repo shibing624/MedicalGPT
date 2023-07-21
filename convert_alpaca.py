@@ -1,34 +1,39 @@
 """
 Convert alpaca dataset into sharegpt format.
 
-Usage: python convert_alpaca.py --in alpaca_data.json
+Usage: python convert_alpaca.py --in_file alpaca_data.json --out_file alpaca_data_sharegpt.json
 """
 
 import argparse
-import json
+
+from datasets import load_dataset
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--in-file", type=str)
-    parser.add_argument("--out-file", type=str)
+    parser.add_argument("--in_file", type=str)
+    parser.add_argument("--out_file", type=str)
     args = parser.parse_args()
 
-    content = json.load(open(args.in_file, "r", encoding="utf-8"))
-    new_content = []
-    for i, c in enumerate(content):
-        if len(c["input"].strip()) > 1:
-            q, a = c["instruction"] + "\nInput:\n" + c["input"], c["output"]
-        else:
-            q, a = c["instruction"], c["output"]
-        new_content.append(
-            {
-                "id": f"alpaca_{i}",
-                "conversations": [
-                    {"from": "human", "value": q},
-                    {"from": "gpt", "value": a},
-                ],
-            }
-        )
+    data_files = {"train": args.in_file}
+    raw_datasets = load_dataset('json', data_files=data_files)
 
-    print(f"#out: {len(new_content)}")
-    json.dump(new_content, open(args.out_file, "w", encoding="utf-8"), indent=2, ensure_ascii=False)
+    def process(examples):
+        ids = []
+        convs = []
+        id = 0
+        for instruction, inp, output in zip(examples['instruction'], examples['input'], examples['output']):
+            if len(inp.strip) > 1:
+                instruction = instruction + '\nInput:\n' + inp
+            q = instruction
+            a = output
+            convs.append([
+                {"from": "human", "value": q},
+                {"from": "gpt", "value": a},
+            ])
+            id += 1
+            ids.append(f'alpaca_{id}')
+        return {'id': ids, 'conversations': convs}
+
+
+    dataset = raw_datasets.map(process, batched=True, remove_columns=raw_datasets['train'].column_names)
+    dataset.to_json(f"{args.out_file}", lines=True, force_ascii=False)
