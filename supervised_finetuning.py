@@ -190,16 +190,16 @@ class CastOutputToFloat(torch.nn.Sequential):
         return super().forward(x).to(torch.float32)
 
 
-class SeparatorStyle(Enum):
-    ADD_COLON_SINGLE = auto()
-    ADD_COLON_TWO = auto()
-    NO_COLON_SINGLE = auto()
-    NO_COLON_TWO = auto()
-    LLAMA2 = auto()
-    CHATGLM = auto()
-    CHATML = auto()
-    CHATINTERN = auto()
-    PHOENIX = auto()
+class SeparatorStyle:
+    ADD_COLON_SINGLE = 1
+    ADD_COLON_TWO = 2
+    NO_COLON_SINGLE = 3
+    NO_COLON_TWO = 4
+    LLAMA2 = 5
+    CHATGLM = 6
+    CHATML = 7
+    CHATINTERN = 8
+    PHOENIX = 9
 
 
 @dataclass
@@ -217,7 +217,7 @@ class Conversation:
     # The number of few shot examples
     offset: int
     # Separators
-    sep_style: SeparatorStyle
+    sep_style: int
     sep: str
     sep2: str = None
     # Stop criteria (the default one is EOS token)
