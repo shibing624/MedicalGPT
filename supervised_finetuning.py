@@ -43,7 +43,6 @@ from transformers import (
     set_seed,
     BitsAndBytesConfig,
     deepspeed,
-    PreTrainedTokenizer,
 )
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.trainer_pt_utils import LabelSmoother
@@ -516,25 +515,6 @@ def get_conv_template(name: str) -> Conversation:
     return conv_templates[name].copy()
 
 
-@dataclass
-class DataCollatorForSupervisedDataset:
-    tokenizer: PreTrainedTokenizer
-
-    def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
-        input_ids = torch.nn.utils.rnn.pad_sequence(
-            input_ids,
-            batch_first=True,
-            padding_value=self.tokenizer.pad_token_id
-        )
-        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=IGNORE_INDEX)
-        return dict(
-            input_ids=input_ids,
-            labels=labels,
-            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
-        )
-
-
 class SavePeftModelTrainer(Trainer):
     """
     Trainer for lora models
@@ -754,25 +734,22 @@ def main():
             )
     logger.info(f"Raw datasets: {raw_datasets}")
 
-    def preprocess(
-            sources,
-            tokenizer: PreTrainedTokenizer,
-            template_name: str = "vicuna",
-    ) -> Dict:
+    def preprocess_function(examples):
         """
         Preprocessing the datasets.
-            copy from https://github.com/lm-sys/FastChat
-        :param sources:
-        :param tokenizer:
-        :param template_name:
-        :return:
+            part of code modified from https://github.com/lm-sys/FastChat
         """
-        conv = get_conv_template(template_name)
+        conv = get_conv_template(data_args.template_name)
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         # Apply prompt templates
         conversations = []
+        sources = examples['conversations']
         for i, source in enumerate(sources):
+            if roles[source[0]["from"]] != conv.roles[0]:
+                # Skip the first one if it is not from human
+                source = source[1:]
+
             conv.messages = []
             for j, sentence in enumerate(source):
                 role = roles[sentence["from"]]
@@ -827,12 +804,6 @@ def main():
             attention_mask=input_ids.ne(tokenizer.pad_token_id),
         )
 
-    def preprocess_function(examples):
-        sources = examples['conversations']
-        data_dict = preprocess(sources, tokenizer, template_name=data_args.template_name)
-
-        return data_dict
-
     train_dataset = None
     max_train_samples = 0
     if training_args.do_train:
@@ -847,7 +818,7 @@ def main():
         with training_args.main_process_first(desc="Train dataset tokenization"):
             train_dataset = train_dataset.shuffle().map(
                 preprocess_function,
-                batched=False,
+                batched=True,
                 remove_columns=train_dataset.column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
@@ -870,7 +841,7 @@ def main():
             logger.debug(f"Example eval_dataset[0]: {eval_dataset[0]}")
             eval_dataset = eval_dataset.map(
                 preprocess_function,
-                batched=False,
+                batched=True,
                 remove_columns=eval_dataset.column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
@@ -894,14 +865,12 @@ def main():
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True
         model.model_parallel = True
-    data_collator = DataCollatorForSupervisedDataset(tokenizer)
     trainer = SavePeftModelTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
-        data_collator=data_collator,
     )
 
     # Training
