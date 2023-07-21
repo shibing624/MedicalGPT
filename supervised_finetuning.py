@@ -743,8 +743,19 @@ def main():
 
         # Apply prompt templates
         conversations = []
-        sources = examples['conversations']
-        for i, source in enumerate(sources):
+        convs = examples.get('conversations', None)
+        if convs is None:
+            convs = []
+            for instruction, inp, output in zip(examples['instruction'], examples['input'], examples['output']):
+                if len(inp.strip) > 1:
+                    instruction = instruction + '\nInput:\n' + inp
+                q = instruction
+                a = output
+                convs.append([
+                    {"from": "human", "value": q},
+                    {"from": "gpt", "value": a},
+                ])
+        for i, source in enumerate(convs):
             if roles[source[0]["from"]] != conv.roles[0]:
                 # Skip the first one if it is not from human
                 source = source[1:]

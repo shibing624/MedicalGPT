@@ -405,9 +405,6 @@ def main():
         "repetition_penalty": 1.0,
         "top_p": 1.0,
         "do_sample": True,
-        "pad_token_id": tokenizer.pad_token_id,
-        "eos_token_id": tokenizer.eos_token_id,
-        "bos_token_id": tokenizer.bos_token_id,
     }
 
     def save_model(save_dir):
