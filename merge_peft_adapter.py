@@ -46,14 +46,14 @@ def main():
                         help="Please specify tokenization path.")
     parser.add_argument('--peft_model_path', default=None, required=True, type=str,
                         help="Please specify LoRA model to be merged.")
+    parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--output_dir', default='./merged', type=str)
-
     args = parser.parse_args()
     print(args)
+
     base_model_path = args.base_model_name_or_path
     peft_model_path = args.peft_model_path
     output_dir = args.output_dir
-
     print(f"Base model: {base_model_path}")
     print(f"LoRA model: {peft_model_path}")
     peft_config = PeftConfig.from_pretrained(peft_model_path)
@@ -84,10 +84,11 @@ def main():
         tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
     else:
         tokenizer = tokenizer_class.from_pretrained(peft_model_path, trust_remote_code=True)
-    base_model_token_size = base_model.get_input_embeddings().weight.size(0)
-    if base_model_token_size != len(tokenizer):
-        base_model.resize_token_embeddings(len(tokenizer))
-        print(f"Resize vocabulary size {base_model_token_size} to {len(tokenizer)}")
+    if args.resize_emb:
+        base_model_token_size = base_model.get_input_embeddings().weight.size(0)
+        if base_model_token_size != len(tokenizer):
+            base_model.resize_token_embeddings(len(tokenizer))
+            print(f"Resize vocabulary size {base_model_token_size} to {len(tokenizer)}")
 
     lora_model = PeftModel.from_pretrained(
         base_model,

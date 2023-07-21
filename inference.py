@@ -44,7 +44,7 @@ class SimpleChatIO:
 
 @torch.inference_mode()
 def generate_answer(model, tokenizer, prompt, device, context_len=2048):
-    max_new_tokens = 400
+    max_new_tokens = 256
     generation_config = dict(
         max_new_tokens=max_new_tokens,
         temperature=0.2,
@@ -85,9 +85,14 @@ def main():
     parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (single-turn)")
     parser.add_argument('--predictions_file', default='./predictions.json', type=str)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
+    parser.add_argument('--gpus', default="0", type=str)
+    parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
+    parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     args = parser.parse_args()
     print(args)
-
+    if args.only_cpu is True:
+        args.gpus = ""
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
     load_type = torch.float16
     if torch.cuda.is_available():
         device = torch.device(0)
@@ -121,6 +126,9 @@ def main():
         print("Loaded lora model")
     else:
         model = base_model
+    if device == torch.device('cpu'):
+        model.float()
+    model.eval()
     print(tokenizer)
     # test data
     if args.data_file is None:
@@ -131,7 +139,6 @@ def main():
         print("first 10 examples:")
         for example in examples[:10]:
             print(example)
-    model.eval()
 
     chatio = SimpleChatIO()
     with torch.no_grad():

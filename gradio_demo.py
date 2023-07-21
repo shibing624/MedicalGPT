@@ -21,15 +21,60 @@ from transformers import (
     BloomTokenizerFast,
     LlamaTokenizer,
     LlamaForCausalLM,
-    GenerationConfig,
 )
+
+from supervised_finetuning import get_conv_template
 
 MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoModel, AutoTokenizer),
     "llama": (LlamaForCausalLM, LlamaTokenizer),
+    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoModelForCausalLM, AutoTokenizer),
 }
+
+
+@torch.inference_mode()
+def generate_answer(
+        model,
+        tokenizer,
+        prompt,
+        device,
+        max_new_tokens=256,
+        temperature=0.2,
+        top_k=40,
+        top_p=0.9,
+        do_sample=True,
+        num_beams=1,
+        repetition_penalty=1.3,
+        context_len=2048,
+):
+    generation_config = dict(
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        do_sample=do_sample,
+        num_beams=num_beams,
+        repetition_penalty=repetition_penalty,
+    )
+    input_ids = tokenizer(prompt).input_ids
+    max_src_len = context_len - max_new_tokens - 8
+    input_ids = input_ids[-max_src_len:]
+    generation_output = model.generate(
+        input_ids=torch.as_tensor([input_ids]).to(device),
+        **generation_config,
+    )
+    output_ids = generation_output[0]
+    output = tokenizer.decode(output_ids, skip_special_tokens=False)
+    stop_str = tokenizer.eos_token
+    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
+    pos = output.rfind(stop_str, l_prompt)
+    if pos != -1:
+        output = output[l_prompt:pos]
+    else:
+        output = output[l_prompt:]
+    return output
 
 
 def main():
@@ -38,6 +83,7 @@ def main():
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
+    parser.add_argument('--template_name', default="vicuna", type=str, help="Prompt template name")
     parser.add_argument('--gpus', default="0", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
@@ -58,15 +104,6 @@ def main():
 
     gr.Chatbot.postprocess = postprocess
 
-    generation_config = dict(
-        temperature=0.2,
-        top_k=40,
-        top_p=0.9,
-        do_sample=True,
-        num_beams=1,
-        repetition_penalty=1.1,
-        max_new_tokens=400
-    )
     load_type = torch.float16
     if torch.cuda.is_available():
         device = torch.device(0)
@@ -98,7 +135,6 @@ def main():
         print("loaded lora model")
     else:
         model = base_model
-
     if device == torch.device('cpu'):
         model.float()
 
@@ -110,60 +146,33 @@ def main():
     def reset_state():
         return [], []
 
-    def generate_prompt(instruction):
-        return f"""Below is an instruction that describes a task. Write a response that appropriately completes the request.
-    
-### Instruction:
-{instruction}
-
-### Response: 
-"""
+    conv = get_conv_template(args.template_name)
 
     def predict(
             input,
             chatbot,
             history,
-            max_new_tokens=128,
-            top_p=0.75,
-            temperature=0.1,
-            top_k=40,
-            num_beams=4,
-            repetition_penalty=1.0,
-            max_memory=256,
-            **kwargs,
+            max_new_tokens,
+            temperature,
+            top_p
     ):
         now_input = input
         chatbot.append((input, ""))
         history = history or []
-        if len(history) != 0:
-            input = "".join(
-                ["### Instruction:\n" + i[0] + "\n\n" + "### Response: " + i[1] + "\n\n" for i in history]) + \
-                    "### Instruction:\n" + input
-            input = input[len("### Instruction:\n"):]
-            if len(input) > max_memory:
-                input = input[-max_memory:]
-        prompt = generate_prompt(input)
-        inputs = tokenizer(prompt, return_tensors="pt")
-        input_ids = inputs["input_ids"].to(device)
-        generation_config = GenerationConfig(
+        conv.append_message(conv.roles[0], now_input)
+        conv.append_message(conv.roles[1], '')
+
+        prompt = conv.get_prompt()
+        output = generate_answer(
+            model,
+            tokenizer,
+            prompt,
+            device,
+            max_new_tokens=max_new_tokens,
             temperature=temperature,
             top_p=top_p,
-            top_k=top_k,
-            num_beams=num_beams,
-            **kwargs,
         )
-        with torch.no_grad():
-            generation_output = model.generate(
-                input_ids=input_ids,
-                generation_config=generation_config,
-                return_dict_in_generate=True,
-                output_scores=False,
-                max_new_tokens=max_new_tokens,
-                repetition_penalty=float(repetition_penalty),
-            )
-        s = generation_output.sequences[0]
-        output = tokenizer.decode(s, skip_special_tokens=True)
-        output = output.split("### Response:")[-1].strip()
+        conv.messages[-1][-1] = output.strip()
         history.append((now_input, output))
         chatbot[-1] = (now_input, output)
         return chatbot, history
@@ -188,13 +197,10 @@ def main():
                                   label="Top P", interactive=True)
                 temperature = gr.Slider(
                     0, 1, value=0.7, step=0.01, label="Temperature", interactive=True)
-
-        history = gr.State([])  # (message, bot_message)
-
-        submitBtn.click(predict, [user_input, chatbot, history, max_length, top_p, temperature], [chatbot, history],
+        history = gr.State([])
+        submitBtn.click(predict, [user_input, chatbot, history, max_length, temperature, top_p], [chatbot, history],
                         show_progress=True)
         submitBtn.click(reset_user_input, [], [user_input])
-
         emptyBtn.click(reset_state, outputs=[chatbot, history], show_progress=True)
     demo.queue().launch(share=False, inbrowser=True, server_name='0.0.0.0', server_port=8081)
 
