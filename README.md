@@ -70,8 +70,9 @@ python gradio_demo.py --model_type base_model_type --base_model path_to_llama_hf
 - `--base_model {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录，也可使用HF Model Hub模型调用名称
 - `--lora_model {lora_model}`：LoRA文件所在目录，也可使用HF Model Hub模型调用名称。若lora权重已经合并到预训练模型，则删除--lora_model参数
 - `--tokenizer_path {tokenizer_path}`：存放对应tokenizer的目录。若不提供此参数，则其默认值与--base_model相同
-- `--use_cpu`: 仅使用CPU进行推理
+- `--only_cpu`: 仅使用CPU进行推理
 - `--gpus {gpu_ids}`: 指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
+- `--resize_emb`：是否调整embedding大小，若不调整，则使用预训练模型的embedding大小，默认不调整
 
 
 ## 💾 Install
@@ -151,8 +152,9 @@ python inference.py \
 - `--interactive`：以交互方式启动，以便进行多次单轮问答
 - `--data_file {file_name}`：非交互方式启动下，按行读取file_name中的的内容进行预测
 - `--predictions_file {file_name}`：非交互式方式下，将预测的结果以json格式写入file_name
-- `--only_cpu`: 仅使用CPU进行推理
-- `--gpus {gpu_ids}`: 指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
+- `--resize_emb`：是否调整embedding大小，若不调整，则使用预训练模型的embedding大小，默认不调整
+- `--only_cpu`：仅使用CPU进行推理
+- `--gpus {gpu_ids}`：指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
 
 
 
