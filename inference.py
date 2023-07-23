@@ -87,7 +87,6 @@ def main():
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--gpus', default="0", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
-    parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     args = parser.parse_args()
     print(args)
     if args.only_cpu is True:
