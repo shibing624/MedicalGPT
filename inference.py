@@ -179,7 +179,7 @@ def main():
                     device,
                     max_new_tokens=args.max_new_tokens,
                     temperature=args.temperature,
-                    repetition_penalty=args.repertition_penalty
+                    repetition_penalty=args.repetition_penalty
                 )
                 response = chatio.get_output(output)
                 # NOTE: strip is important to align with the training data.
