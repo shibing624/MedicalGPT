@@ -170,7 +170,8 @@ def main():
             temperature=temperature,
             top_p=top_p,
         )
-        conv.messages[-1][-1] = output.strip()
+        output = output.strip()
+        conv.messages[-1][-1] = output
         history.append((now_input, output))
         chatbot[-1] = (now_input, output)
         return chatbot, history

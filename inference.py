@@ -190,7 +190,7 @@ def main():
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty
             )
-            response = chatio.get_output(output)
+            response = chatio.get_output(output.strip())
             # NOTE: strip is important to align with the training data.
             conv.messages[-1][-1] = response.strip()
             # print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
@@ -212,6 +212,7 @@ def main():
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty
             )
+            response = response.strip()
             print(f"======={index}=======")
             print(f"Input: {example}\n")
             print(f"Output: {response}\n")
