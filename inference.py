@@ -37,22 +37,32 @@ class SimpleChatIO:
     def prompt_for_output(self, role: str):
         print(f"{role}: ", end="", flush=True)
 
-    def stream_output(self, output_stream):
+    def get_output(self, output_stream):
         print(output_stream, flush=True)
         return output_stream
 
 
 @torch.inference_mode()
-def generate_answer(model, tokenizer, prompt, device, context_len=2048):
-    max_new_tokens = 256
-    generation_config = dict(
-        max_new_tokens=max_new_tokens,
-        temperature=0.2,
+def generate_answer(
+        model,
+        tokenizer,
+        prompt,
+        device,
+        max_new_tokens=512,
+        temperature=0.7,
         top_k=40,
         top_p=0.9,
         do_sample=True,
-        num_beams=1,
-        repetition_penalty=1.3,
+        repetition_penalty=1.0,
+        context_len=2048
+):
+    generation_config = dict(
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        do_sample=do_sample,
+        repetition_penalty=repetition_penalty,
     )
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
@@ -80,6 +90,9 @@ def main():
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--template_name', default="alpaca", type=str, help="Prompt template name")
+    parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument("--repetition_penalty", type=float, default=1.0)
+    parser.add_argument("--max_new_tokens", type=int, default=512)
     parser.add_argument('--data_file', default=None, type=str,
                         help="A file that contains instructions (one instruction per line)")
     parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (single-turn)")
@@ -159,10 +172,18 @@ def main():
 
                 prompt = conv.get_prompt()
                 chatio.prompt_for_output(conv.roles[1])
-                output = generate_answer(model, tokenizer, prompt, device)
-                outputs = chatio.stream_output(output)
+                output = generate_answer(
+                    model,
+                    tokenizer,
+                    prompt,
+                    device,
+                    max_new_tokens=args.max_new_tokens,
+                    temperature=args.temperature,
+                    repetition_penalty=args.repertition_penalty
+                )
+                response = chatio.get_output(output)
                 # NOTE: strip is important to align with the training data.
-                conv.messages[-1][-1] = outputs.strip()
+                conv.messages[-1][-1] = response.strip()
                 # print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
         else:
             print("Start inference.")
@@ -173,7 +194,15 @@ def main():
                 conv.append_message(conv.roles[1], '')
 
                 prompt = conv.get_prompt()
-                response = generate_answer(model, tokenizer, prompt, device)
+                response = generate_answer(
+                    model,
+                    tokenizer,
+                    prompt,
+                    device,
+                    max_new_tokens=args.max_new_tokens,
+                    temperature=args.temperature,
+                    repetition_penalty=args.repertition_penalty
+                )
                 print(f"======={index}=======")
                 print(f"Input: {example}\n")
                 print(f"Output: {response}\n")

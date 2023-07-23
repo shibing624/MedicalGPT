@@ -40,14 +40,13 @@ def generate_answer(
         tokenizer,
         prompt,
         device,
-        max_new_tokens=256,
-        temperature=0.2,
+        max_new_tokens=512,
+        temperature=0.7,
         top_k=40,
         top_p=0.9,
         do_sample=True,
-        num_beams=1,
-        repetition_penalty=1.3,
-        context_len=2048,
+        repetition_penalty=1.0,
+        context_len=2048
 ):
     generation_config = dict(
         max_new_tokens=max_new_tokens,
@@ -55,7 +54,6 @@ def generate_answer(
         top_k=top_k,
         top_p=top_p,
         do_sample=do_sample,
-        num_beams=num_beams,
         repetition_penalty=repetition_penalty,
     )
     input_ids = tokenizer(prompt).input_ids
