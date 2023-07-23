@@ -153,65 +153,74 @@ def main():
             print(example)
 
     chatio = SimpleChatIO()
-    with torch.no_grad():
-        if args.interactive:
+
+    # Chat
+    def new_chat():
+        return get_conv_template(args.template_name)
+    conv = new_chat()
+    if args.interactive:
+        print("Start inference with interactive mode.")
+        while True:
+            try:
+                inp = chatio.prompt_for_input(conv.roles[0])
+            except EOFError:
+                inp = ""
+            except UnicodeDecodeError:
+                print("UnicodeDecodeError, please try again.")
+                continue
+            if inp == "!!exit" or not inp:
+                print("exit...")
+                break
+            if inp == "!!reset":
+                print("resetting...")
+                conv = new_chat()
+                continue
+
+            conv.append_message(conv.roles[0], inp)
+            conv.append_message(conv.roles[1], '')
+
+            prompt = conv.get_prompt()
+            chatio.prompt_for_output(conv.roles[1])
+            output = generate_answer(
+                model,
+                tokenizer,
+                prompt,
+                device,
+                max_new_tokens=args.max_new_tokens,
+                temperature=args.temperature,
+                repetition_penalty=args.repetition_penalty
+            )
+            response = chatio.get_output(output)
+            # NOTE: strip is important to align with the training data.
+            conv.messages[-1][-1] = response.strip()
+            # print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
+    else:
+        print("Start inference.")
+        results = []
+        for index, example in enumerate(examples):
             conv = get_conv_template(args.template_name)
-            print("Start inference with interactive mode.")
+            conv.append_message(conv.roles[0], example)
+            conv.append_message(conv.roles[1], '')
 
-            while True:
-                try:
-                    inp = chatio.prompt_for_input(conv.roles[0])
-                except EOFError:
-                    inp = ""
-                if not inp:
-                    print("exit...")
-                    break
+            prompt = conv.get_prompt()
+            response = generate_answer(
+                model,
+                tokenizer,
+                prompt,
+                device,
+                max_new_tokens=args.max_new_tokens,
+                temperature=args.temperature,
+                repetition_penalty=args.repetition_penalty
+            )
+            print(f"======={index}=======")
+            print(f"Input: {example}\n")
+            print(f"Output: {response}\n")
+            results.append({"Input": prompt, "Output": response})
 
-                conv.append_message(conv.roles[0], inp)
-                conv.append_message(conv.roles[1], '')
-
-                prompt = conv.get_prompt()
-                chatio.prompt_for_output(conv.roles[1])
-                output = generate_answer(
-                    model,
-                    tokenizer,
-                    prompt,
-                    device,
-                    max_new_tokens=args.max_new_tokens,
-                    temperature=args.temperature,
-                    repetition_penalty=args.repetition_penalty
-                )
-                response = chatio.get_output(output)
-                # NOTE: strip is important to align with the training data.
-                conv.messages[-1][-1] = response.strip()
-                # print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
-        else:
-            print("Start inference.")
-            results = []
-            for index, example in enumerate(examples):
-                conv = get_conv_template(args.template_name)
-                conv.append_message(conv.roles[0], example)
-                conv.append_message(conv.roles[1], '')
-
-                prompt = conv.get_prompt()
-                response = generate_answer(
-                    model,
-                    tokenizer,
-                    prompt,
-                    device,
-                    max_new_tokens=args.max_new_tokens,
-                    temperature=args.temperature,
-                    repetition_penalty=args.repertition_penalty
-                )
-                print(f"======={index}=======")
-                print(f"Input: {example}\n")
-                print(f"Output: {response}\n")
-                results.append({"Input": prompt, "Output": response})
-
-            dirname = os.path.dirname(args.predictions_file)
-            os.makedirs(dirname, exist_ok=True)
-            with open(args.predictions_file, 'w') as f:
-                json.dump(results, f, ensure_ascii=False, indent=2)
+        dirname = os.path.dirname(args.predictions_file)
+        os.makedirs(dirname, exist_ok=True)
+        with open(args.predictions_file, 'w', encoding='utf-8') as f:
+            json.dump(results, f, ensure_ascii=False, indent=2)
 
 
 if __name__ == '__main__':
