@@ -43,6 +43,7 @@ from transformers import (
     BitsAndBytesConfig,
     deepspeed,
 )
+from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.trainer_pt_utils import LabelSmoother
 
@@ -616,6 +617,7 @@ def main():
             model_args.model_name_or_path,
             config=config,
             load_in_8bit=model_args.load_in_8bit,
+            low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,
             quantization_config=BitsAndBytesConfig(
@@ -641,14 +643,15 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
-    tokenizer.pad_token = tokenizer.unk_token
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = 0 # set as the <unk> token
 
     if training_args.use_peft:
+        logger.info("Fine-tuning method: LoRA(PEFT)")
         if training_args.peft_path is not None:
             logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
             model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
         else:
-            logger.info("Init new peft model")
             target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
             if target_modules and 'all' in target_modules:
                 target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
@@ -670,7 +673,8 @@ def main():
             model = prepare_model_for_int8_training(model)
         model.print_trainable_parameters()
     else:
-        logger.info("Full parameters training")
+        logger.info("Fine-tuning method: Full parameters training")
+        model = model.float()
         print_trainable_parameters(model)
 
     logger.debug(f"Tokenizer: {tokenizer}")
