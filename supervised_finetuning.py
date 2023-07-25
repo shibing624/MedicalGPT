@@ -84,7 +84,6 @@ class ModelArguments:
         },
     )
     model_max_length: Optional[int] = field(default=512, metadata={"help": "The maximum length of the model"})
-    padding_side: Optional[str] = field(default="right", metadata={"help": "The padding side"})
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
     cache_dir: Optional[str] = field(
         default=None,
@@ -636,7 +635,6 @@ def main():
         "cache_dir": model_args.cache_dir,
         "use_fast": model_args.use_fast_tokenizer,
         "model_max_length": model_args.model_max_length,
-        "padding_side": model_args.padding_side,
         "trust_remote_code": model_args.trust_remote_code,
     }
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
