@@ -273,7 +273,7 @@ class Conversation:
                     ret += role
             return ret
         elif self.sep_style == SeparatorStyle.CHATGLM:
-            round_add_n = 1
+            round_add_n = 1 if self.name == 'chatglm2' else 0
             if self.system:
                 ret = self.system + self.sep
             else:
@@ -424,9 +424,23 @@ register_conv_template(
         messages=[],
         offset=0,
         sep_style=SeparatorStyle.CHATGLM,
+        sep="\n",
+    )
+)
+
+# ChatGLM2 default template
+register_conv_template(
+    Conversation(
+        name="chatglm2",
+        system="",
+        roles=("问", "答"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.CHATGLM,
         sep="\n\n",
     )
 )
+
 # Phoenix default template
 register_conv_template(
     Conversation(
@@ -644,7 +658,7 @@ def main():
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = 0 # set as the <unk> token
+        tokenizer.pad_token_id = 0  # set as the <unk> token
 
     if training_args.use_peft:
         logger.info("Fine-tuning method: LoRA(PEFT)")
