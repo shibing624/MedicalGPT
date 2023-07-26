@@ -273,20 +273,16 @@ class Conversation:
                     ret += role
             return ret
         elif self.sep_style == SeparatorStyle.CHATGLM:
-            round_add_n = 1 if self.name == 'chatglm2' else 0
+            seps = [self.sep, self.sep2]
             if self.system:
-                ret = self.system + self.sep
+                ret = self.system + seps[0]
             else:
                 ret = ""
-
             for i, (role, message) in enumerate(self.messages):
-                if i % 2 == 0:
-                    ret += f"[Round {i // 2 + round_add_n}]{self.sep}"
-
                 if message:
-                    ret += f"{role}: {message}{self.sep}"  # use english colon
+                    ret += role + ": " + message + seps[i % 2]
                 else:
-                    ret += f"{role}: "
+                    ret += role + ":"
             return ret
         elif self.sep_style == SeparatorStyle.CHATML:
             ret = "" if self.system == "" else self.system + self.sep + "\n"
@@ -425,6 +421,7 @@ register_conv_template(
         offset=0,
         sep_style=SeparatorStyle.CHATGLM,
         sep="\n",
+        sep2="</s>",
     )
 )
 
@@ -438,6 +435,7 @@ register_conv_template(
         offset=0,
         sep_style=SeparatorStyle.CHATGLM,
         sep="\n\n",
+        sep2="</s>",
     )
 )
 
