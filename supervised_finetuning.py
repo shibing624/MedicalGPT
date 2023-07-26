@@ -690,12 +690,12 @@ def main():
         conversations = []
         sources = examples.get('conversations', [])
         for i, source in enumerate(sources):
-            if len(source) < 2:
-                continue
-            if roles[source[0]["from"]] != conv.roles[0]:
+            data_role = source[0].get("from", "")
+            if data_role not in roles or roles[data_role] != conv.roles[0]:
                 # Skip the first one if it is not from human
                 source = source[1:]
-
+            if len(source) < 2:
+                continue
             conv.messages = []
             for j, sentence in enumerate(source):
                 role = roles[sentence["from"]]
