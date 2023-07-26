@@ -75,9 +75,12 @@ def generate_answer(
     output = tokenizer.decode(output_ids, skip_special_tokens=False)
     stop_str = tokenizer.eos_token
     l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
-    pos = output.rfind(stop_str, l_prompt)
-    if pos != -1:
-        output = output[l_prompt:pos]
+    if stop_str:
+        pos = output.rfind(stop_str, l_prompt)
+        if pos != -1:
+            output = output[l_prompt:pos]
+        else:
+            output = output[l_prompt:]
     else:
         output = output[l_prompt:]
     return output
@@ -157,9 +160,10 @@ def main():
     # Chat
     def new_chat():
         return get_conv_template(args.template_name)
-    conv = new_chat()
+
     if args.interactive:
         print("Start inference with interactive mode.")
+        conv = new_chat()
         while True:
             try:
                 inp = chatio.prompt_for_input(conv.roles[0])
@@ -198,7 +202,7 @@ def main():
         print("Start inference.")
         results = []
         for index, example in enumerate(examples):
-            conv = get_conv_template(args.template_name)
+            conv = new_chat()
             conv.append_message(conv.roles[0], example)
             conv.append_message(conv.roles[1], '')
 

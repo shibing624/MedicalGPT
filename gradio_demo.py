@@ -67,9 +67,12 @@ def generate_answer(
     output = tokenizer.decode(output_ids, skip_special_tokens=False)
     stop_str = tokenizer.eos_token
     l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
-    pos = output.rfind(stop_str, l_prompt)
-    if pos != -1:
-        output = output[l_prompt:pos]
+    if stop_str:
+        pos = output.rfind(stop_str, l_prompt)
+        if pos != -1:
+            output = output[l_prompt:pos]
+        else:
+            output = output[l_prompt:]
     else:
         output = output[l_prompt:]
     return output
