@@ -284,9 +284,9 @@ class Conversation:
                     ret += f"[Round {i // 2 + round_add_n}]{self.sep}"
 
                 if message:
-                    ret += f"{role}：{message}{self.sep}"
+                    ret += f"{role}: {message}{self.sep}"  # use english colon
                 else:
-                    ret += f"{role}："
+                    ret += f"{role}: "
             return ret
         elif self.sep_style == SeparatorStyle.CHATML:
             ret = "" if self.system == "" else self.system + self.sep + "\n"
