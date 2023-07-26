@@ -603,46 +603,9 @@ def main():
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
-    # Load model
     if not model_args.model_type:
         raise ValueError("Please specify a model_type, e.g. llama, chatglm, bloom, etc.")
     config_class, model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
-    if model_args.model_name_or_path:
-        torch_dtype = (
-            model_args.torch_dtype
-            if model_args.torch_dtype in ["auto", None]
-            else getattr(torch, model_args.torch_dtype)
-        )
-        world_size = int(os.environ.get("WORLD_SIZE", 1))
-        ddp = world_size != 1
-        if ddp:
-            model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
-        if training_args.qlora and (len(training_args.fsdp) > 0 or deepspeed.is_deepspeed_zero3_enabled()):
-            logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
-        config = config_class.from_pretrained(
-            model_args.model_name_or_path,
-            trust_remote_code=model_args.trust_remote_code,
-            torch_dtype=torch_dtype,
-            cache_dir=model_args.cache_dir
-        )
-        model = model_class.from_pretrained(
-            model_args.model_name_or_path,
-            config=config,
-            load_in_8bit=model_args.load_in_8bit,
-            low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
-            device_map=model_args.device_map,
-            trust_remote_code=model_args.trust_remote_code,
-            quantization_config=BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch_dtype,
-            ) if training_args.qlora else None,
-        )
-        if hasattr(model, 'lm_head'):
-            model.lm_head = CastOutputToFloat(model.lm_head)
-    else:
-        raise ValueError(f"Error, model_name_or_path is None, SFT must be loaded from a pre-trained model")
 
     # Load tokenizer
     tokenizer_kwargs = {
@@ -658,39 +621,7 @@ def main():
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 0  # set as the <unk> token
 
-    if training_args.use_peft:
-        logger.info("Fine-tuning method: LoRA(PEFT)")
-        if training_args.peft_path is not None:
-            logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
-            model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
-        else:
-            target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
-            if target_modules and 'all' in target_modules:
-                target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
-            modules_to_save = training_args.modules_to_save
-            if modules_to_save is not None:
-                modules_to_save = modules_to_save.split(',')
-            logger.info(f"Peft target_modules: {target_modules}")
-            logger.info(f"Peft lora_rank: {training_args.lora_rank}")
-            peft_config = LoraConfig(
-                task_type=TaskType.CAUSAL_LM,
-                target_modules=target_modules,
-                inference_mode=False,
-                r=training_args.lora_rank,
-                lora_alpha=training_args.lora_alpha,
-                lora_dropout=training_args.lora_dropout,
-                modules_to_save=modules_to_save)
-            model = get_peft_model(model, peft_config)
-        if model_args.load_in_8bit:
-            model = prepare_model_for_int8_training(model)
-        model.print_trainable_parameters()
-    else:
-        logger.info("Fine-tuning method: Full parameters training")
-        model = model.float()
-        print_trainable_parameters(model)
-
     logger.debug(f"Tokenizer: {tokenizer}")
-    logger.debug(f"Model: {model}")
 
     # Get datasets
     if data_args.dataset_name is not None:
@@ -864,6 +795,76 @@ def main():
             logger.debug(f"Num eval_samples: {len(eval_dataset)}")
             logger.debug("Tokenized eval example:")
             logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
+
+    # Load model
+    if model_args.model_name_or_path:
+        torch_dtype = (
+            model_args.torch_dtype
+            if model_args.torch_dtype in ["auto", None]
+            else getattr(torch, model_args.torch_dtype)
+        )
+        world_size = int(os.environ.get("WORLD_SIZE", 1))
+        ddp = world_size != 1
+        if ddp:
+            model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+        if training_args.qlora and (len(training_args.fsdp) > 0 or deepspeed.is_deepspeed_zero3_enabled()):
+            logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
+        config = config_class.from_pretrained(
+            model_args.model_name_or_path,
+            trust_remote_code=model_args.trust_remote_code,
+            torch_dtype=torch_dtype,
+            cache_dir=model_args.cache_dir
+        )
+        model = model_class.from_pretrained(
+            model_args.model_name_or_path,
+            config=config,
+            load_in_8bit=model_args.load_in_8bit,
+            low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
+            device_map=model_args.device_map,
+            trust_remote_code=model_args.trust_remote_code,
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch_dtype,
+            ) if training_args.qlora else None,
+        )
+        if hasattr(model, 'lm_head'):
+            model.lm_head = CastOutputToFloat(model.lm_head)
+    else:
+        raise ValueError(f"Error, model_name_or_path is None, SFT must be loaded from a pre-trained model")
+
+    if training_args.use_peft:
+        logger.info("Fine-tuning method: LoRA(PEFT)")
+        if training_args.peft_path is not None:
+            logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
+            model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
+        else:
+            target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
+            if target_modules and 'all' in target_modules:
+                target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
+            modules_to_save = training_args.modules_to_save
+            if modules_to_save is not None:
+                modules_to_save = modules_to_save.split(',')
+            logger.info(f"Peft target_modules: {target_modules}")
+            logger.info(f"Peft lora_rank: {training_args.lora_rank}")
+            peft_config = LoraConfig(
+                task_type=TaskType.CAUSAL_LM,
+                target_modules=target_modules,
+                inference_mode=False,
+                r=training_args.lora_rank,
+                lora_alpha=training_args.lora_alpha,
+                lora_dropout=training_args.lora_dropout,
+                modules_to_save=modules_to_save)
+            model = get_peft_model(model, peft_config)
+        if model_args.load_in_8bit:
+            model = prepare_model_for_int8_training(model)
+        model.print_trainable_parameters()
+    else:
+        logger.info("Fine-tuning method: Full parameters training")
+        model = model.float()
+        print_trainable_parameters(model)
+    logger.debug(f"Model: {model}")
 
     # Initialize our Trainer
     if training_args.gradient_checkpointing:
