@@ -690,6 +690,8 @@ def main():
         conversations = []
         sources = examples.get('conversations', [])
         for i, source in enumerate(sources):
+            if len(source) < 2:
+                continue
             if roles[source[0]["from"]] != conv.roles[0]:
                 # Skip the first one if it is not from human
                 source = source[1:]
