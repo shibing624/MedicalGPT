@@ -690,6 +690,8 @@ def main():
         conversations = []
         sources = examples.get('conversations', [])
         for i, source in enumerate(sources):
+            if len(source) < 2:
+                continue
             data_role = source[0].get("from", "")
             if data_role not in roles or roles[data_role] != conv.roles[0]:
                 # Skip the first one if it is not from human
@@ -698,9 +700,18 @@ def main():
                 continue
             conv.messages = []
             for j, sentence in enumerate(source):
-                role = roles[sentence["from"]]
-                assert role == conv.roles[j % 2], f"{i}"
-                conv.append_message(role, sentence["value"])
+                data_role = sentence.get("from", "")
+                if data_role not in roles:
+                    logger.warning(f"unknown role: {data_role}, {i}")
+                    continue
+                if data_role and data_role in roles:
+                    role = roles.get(data_role, "")
+                    if role == conv.roles[j % 2]:
+                        conv.append_message(role, sentence["value"])
+                    else:
+                        logger.warning(f"role mismatch: {role} != {conv.roles[j % 2]}, {i}")
+            if len(conv.messages) < 2 or len(conv.messages) % 2 != 0:
+                continue
             conversations.append(conv.get_prompt())
 
         # Tokenize conversations
