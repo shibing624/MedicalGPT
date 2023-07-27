@@ -873,7 +873,8 @@ def main():
         model.print_trainable_parameters()
     else:
         logger.info("Fine-tuning method: Full parameters training")
-        model = model.float()
+        if model_args.model_type in ['chatglm']:
+            model = model.half()
         print_trainable_parameters(model)
     logger.debug(f"Model: {model}")
 
@@ -883,11 +884,7 @@ def main():
         model.config.use_cache = False
     else:
         model.config.use_cache = True
-
-    try:
-        model.enable_input_require_grads()
-    except:
-        logger.warning(f"Could not enable input require_grads on model, skipping.")
+    model.enable_input_require_grads()
     if not ddp and torch.cuda.device_count() > 1:
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True

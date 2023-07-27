@@ -370,8 +370,10 @@ def main():
             else getattr(torch, model_args.torch_dtype)
         )
         world_size = int(os.environ.get("WORLD_SIZE", 1))
-        if world_size > 1:
+        ddp = world_size != 1
+        if ddp:
             model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+
         config = config_class.from_pretrained(
             model_args.model_name_or_path,
             torch_dtype=torch_dtype,
@@ -426,6 +428,8 @@ def main():
         model.print_trainable_parameters()
     else:
         logger.info("Full parameters training")
+        if model_args.model_type in ['chatglm']:
+            model = model.half()
         print_trainable_parameters(model)
 
     # Preprocessing the datasets.
@@ -604,7 +608,7 @@ def main():
     else:
         model.config.use_cache = True
     model.enable_input_require_grads()
-    if torch.cuda.device_count() > 1:
+    if not ddp and torch.cuda.device_count() > 1:
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True
         model.model_parallel = True
