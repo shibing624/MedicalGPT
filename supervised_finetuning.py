@@ -688,7 +688,7 @@ def main():
 
         # Apply prompt templates
         conversations = []
-        sources = examples.get('conversations', [])
+        sources = examples.get('conversations', []) or examples.get('items', [])
         for i, source in enumerate(sources):
             if len(source) < 2:
                 continue
