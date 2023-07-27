@@ -702,14 +702,12 @@ def main():
             for j, sentence in enumerate(source):
                 data_role = sentence.get("from", "")
                 if data_role not in roles:
-                    logger.warning(f"unknown role: {data_role}, {i}")
+                    logger.warning(f"unknown role: {data_role}, {i}. (ignored)")
                     continue
                 if data_role and data_role in roles:
                     role = roles.get(data_role, "")
                     if role == conv.roles[j % 2]:
                         conv.append_message(role, sentence["value"])
-                    else:
-                        logger.warning(f"role mismatch: {role} != {conv.roles[j % 2]}, {i}")
             if len(conv.messages) < 2 or len(conv.messages) % 2 != 0:
                 continue
             conversations.append(conv.get_prompt())
@@ -753,7 +751,7 @@ def main():
             if cur_len < tokenizer.model_max_length:
                 if cur_len != total_len:
                     target[:] = IGNORE_INDEX
-                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}.  (ignored)")
+                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}. (ignored)")
 
         return dict(
             input_ids=input_ids,
