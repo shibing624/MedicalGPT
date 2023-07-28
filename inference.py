@@ -17,6 +17,7 @@ from transformers import (
     BloomTokenizerFast,
     LlamaTokenizer,
     LlamaForCausalLM,
+    TextIteratorStreamer,
 )
 
 from supervised_finetuning import get_conv_template
@@ -153,6 +154,12 @@ def main():
             print(example)
 
     chatio = SimpleChatIO()
+    streamer = TextIteratorStreamer(
+        tokenizer,
+        timeout=10.,
+        skip_prompt=True,
+        skip_special_tokens=False
+    )
 
     # Chat
     def new_chat():
