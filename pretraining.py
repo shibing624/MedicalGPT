@@ -428,8 +428,7 @@ def main():
         model.print_trainable_parameters()
     else:
         logger.info("Full parameters training")
-        if model_args.model_type in ['chatglm']:
-            model = model.half()
+        model = model.float()
         print_trainable_parameters(model)
 
     # Preprocessing the datasets.

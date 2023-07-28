@@ -873,8 +873,7 @@ def main():
         model.print_trainable_parameters()
     else:
         logger.info("Fine-tuning method: Full parameters training")
-        if model_args.model_type in ['chatglm']:
-            model = model.half()
+        model = model.float()
         print_trainable_parameters(model)
     logger.debug(f"Model: {model}")
 
