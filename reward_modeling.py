@@ -415,8 +415,7 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
-    # Required for llama
-    if model_args.model_type == "llama":
+    if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 0
 
     if training_args.use_peft:
