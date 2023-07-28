@@ -43,7 +43,6 @@ MODEL_CLASSES = {
     "albert": (AutoConfig, AlbertForSequenceClassification, AutoTokenizer),
     "bloom": (AutoConfig, BloomForSequenceClassification, BloomTokenizerFast),
     "llama": (AutoConfig, LlamaForSequenceClassification, LlamaTokenizer),
-    "baichuan": (AutoConfig, LlamaForSequenceClassification, AutoTokenizer),
     "auto": (AutoConfig, AutoModelForSequenceClassification, AutoTokenizer),
 }
 
