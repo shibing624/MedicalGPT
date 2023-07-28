@@ -12,17 +12,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--in_file", type=str)
     parser.add_argument("--out_file", type=str)
+    parser.add_argument("--data_type", type=str, default='alpaca')
     args = parser.parse_args()
 
     data_files = {"train": args.in_file}
     raw_datasets = load_dataset('json', data_files=data_files)
+    ds = raw_datasets['train']
 
 
-    def process(examples):
-        ids = []
+    def process_alpaca(examples):
         convs = []
-        langs = []
-        id = 0
         for instruction, inp, output in zip(examples['instruction'], examples['input'], examples['output']):
             if len(inp.strip()) > 1:
                 instruction = instruction + '\nInput:\n' + inp
@@ -30,13 +29,19 @@ if __name__ == "__main__":
             a = output
             convs.append([
                 {"from": "human", "value": q},
-                {"from": "gpt", "value": a},
+                {"from": "gpt", "value": a}
             ])
-            id += 1
-            ids.append(f'alpaca_{id}')
-            langs.append('zh')
-        return {'id': ids, 'conversations': convs, 'lang': langs}
+        return {"conversations": convs}
 
 
-    dataset = raw_datasets['train'].map(process, batched=True, remove_columns=raw_datasets['train'].column_names)
-    dataset.to_json(f"{args.out_file}", lines=True, force_ascii=False)
+    if args.data_type in ['alpaca']:
+        ds = ds.map(process_alpaca, batched=True, remove_columns=ds.column_names)
+    else:
+        # Other sharegpt dataset, need rename to conversations and remove unused columns
+        if "items" in ds.column_names:
+            ds = ds.rename(columns={"items": "conversations"})
+        columns_to_remove = ds.column_names.copy()
+        columns_to_remove.remove('conversations')
+        ds = ds.remove_columns(columns_to_remove)
+
+    ds.to_json(f"{args.out_file}", lines=True, force_ascii=False)
