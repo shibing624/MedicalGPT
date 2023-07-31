@@ -96,11 +96,10 @@ def main():
     print(tokenizer.special_tokens_map)
     print('old len:', len(tokenizer), ' new len:', len(chinese_llama_tokenizer))
     text = '''this is a test, hello world. thisisatesthelloworld, 
-        慕容复来到河边，姑苏慕容氏在外面丢了人。
-        1号店一周岁了，我们一古脑儿买了10斤零食。
-        巴塞罗那足球俱乐部简称巴萨（Barça），是一家位于西班牙加泰罗尼亚巴塞罗那的足球俱乐部，于1899年由瑞士企业家胡安·甘伯所创立，世界球坛顶级足球俱乐部之一。俱乐部主场可容纳接近十万名观众，是全欧洲最大及世界第二大的足球场。
-        白日依山尽，黄河入海流。欲穷千里目，更上一层楼。
-        '''
+慕容复来到河边，姑苏慕容氏在外面丢了人。
+1号店一周岁了，我们一古脑儿买了10斤零食。
+巴塞罗那足球俱乐部简称巴萨（Barça），是一家位于西班牙加泰罗尼亚巴塞罗那的足球俱乐部，于1899年由瑞士企业家胡安·甘伯所创立，世界球坛顶级足球俱乐部之一。俱乐部主场可容纳接近十万名观众，是全欧洲最大及世界第二大的足球场。
+白日依山尽，黄河入海流。欲穷千里目，更上一层楼。'''
     print("Test text:\n", text)
     print(f"Tokenized by LLaMA tokenizer:{llama_tokenizer.tokenize(text)}")
     print(f"Tokenized by Chinese-LLaMA tokenizer:{chinese_llama_tokenizer.tokenize(text)}")

@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """
 @author:XuMing(xuming624@qq.com)
-@description: 
-"""
-import sentencepiece as spm
-
+@description: Build chinese tokenizer from corpus txt
 
 # train sentencepiece model from `corpus.txt` and makes `m.model` and `m.vocab`
 # `m.vocab` is just a reference. not used in the segmentation.
 # spm.SentencePieceTrainer.train('--input=data/pretrain/tianlongbabu.txt --model_prefix=m --vocab_size=20000')
+"""
+import sentencepiece as spm
+
+
 def main():
     spm.SentencePieceTrainer.train(
         input='data/pretrain/tianlongbabu.txt',
@@ -32,7 +33,7 @@ def main():
     sp.load('chinese_sp.model')
 
     # encode: text => id
-    print(sp.encode_as_pieces('慕容复来到河边'))
+    print(sp.encode_as_pieces('慕容复来到河边,this is a test'))
     print(sp.encode_as_ids('this is a test'))
 
     # decode: id => text
