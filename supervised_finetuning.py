@@ -159,7 +159,7 @@ class DataTrainingArguments:
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
     validation_split_percentage: Optional[float] = field(
-        default=0.05,
+        default=1,
         metadata={
             "help": "The percentage of the train set used as validation set in case there's no validation split"
         },
@@ -650,12 +650,12 @@ def main():
         if data_args.train_file_dir is not None and os.path.exists(data_args.train_file_dir):
             train_data_files = glob(f'{data_args.train_file_dir}/**/*.json', recursive=True) + glob(
                 f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
-            logger.info(f"train files: {', '.join(train_data_files)}")
+            logger.info(f"train files: {train_data_files}")
             data_files["train"] = train_data_files
         if data_args.validation_file_dir is not None and os.path.exists(data_args.validation_file_dir):
             eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.json', recursive=True) + glob(
                 f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
-            logger.info(f"eval files: {', '.join(eval_data_files)}")
+            logger.info(f"eval files: {eval_data_files}")
             data_files["validation"] = eval_data_files
         raw_datasets = load_dataset(
             'json',
