@@ -726,8 +726,6 @@ def main():
         # Mask targets. Only compute loss on the assistant outputs.
         sep = conv.sep + conv.roles[1] + ": "
         for conversation, target in zip(conversations, targets):
-            total_len = int(target.ne(tokenizer.pad_token_id).sum())
-
             turns = conversation.split(conv.sep2)
             cur_len = 1
             target[:cur_len] = IGNORE_INDEX
@@ -746,14 +744,7 @@ def main():
                 # Ignore the user instructions
                 target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
                 cur_len += turn_len
-
             target[cur_len:] = IGNORE_INDEX
-
-            if cur_len < tokenizer.model_max_length:
-                if cur_len != total_len:
-                    target[:] = IGNORE_INDEX
-                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}. (ignored)")
-
         return dict(
             input_ids=input_ids,
             labels=targets,
