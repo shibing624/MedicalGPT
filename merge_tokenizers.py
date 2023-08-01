@@ -12,20 +12,50 @@ import sentencepiece as spm
 import argparse
 
 
+def is_chinese(uchar):
+    """判断一个unicode是否是汉字"""
+    return '\u4e00' <= uchar <= '\u9fa5'
+
+
+def is_chinese_string(string):
+    """判断是否全为汉字"""
+    return all(is_chinese(c) for c in string)
+
+
+def load_baichuan_vocab(vocab_file):
+    words = set()
+    with open(vocab_file, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                words.add(line.strip().split()[0])
+    return words
+
+
+def load_jieba_vocab(jieba_vocab_file):
+    # Read jieba vocab and sort by freq
+    word_freqs = []
+    with open(jieba_vocab_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        word_freqs = [line.strip().split() for line in lines]
+        word_freqs.sort(key=lambda x: int(x[1]), reverse=True)
+    return word_freqs
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--llama_tokenizer_dir', default=None, type=str, required=True)
-    parser.add_argument('--chinese_sp_model_file', default='./chinese_sp.model', type=str)
+    parser.add_argument('--domain_sp_model_file', default='./domain_sp.model', type=str)
+    parser.add_argument('--baichuan_vocab_file', default="data/vocab/baichuan_vocab.txt", type=str)
     parser.add_argument('--jieba_word_freq_file', default='data/vocab/word_freq.txt', type=str)
-    args = parser.parse_args()
+    parser.add_argument('--jieba_word_size', default=20000, type=int)
 
-    llama_tokenizer_dir = args.llama_tokenizer_dir
-    chinese_sp_model_file = args.chinese_sp_model_file
-    jieba_vocab_file = args.jieba_word_freq_file
+    args = parser.parse_args()
+    print(args)
+
     # load
-    llama_tokenizer = LlamaTokenizer.from_pretrained(llama_tokenizer_dir)
+    llama_tokenizer = LlamaTokenizer.from_pretrained(args.llama_tokenizer_dir)
     chinese_sp_model = spm.SentencePieceProcessor()
-    chinese_sp_model.Load(chinese_sp_model_file)
+    chinese_sp_model.Load(args.domain_sp_model_file)
 
     llama_spm = sp_pb2_model.ModelProto()
     llama_spm.ParseFromString(llama_tokenizer.sp_model.serialized_model_proto())
@@ -38,21 +68,8 @@ def main():
     print(llama_tokenizer.all_special_ids)
     print(llama_tokenizer.special_tokens_map)
 
-    ## Add Chinese tokens to LLaMA tokenizer
+    # Add Chinese tokens to LLaMA tokenizer
     llama_spm_tokens_set = set(p.piece for p in llama_spm.pieces)
-
-    # Read jieba vocab and sort by freq
-    with open(jieba_vocab_file, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-        word_freqs = [line.strip().split() for line in lines]
-        word_freqs.sort(key=lambda x: int(x[1]), reverse=True)
-
-    top_words = word_freqs[:20000]
-    print('jieba top10 freq words:', top_words[:10])
-
-    jieba_vocab_set = set([i[0] for i in top_words if i])
-    print('jieba_vocab_set', len(jieba_vocab_set))
-    print('jieba_vocab head:', list(jieba_vocab_set)[:3])
 
     print(len(llama_spm_tokens_set))
     print(f"Before:{len(llama_spm_tokens_set)}")
@@ -66,18 +83,41 @@ def main():
             new_p.score = 0
             llama_spm.pieces.append(new_p)
             added_set.add(piece)
-    print(f"[add chinese tokens]New model pieces: {len(llama_spm.pieces)}")
+    print(f"[add domain tokens]New model pieces: {len(llama_spm.pieces)}")
+
+    vocab = load_baichuan_vocab(args.baichuan_vocab_file)
+    print('baichuan vocab len:', len(vocab))
+    baichuan_vocab_set = set([i for i in vocab if is_chinese_string(i)])
+    print('baichuan chinese vocab size:', len(baichuan_vocab_set))
+    print('baichuan vocab head:', list(baichuan_vocab_set)[:10])
+    for p in baichuan_vocab_set:
+        piece = p
+        if piece not in llama_spm_tokens_set and piece not in added_set:
+            # print('baichuan picec', piece)
+            new_p = sp_pb2_model.ModelProto().SentencePiece()
+            new_p.piece = piece
+            new_p.score = 0
+            llama_spm.pieces.append(new_p)
+            added_set.add(piece)
+    print(f"[add baichuan tokens]New model pieces: {len(llama_spm.pieces)}")
+
+    word_freqs = load_jieba_vocab(args.jieba_word_freq_file)
+    top_words = word_freqs[:args.jieba_word_size]
+    print('jieba top10 freq words:', top_words[:10])
+    jieba_vocab_set = set([i[0] for i in top_words if i])
+    print('jieba_vocab_set size:', len(jieba_vocab_set))
+    print('jieba_vocab head:', list(jieba_vocab_set)[:3])
     for p in jieba_vocab_set:
         piece = p
         if piece not in llama_spm_tokens_set and piece not in added_set:
-            # print('jieba new picec', piece)
+            # print('jieba picec', piece)
             new_p = sp_pb2_model.ModelProto().SentencePiece()
             new_p.piece = piece
             new_p.score = 0
             llama_spm.pieces.append(new_p)
     print(f"[add jieba tokens]New model pieces: {len(llama_spm.pieces)}")
 
-    ## Save
+    # Save
     output_sp_dir = 'merged_tokenizer_sp'
     output_hf_dir = 'merged_tokenizer_hf'  # the path to save Chinese-LLaMA tokenizer
     os.makedirs(output_sp_dir, exist_ok=True)
@@ -89,12 +129,12 @@ def main():
     print(f"Chinese-LLaMA tokenizer has been saved to {output_hf_dir}")
 
     # Test
-    llama_tokenizer = LlamaTokenizer.from_pretrained(llama_tokenizer_dir)
+    llama_tokenizer = LlamaTokenizer.from_pretrained(args.llama_tokenizer_dir)
     chinese_llama_tokenizer = LlamaTokenizer.from_pretrained(output_hf_dir)
-    print(tokenizer.all_special_tokens)
-    print(tokenizer.all_special_ids)
-    print(tokenizer.special_tokens_map)
-    print('old len:', len(tokenizer), ' new len:', len(chinese_llama_tokenizer))
+    print(chinese_llama_tokenizer.all_special_tokens)
+    print(chinese_llama_tokenizer.all_special_ids)
+    print(chinese_llama_tokenizer.special_tokens_map)
+    print('old len:', len(llama_tokenizer), ' new len:', len(chinese_llama_tokenizer))
     text = '''this is a test, hello world. thisisatesthelloworld, 
 慕容复来到河边，姑苏慕容氏在外面丢了人。
 1号店一周岁了，我们一古脑儿买了10斤零食。
