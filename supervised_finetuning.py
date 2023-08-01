@@ -121,7 +121,7 @@ class ModelArguments:
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
         if self.model_max_length < 256:
-            raise ValueError("You must set model_max_length more than 256, default is 512")
+            raise ValueError("You must specify a valid model_max_length >= 256 to run training.")
 
 
 @dataclass
@@ -726,6 +726,8 @@ def main():
         # Mask targets. Only compute loss on the assistant outputs.
         sep = conv.sep + conv.roles[1] + ": "
         for conversation, target in zip(conversations, targets):
+            total_len = int(target.ne(tokenizer.pad_token_id).sum())
+
             turns = conversation.split(conv.sep2)
             cur_len = 1
             target[:cur_len] = IGNORE_INDEX
@@ -738,13 +740,22 @@ def main():
                 if len(parts) != 2:
                     break
                 parts[0] += sep
-                # "-2" is hardcoded for the LLaMA tokenizer to make the offset correct.
-                instruction_len = len(tokenizer(parts[0]).input_ids) - 2
+                instruction_len = len(tokenizer(parts[0]).input_ids)
+                if model_args.model_type in ['llama']:
+                    # "-2" is hardcoded for the LLaMA tokenizer to make the offset correct.
+                    instruction_len = instruction_len - 2
 
                 # Ignore the user instructions
                 target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
                 cur_len += turn_len
+
             target[cur_len:] = IGNORE_INDEX
+
+            if cur_len < tokenizer.model_max_length:
+                if cur_len != total_len:
+                    target[:] = IGNORE_INDEX
+                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}. (ignored)")
+
         return dict(
             input_ids=input_ids,
             labels=targets,
@@ -891,7 +902,9 @@ def main():
     # Training
     if training_args.do_train:
         logger.info("*** Train ***")
-        logger.debug(f"Train dataloader example: {next(iter(trainer.get_train_dataloader()))}")
+        sample = next(iter(trainer.get_train_dataloader()))
+        logger.debug(f"Train dataloader example: {sample}")
+        logger.debug(f"Details: \ninput_ids: {list(sample['input_ids'])}, \nlabels: {list(sample['labels'])}")
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
             checkpoint = training_args.resume_from_checkpoint
