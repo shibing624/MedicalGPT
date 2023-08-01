@@ -121,7 +121,7 @@ class ModelArguments:
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
         if self.model_max_length < 256:
-            raise ValueError("You must set model_max_length more than 256, default is 512")
+            raise ValueError("You must specify a valid model_max_length >= 256 to run training.")
 
 
 @dataclass
