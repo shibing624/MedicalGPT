@@ -14,7 +14,7 @@ import sentencepiece as spm
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--in_file', default='data/pretrain/tianlongbabu.txt', type=str, required=True)
+    parser.add_argument('--in_file', default='data/pretrain/tianlongbabu.txt', type=str)
     parser.add_argument('--domain_sp_model_name', default='domain_sp', type=str)
     parser.add_argument('--max_sentence_length', default=16384, type=int)
     parser.add_argument('--pad_id', default=3, type=int)

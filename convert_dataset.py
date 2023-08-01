@@ -14,7 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("--out_file", type=str)
     parser.add_argument("--data_type", type=str, default='alpaca')
     args = parser.parse_args()
-
+    print(args)
     data_files = {"train": args.in_file}
     raw_datasets = load_dataset('json', data_files=data_files)
     ds = raw_datasets['train']
@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
 
     if args.data_type in ['alpaca']:
-        ds = ds.map(process_alpaca, batched=True, remove_columns=ds.column_names)
+        ds = ds.map(process_alpaca, batched=True, remove_columns=ds.column_names, progress_bar=True)
     else:
         # Other sharegpt dataset, need rename to conversations and remove unused columns
         if "items" in ds.column_names:

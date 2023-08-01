@@ -2,6 +2,7 @@ loguru
 transformers>=4.30.1
 sentencepiece
 datasets
+tqdm
 tensorboard
 tqdm>=4.47.0
 peft>=0.3.0

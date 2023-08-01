@@ -33,7 +33,6 @@ def load_baichuan_vocab(vocab_file):
 
 def load_jieba_vocab(jieba_vocab_file):
     # Read jieba vocab and sort by freq
-    word_freqs = []
     with open(jieba_vocab_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
         word_freqs = [line.strip().split() for line in lines]
