@@ -6,6 +6,7 @@
 import argparse
 import json
 import os
+from threading import Thread
 
 import torch
 from peft import PeftModel
@@ -17,6 +18,7 @@ from transformers import (
     BloomTokenizerFast,
     LlamaTokenizer,
     LlamaForCausalLM,
+    TextIteratorStreamer,
 )
 
 from supervised_finetuning import get_conv_template
@@ -37,10 +39,6 @@ class SimpleChatIO:
     def prompt_for_output(self, role: str):
         print(f"{role}: ", end="", flush=True)
 
-    def get_output(self, output_stream):
-        print(output_stream, flush=True)
-        return output_stream
-
 
 @torch.inference_mode()
 def generate_answer(
@@ -48,6 +46,8 @@ def generate_answer(
         tokenizer,
         prompt,
         device,
+        streamer,
+        do_print=True,
         max_new_tokens=512,
         temperature=0.7,
         top_k=40,
@@ -56,31 +56,37 @@ def generate_answer(
         repetition_penalty=1.0,
         context_len=2048
 ):
-    generation_config = dict(
+    input_ids = tokenizer(prompt).input_ids
+    max_src_len = context_len - max_new_tokens - 8
+    input_ids = input_ids[-max_src_len:]
+    generation_kwargs = dict(
+        input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
         temperature=temperature,
         top_k=top_k,
         top_p=top_p,
         do_sample=do_sample,
         repetition_penalty=repetition_penalty,
+        streamer=streamer,
     )
-    input_ids = tokenizer(prompt).input_ids
-    max_src_len = context_len - max_new_tokens - 8
-    input_ids = input_ids[-max_src_len:]
-    generation_output = model.generate(
-        input_ids=torch.as_tensor([input_ids]).to(device),
-        **generation_config,
-    )
-    output_ids = generation_output[0]
-    output = tokenizer.decode(output_ids, skip_special_tokens=False).strip()
+    thread = Thread(target=model.generate, kwargs=generation_kwargs)
+    thread.start()
     stop_str = tokenizer.eos_token or "</s>"
-    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
-    pos = output.find(stop_str, l_prompt)
-    if pos != -1:
-        output = output[l_prompt:pos]
-    else:
-        output = output[l_prompt:]
-    return output
+    generated_text = ""
+    for new_text in streamer:
+        stop = False
+        pos = new_text.find(stop_str)
+        if pos != -1:
+            new_text = new_text[:pos]
+            stop = True
+        generated_text += new_text
+        if do_print:
+            print(new_text, end="", flush=True)
+        if stop:
+            break
+    if do_print:
+        print("", flush=True)
+    return generated_text
 
 
 def main():
@@ -153,6 +159,11 @@ def main():
             print(example)
 
     chatio = SimpleChatIO()
+    streamer = TextIteratorStreamer(
+        tokenizer,
+        skip_prompt=True,
+        skip_special_tokens=False
+    )
 
     # Chat
     def new_chat():
@@ -182,16 +193,17 @@ def main():
 
             prompt = conv.get_prompt()
             chatio.prompt_for_output(conv.roles[1])
-            output = generate_answer(
+            response = generate_answer(
                 model,
                 tokenizer,
                 prompt,
                 device,
+                streamer,
+                do_print=True,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty
             )
-            response = chatio.get_output(output.strip())
             # NOTE: strip is important to align with the training data.
             conv.messages[-1][-1] = response.strip()
             # print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
@@ -209,6 +221,8 @@ def main():
                 tokenizer,
                 prompt,
                 device,
+                streamer,
+                do_print=False,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty

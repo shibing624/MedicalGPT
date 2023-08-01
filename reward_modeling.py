@@ -147,8 +147,8 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
-    validation_split_percentage: Optional[float] = field(
-        default=0.05,
+    validation_split_percentage: Optional[int] = field(
+        default=1,
         metadata={
             "help": "The percentage of the train set used as validation set in case there's no validation split"
         },

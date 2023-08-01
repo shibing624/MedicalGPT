@@ -120,6 +120,8 @@ class ModelArguments:
                     MODEL_CLASSES.keys()))
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
+        if self.model_max_length < 256:
+            raise ValueError("You must set model_max_length more than 256, default is 512")
 
 
 @dataclass
@@ -136,7 +138,6 @@ class DataTrainingArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The train jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."})
-    template_name: Optional[str] = field(default="alpaca", metadata={"help": "The template name."})
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -158,8 +159,8 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
-    validation_split_percentage: Optional[float] = field(
-        default=0.05,
+    validation_split_percentage: Optional[int] = field(
+        default=1,
         metadata={
             "help": "The percentage of the train set used as validation set in case there's no validation split"
         },
@@ -650,12 +651,12 @@ def main():
         if data_args.train_file_dir is not None and os.path.exists(data_args.train_file_dir):
             train_data_files = glob(f'{data_args.train_file_dir}/**/*.json', recursive=True) + glob(
                 f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
-            logger.info(f"train files: {', '.join(train_data_files)}")
+            logger.info(f"train files: {train_data_files}")
             data_files["train"] = train_data_files
         if data_args.validation_file_dir is not None and os.path.exists(data_args.validation_file_dir):
             eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.json', recursive=True) + glob(
                 f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
-            logger.info(f"eval files: {', '.join(eval_data_files)}")
+            logger.info(f"eval files: {eval_data_files}")
             data_files["validation"] = eval_data_files
         raw_datasets = load_dataset(
             'json',
@@ -683,7 +684,7 @@ def main():
         Preprocessing the datasets.
             part of code modified from https://github.com/lm-sys/FastChat
         """
-        conv = get_conv_template(data_args.template_name)
+        conv = get_conv_template('vicuna')
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         # Apply prompt templates
@@ -725,8 +726,6 @@ def main():
         # Mask targets. Only compute loss on the assistant outputs.
         sep = conv.sep + conv.roles[1] + ": "
         for conversation, target in zip(conversations, targets):
-            total_len = int(target.ne(tokenizer.pad_token_id).sum())
-
             turns = conversation.split(conv.sep2)
             cur_len = 1
             target[:cur_len] = IGNORE_INDEX
@@ -745,14 +744,7 @@ def main():
                 # Ignore the user instructions
                 target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
                 cur_len += turn_len
-
             target[cur_len:] = IGNORE_INDEX
-
-            if cur_len < tokenizer.model_max_length:
-                if cur_len != total_len:
-                    target[:] = IGNORE_INDEX
-                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}. (ignored)")
-
         return dict(
             input_ids=input_ids,
             labels=targets,
