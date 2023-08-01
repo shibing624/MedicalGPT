@@ -35,7 +35,7 @@ if __name__ == "__main__":
 
 
     if args.data_type in ['alpaca']:
-        ds = ds.map(process_alpaca, batched=True, remove_columns=ds.column_names, progress_bar=True)
+        ds = ds.map(process_alpaca, batched=True, remove_columns=ds.column_names, desc="Running process")
     else:
         # Other sharegpt dataset, need rename to conversations and remove unused columns
         if "items" in ds.column_names:
