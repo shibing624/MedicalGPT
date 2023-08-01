@@ -3,7 +3,6 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --model_name_or_path bigscience/bloomz-560m \
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \
-    --template_name alpaca \
     --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
     --do_train \

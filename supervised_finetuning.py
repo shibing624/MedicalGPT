@@ -120,6 +120,8 @@ class ModelArguments:
                     MODEL_CLASSES.keys()))
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
+        if self.model_max_length < 256:
+            raise ValueError("You must set model_max_length more than 256, default is 512")
 
 
 @dataclass
@@ -136,7 +138,6 @@ class DataTrainingArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The train jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."})
-    template_name: Optional[str] = field(default="alpaca", metadata={"help": "The template name."})
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -683,7 +684,7 @@ def main():
         Preprocessing the datasets.
             part of code modified from https://github.com/lm-sys/FastChat
         """
-        conv = get_conv_template(data_args.template_name)
+        conv = get_conv_template('vicuna')
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         # Apply prompt templates
