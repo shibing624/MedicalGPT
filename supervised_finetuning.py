@@ -614,6 +614,7 @@ def main():
         "use_fast": model_args.use_fast_tokenizer,
         "model_max_length": model_args.model_max_length,
         "trust_remote_code": model_args.trust_remote_code,
+        "padding_side": "right",
     }
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
@@ -720,42 +721,28 @@ def main():
             padding="max_length",
             max_length=tokenizer.model_max_length,
             truncation=True,
+            add_special_tokens=False
         ).input_ids
         targets = input_ids.clone()
 
         # Mask targets. Only compute loss on the assistant outputs.
         sep = conv.sep + conv.roles[1] + ": "
         for conversation, target in zip(conversations, targets):
-            total_len = int(target.ne(tokenizer.pad_token_id).sum())
-
             turns = conversation.split(conv.sep2)
-            cur_len = 1
-            target[:cur_len] = IGNORE_INDEX
+            cur_len = 0
             for i, turn in enumerate(turns):
                 if turn == "":
                     break
-                turn_len = len(tokenizer(turn).input_ids)
-
+                turn_len = len(tokenizer(turn, add_special_tokens=False).input_ids) + 1  # 1 is </s> token at the end
                 parts = turn.split(sep)
                 if len(parts) != 2:
                     break
                 parts[0] += sep
-                instruction_len = len(tokenizer(parts[0]).input_ids)
-                if model_args.model_type in ['llama']:
-                    # "-2" is hardcoded for the LLaMA tokenizer to make the offset correct.
-                    instruction_len = instruction_len - 2
-
+                instruction_len = len(tokenizer(parts[0], add_special_tokens=False).input_ids) - 1
                 # Ignore the user instructions
                 target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
                 cur_len += turn_len
-
             target[cur_len:] = IGNORE_INDEX
-
-            if cur_len < tokenizer.model_max_length:
-                if cur_len != total_len:
-                    target[:] = IGNORE_INDEX
-                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}. (ignored)")
-
         return dict(
             input_ids=input_ids,
             labels=targets,
