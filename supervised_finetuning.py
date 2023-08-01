@@ -740,8 +740,10 @@ def main():
                 if len(parts) != 2:
                     break
                 parts[0] += sep
-                # "-2" is hardcoded for the LLaMA tokenizer to make the offset correct.
-                instruction_len = len(tokenizer(parts[0]).input_ids) - 2
+                instruction_len = len(tokenizer(parts[0]).input_ids)
+                if model_args.model_type in ['llama']:
+                    # "-2" is hardcoded for the LLaMA tokenizer to make the offset correct.
+                    instruction_len = instruction_len - 2
 
                 # Ignore the user instructions
                 target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
