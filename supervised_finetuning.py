@@ -902,7 +902,9 @@ def main():
     # Training
     if training_args.do_train:
         logger.info("*** Train ***")
-        logger.debug(f"Train dataloader example: {next(iter(trainer.get_train_dataloader()))}")
+        sample = next(iter(trainer.get_train_dataloader()))
+        logger.debug(f"Train dataloader example: {sample}")
+        logger.debug(f"Details: \ninput_ids: {list(sample['input_ids'])}, \nlabels: {list(sample['labels'])}")
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
             checkpoint = training_args.resume_from_checkpoint
