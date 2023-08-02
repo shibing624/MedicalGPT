@@ -468,7 +468,8 @@ def main():
             if len(set(types)) > 1:
                 raise ValueError(f"train files must be same type, e.g. all txt or all jsonl, but got {types}")
         extension = "text" if data_files["train"][0].endswith('txt') else 'json'
-        dataset_args["keep_linebreaks"] = data_args.keep_linebreaks
+        if extension == "text":
+            dataset_args["keep_linebreaks"] = data_args.keep_linebreaks
         raw_datasets = load_dataset(
             extension,
             data_files=data_files,
