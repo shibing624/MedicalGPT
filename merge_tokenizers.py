@@ -6,7 +6,7 @@
 import os
 
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-from transformers import AutoTokenizer, AutoTokenizer
+from transformers import LlamaTokenizer
 from sentencepiece import sentencepiece_model_pb2 as sp_pb2_model
 import sentencepiece as spm
 import argparse
@@ -53,7 +53,7 @@ def main():
     print(args)
 
     # load
-    llama_tokenizer = AutoTokenizer.from_pretrained(args.base_tokenizer_dir)
+    llama_tokenizer = LlamaTokenizer.from_pretrained(args.base_tokenizer_dir)
     chinese_sp_model = spm.SentencePieceProcessor()
     chinese_sp_model.Load(args.domain_sp_model_file)
 
@@ -124,14 +124,14 @@ def main():
     os.makedirs(output_sp_dir, exist_ok=True)
     with open(output_sp_dir + '/chinese_llama.model', 'wb') as f:
         f.write(llama_spm.SerializeToString())
-    tokenizer = AutoTokenizer(vocab_file=output_sp_dir + '/chinese_llama.model')
+    tokenizer = LlamaTokenizer(vocab_file=output_sp_dir + '/chinese_llama.model')
 
     tokenizer.save_pretrained(output_hf_dir)
     print(f"Chinese-LLaMA tokenizer has been saved to {output_hf_dir}")
 
     # Test
-    llama_tokenizer = AutoTokenizer.from_pretrained(args.base_tokenizer_dir)
-    chinese_llama_tokenizer = AutoTokenizer.from_pretrained(output_hf_dir)
+    llama_tokenizer = LlamaTokenizer.from_pretrained(args.base_tokenizer_dir)
+    chinese_llama_tokenizer = LlamaTokenizer.from_pretrained(output_hf_dir)
     print(chinese_llama_tokenizer.all_special_tokens)
     print(chinese_llama_tokenizer.all_special_ids)
     print(chinese_llama_tokenizer.special_tokens_map)
