@@ -778,7 +778,7 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
-            train_dataset = train_dataset.filter(filter_empty_labels)
+            train_dataset = train_dataset.filter(filter_empty_labels, num_proc=data_args.preprocessing_num_workers)
             logger.debug(f"Num train_samples: {len(train_dataset)}")
             logger.debug("Tokenized training example:")
             logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
@@ -803,7 +803,7 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
-            eval_dataset = eval_dataset.filter(filter_empty_labels)
+            eval_dataset = eval_dataset.filter(filter_empty_labels, num_proc=data_args.preprocessing_num_workers)
             logger.debug(f"Num eval_samples: {len(eval_dataset)}")
             logger.debug("Tokenized eval example:")
             logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
