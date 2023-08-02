@@ -14,11 +14,11 @@ import sentencepiece as spm
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--in_file', default='data/pretrain/tianlongbabu.txt', type=str)
+    parser.add_argument('--in_file', default='data/pretrain/fever.txt', type=str)
     parser.add_argument('--domain_sp_model_name', default='domain_sp', type=str)
     parser.add_argument('--max_sentence_length', default=16384, type=int)
     parser.add_argument('--pad_id', default=3, type=int)
-    parser.add_argument('--vocab_size', default=10000, type=int)
+    parser.add_argument('--vocab_size', default=2236, type=int)
     parser.add_argument('--model_type', default="BPE", type=str)
 
     args = parser.parse_args()
@@ -47,7 +47,7 @@ def main():
     sp.load(model_file)
 
     # encode: text => id
-    print(sp.encode_as_pieces('慕容复来到河边,this is a test'))
+    print(sp.encode_as_pieces('潜伏性感染又称潜在性感染。慕容复来到河边,this is a test'))
     print(sp.encode_as_ids('this is a test'))
 
     # decode: id => text

@@ -6,7 +6,7 @@
 import os
 
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
-from transformers import LlamaTokenizer
+from transformers import AutoTokenizer, AutoTokenizer
 from sentencepiece import sentencepiece_model_pb2 as sp_pb2_model
 import sentencepiece as spm
 import argparse
@@ -42,9 +42,10 @@ def load_jieba_vocab(jieba_vocab_file):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--llama_tokenizer_dir', default=None, type=str, required=True)
+    parser.add_argument('--base_tokenizer_dir', default=None, type=str, required=True)
     parser.add_argument('--domain_sp_model_file', default='./domain_sp.model', type=str)
     parser.add_argument('--baichuan_vocab_file', default="data/vocab/baichuan_vocab.txt", type=str)
+    parser.add_argument('--add_jieba', action='store_true', help='Whether to add jieba vocab.')
     parser.add_argument('--jieba_word_freq_file', default='data/vocab/word_freq.txt', type=str)
     parser.add_argument('--jieba_word_size', default=20000, type=int)
 
@@ -52,7 +53,7 @@ def main():
     print(args)
 
     # load
-    llama_tokenizer = LlamaTokenizer.from_pretrained(args.llama_tokenizer_dir)
+    llama_tokenizer = AutoTokenizer.from_pretrained(args.base_tokenizer_dir)
     chinese_sp_model = spm.SentencePieceProcessor()
     chinese_sp_model.Load(args.domain_sp_model_file)
 
@@ -100,21 +101,22 @@ def main():
             added_set.add(piece)
     print(f"[add baichuan tokens]New model pieces: {len(llama_spm.pieces)}")
 
-    word_freqs = load_jieba_vocab(args.jieba_word_freq_file)
-    top_words = word_freqs[:args.jieba_word_size]
-    print('jieba top10 freq words:', top_words[:10])
-    jieba_vocab_set = set([i[0] for i in top_words if i])
-    print('jieba_vocab_set size:', len(jieba_vocab_set))
-    print('jieba_vocab head:', list(jieba_vocab_set)[:3])
-    for p in jieba_vocab_set:
-        piece = p
-        if piece not in llama_spm_tokens_set and piece not in added_set:
-            # print('jieba picec', piece)
-            new_p = sp_pb2_model.ModelProto().SentencePiece()
-            new_p.piece = piece
-            new_p.score = 0
-            llama_spm.pieces.append(new_p)
-    print(f"[add jieba tokens]New model pieces: {len(llama_spm.pieces)}")
+    if args.add_jieba:
+        word_freqs = load_jieba_vocab(args.jieba_word_freq_file)
+        top_words = word_freqs[:args.jieba_word_size]
+        print('jieba top10 freq words:', top_words[:10])
+        jieba_vocab_set = set([i[0] for i in top_words if i])
+        print('jieba_vocab_set size:', len(jieba_vocab_set))
+        print('jieba_vocab head:', list(jieba_vocab_set)[:3])
+        for p in jieba_vocab_set:
+            piece = p
+            if piece not in llama_spm_tokens_set and piece not in added_set:
+                # print('jieba picec', piece)
+                new_p = sp_pb2_model.ModelProto().SentencePiece()
+                new_p.piece = piece
+                new_p.score = 0
+                llama_spm.pieces.append(new_p)
+        print(f"[add jieba tokens]New model pieces: {len(llama_spm.pieces)}")
 
     # Save
     output_sp_dir = 'merged_tokenizer_sp'
@@ -122,14 +124,14 @@ def main():
     os.makedirs(output_sp_dir, exist_ok=True)
     with open(output_sp_dir + '/chinese_llama.model', 'wb') as f:
         f.write(llama_spm.SerializeToString())
-    tokenizer = LlamaTokenizer(vocab_file=output_sp_dir + '/chinese_llama.model')
+    tokenizer = AutoTokenizer(vocab_file=output_sp_dir + '/chinese_llama.model')
 
     tokenizer.save_pretrained(output_hf_dir)
     print(f"Chinese-LLaMA tokenizer has been saved to {output_hf_dir}")
 
     # Test
-    llama_tokenizer = LlamaTokenizer.from_pretrained(args.llama_tokenizer_dir)
-    chinese_llama_tokenizer = LlamaTokenizer.from_pretrained(output_hf_dir)
+    llama_tokenizer = AutoTokenizer.from_pretrained(args.base_tokenizer_dir)
+    chinese_llama_tokenizer = AutoTokenizer.from_pretrained(output_hf_dir)
     print(chinese_llama_tokenizer.all_special_tokens)
     print(chinese_llama_tokenizer.all_special_ids)
     print(chinese_llama_tokenizer.special_tokens_map)
