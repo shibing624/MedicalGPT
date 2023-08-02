@@ -754,6 +754,10 @@ def main():
             attention_mask=input_ids.ne(tokenizer.pad_token_id),
         )
 
+    def filter_empty_labels(example):
+        """Remove empty labels dataset."""
+        return not all(label == IGNORE_INDEX for label in example["labels"])
+
     train_dataset = None
     max_train_samples = 0
     if training_args.do_train:
@@ -774,6 +778,7 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
+            train_dataset = train_dataset.filter(filter_empty_labels)
             logger.debug(f"Num train_samples: {len(train_dataset)}")
             logger.debug("Tokenized training example:")
             logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
@@ -798,6 +803,7 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
+            eval_dataset = eval_dataset.filter(filter_empty_labels)
             logger.debug(f"Num eval_samples: {len(eval_dataset)}")
             logger.debug("Tokenized eval example:")
             logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
