@@ -619,6 +619,7 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    # tokenizer.padding_side = "right"  # set padding side to the right, equal to label's -100 padding side
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 0  # set as the <unk> token
 
@@ -720,6 +721,7 @@ def main():
             padding="max_length",
             max_length=tokenizer.model_max_length,
             truncation=True,
+            add_special_tokens=False
         ).input_ids
         targets = input_ids.clone()
 
@@ -727,40 +729,34 @@ def main():
         sep = conv.sep + conv.roles[1] + ": "
         for conversation, target in zip(conversations, targets):
             total_len = int(target.ne(tokenizer.pad_token_id).sum())
-
             turns = conversation.split(conv.sep2)
-            cur_len = 1
-            target[:cur_len] = IGNORE_INDEX
+            cur_len = 0
             for i, turn in enumerate(turns):
                 if turn == "":
                     break
-                turn_len = len(tokenizer(turn).input_ids)
-
+                turn_len = len(tokenizer(turn, add_special_tokens=False).input_ids) + 1  # 1 is </s> token at the end
                 parts = turn.split(sep)
                 if len(parts) != 2:
                     break
                 parts[0] += sep
-                instruction_len = len(tokenizer(parts[0]).input_ids)
-                if model_args.model_type in ['llama']:
-                    # "-2" is hardcoded for the LLaMA tokenizer to make the offset correct.
-                    instruction_len = instruction_len - 2
-
+                instruction_len = len(tokenizer(parts[0], add_special_tokens=False).input_ids) - 1
                 # Ignore the user instructions
                 target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
                 cur_len += turn_len
-
             target[cur_len:] = IGNORE_INDEX
-
             if cur_len < tokenizer.model_max_length:
                 if cur_len != total_len:
                     target[:] = IGNORE_INDEX
                     logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}. (ignored)")
-
         return dict(
             input_ids=input_ids,
             labels=targets,
             attention_mask=input_ids.ne(tokenizer.pad_token_id),
         )
+
+    def filter_empty_labels(example):
+        """Remove empty labels dataset."""
+        return not all(label == IGNORE_INDEX for label in example["labels"])
 
     train_dataset = None
     max_train_samples = 0
@@ -782,6 +778,7 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
+            train_dataset = train_dataset.filter(filter_empty_labels)
             logger.debug(f"Num train_samples: {len(train_dataset)}")
             logger.debug("Tokenized training example:")
             logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
@@ -806,6 +803,7 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
+            eval_dataset = eval_dataset.filter(filter_empty_labels)
             logger.debug(f"Num eval_samples: {len(eval_dataset)}")
             logger.debug("Tokenized eval example:")
             logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
@@ -904,7 +902,10 @@ def main():
         logger.info("*** Train ***")
         sample = next(iter(trainer.get_train_dataloader()))
         logger.debug(f"Train dataloader example: {sample}")
-        logger.debug(f"Details: \ninput_ids: {list(sample['input_ids'])}, \nlabels: {list(sample['labels'])}")
+        logger.debug(f"Detail input_ids: {list(sample['input_ids'])[:3]}, \nlabels: {list(sample['labels'])[:3]}")
+        logger.debug(f"Decode input_ids[0]: {tokenizer.decode(sample['input_ids'][0])}")
+        replaced_labels = [label if label != IGNORE_INDEX else tokenizer.pad_token_id for label in sample['labels'][0]]
+        logger.debug(f"Decode labels[0]: {tokenizer.decode(replaced_labels)}")
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
             checkpoint = training_args.resume_from_checkpoint

@@ -359,36 +359,10 @@ def main():
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
-    # Load pretrained model and tokenizer
+    # Load tokenizer
     if not model_args.model_type:
         raise ValueError("Please specify a model_type, e.g. llama, chatglm, bloom, etc.")
     config_class, model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
-    if model_args.model_type and model_args.model_name_or_path:
-        torch_dtype = (
-            model_args.torch_dtype
-            if model_args.torch_dtype in ["auto", None]
-            else getattr(torch, model_args.torch_dtype)
-        )
-        world_size = int(os.environ.get("WORLD_SIZE", 1))
-        ddp = world_size != 1
-        if ddp:
-            model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
-
-        config = config_class.from_pretrained(
-            model_args.model_name_or_path,
-            torch_dtype=torch_dtype,
-            trust_remote_code=model_args.trust_remote_code,
-            cache_dir=model_args.cache_dir
-        )
-        model = model_class.from_pretrained(
-            model_args.model_name_or_path,
-            config=config,
-            load_in_8bit=model_args.load_in_8bit,
-            device_map=model_args.device_map,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-    else:
-        raise ValueError(f"Error, model_name_or_path is None, Continue PT must be loaded from a pre-trained model")
 
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
@@ -399,37 +373,6 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
-
-    if training_args.use_peft:
-        if training_args.peft_path is not None:
-            logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
-            model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
-        else:
-            logger.info("Init new peft model")
-            target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
-            if target_modules and 'all' in target_modules:
-                target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
-            modules_to_save = training_args.modules_to_save
-            if modules_to_save is not None:
-                modules_to_save = modules_to_save.split(',')
-            logger.info(f"Peft target_modules: {target_modules}")
-            logger.info(f"Peft lora_rank: {training_args.lora_rank}")
-            peft_config = LoraConfig(
-                task_type=TaskType.CAUSAL_LM,
-                target_modules=target_modules,
-                inference_mode=False,
-                r=training_args.lora_rank,
-                lora_alpha=training_args.lora_alpha,
-                lora_dropout=training_args.lora_dropout,
-                modules_to_save=modules_to_save)
-            model = get_peft_model(model, peft_config)
-        if model_args.load_in_8bit:
-            model = prepare_model_for_int8_training(model)
-        model.print_trainable_parameters()
-    else:
-        logger.info("Full parameters training")
-        model = model.float()
-        print_trainable_parameters(model)
 
     # Preprocessing the datasets.
     def tokenize_function(examples):
@@ -505,14 +448,26 @@ def main():
         data_files = {}
         dataset_args = {}
         if data_args.train_file_dir is not None and os.path.exists(data_args.train_file_dir):
-            train_data_files = glob(f'{data_args.train_file_dir}/**/*.txt', recursive=True)
-            logger.info(f"train files: {', '.join(train_data_files)}")
+            train_data_files = glob(f'{data_args.train_file_dir}/**/*.txt', recursive=True) + glob(
+                f'{data_args.train_file_dir}/**/*.json', recursive=True) + glob(
+                f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
+            logger.info(f"train files: {train_data_files}")
+            # Train data files must be same type, e.g. all txt or all jsonl
+            types = [f.split('.')[-1] for f in train_data_files]
+            if len(set(types)) > 1:
+                raise ValueError(f"train files must be same type, e.g. all txt or all jsonl, but got {types}")
             data_files["train"] = train_data_files
         if data_args.validation_file_dir is not None and os.path.exists(data_args.validation_file_dir):
-            eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.txt', recursive=True)
-            logger.info(f"eval files: {', '.join(eval_data_files)}")
+            eval_data_files = glob(f'{data_args.train_file_dir}/**/*.txt', recursive=True) + glob(
+                f'{data_args.train_file_dir}/**/*.json', recursive=True) + glob(
+                f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
+            logger.info(f"eval files: {eval_data_files}")
             data_files["validation"] = eval_data_files
-        extension = "text"
+            # Train data files must be same type, e.g. all txt or all jsonl
+            types = [f.split('.')[-1] for f in eval_data_files]
+            if len(set(types)) > 1:
+                raise ValueError(f"train files must be same type, e.g. all txt or all jsonl, but got {types}")
+        extension = "text" if data_files["train"][0].endswith('txt') else 'json'
         dataset_args["keep_linebreaks"] = data_args.keep_linebreaks
         raw_datasets = load_dataset(
             extension,
@@ -520,6 +475,7 @@ def main():
             cache_dir=model_args.cache_dir,
             **dataset_args,
         )
+
         # If no validation data is there, validation_split_percentage will be used to divide the dataset.
         if "validation" not in raw_datasets.keys():
             raw_datasets["validation"] = load_dataset(
@@ -599,6 +555,65 @@ def main():
         logger.debug(f"Num eval_samples: {len(eval_dataset)}")
         logger.debug("Tokenized eval example:")
         logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
+
+    # Load model
+    if model_args.model_type and model_args.model_name_or_path:
+        torch_dtype = (
+            model_args.torch_dtype
+            if model_args.torch_dtype in ["auto", None]
+            else getattr(torch, model_args.torch_dtype)
+        )
+        world_size = int(os.environ.get("WORLD_SIZE", 1))
+        ddp = world_size != 1
+        if ddp:
+            model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+
+        config = config_class.from_pretrained(
+            model_args.model_name_or_path,
+            torch_dtype=torch_dtype,
+            trust_remote_code=model_args.trust_remote_code,
+            cache_dir=model_args.cache_dir
+        )
+        model = model_class.from_pretrained(
+            model_args.model_name_or_path,
+            config=config,
+            load_in_8bit=model_args.load_in_8bit,
+            device_map=model_args.device_map,
+            trust_remote_code=model_args.trust_remote_code,
+        )
+    else:
+        raise ValueError(f"Error, model_name_or_path is None, Continue PT must be loaded from a pre-trained model")
+
+    if training_args.use_peft:
+        if training_args.peft_path is not None:
+            logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
+            model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
+        else:
+            logger.info("Init new peft model")
+            target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
+            if target_modules and 'all' in target_modules:
+                target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
+            modules_to_save = training_args.modules_to_save
+            if modules_to_save is not None:
+                modules_to_save = modules_to_save.split(',')
+            logger.info(f"Peft target_modules: {target_modules}")
+            logger.info(f"Peft lora_rank: {training_args.lora_rank}")
+            peft_config = LoraConfig(
+                task_type=TaskType.CAUSAL_LM,
+                target_modules=target_modules,
+                inference_mode=False,
+                r=training_args.lora_rank,
+                lora_alpha=training_args.lora_alpha,
+                lora_dropout=training_args.lora_dropout,
+                modules_to_save=modules_to_save)
+            model = get_peft_model(model, peft_config)
+        if model_args.load_in_8bit:
+            model = prepare_model_for_int8_training(model)
+        model.print_trainable_parameters()
+    else:
+        logger.info("Full parameters training")
+        model = model.float()
+        print_trainable_parameters(model)
 
     # Initialize our Trainer
     if training_args.gradient_checkpointing:

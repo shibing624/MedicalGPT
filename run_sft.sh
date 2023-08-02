@@ -24,7 +24,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --save_total_limit 3 \
     --gradient_accumulation_steps 1 \
     --preprocessing_num_workers 1 \
-    --model_max_length 512 \
+    --model_max_length 534 \
     --output_dir outputs-sft-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
