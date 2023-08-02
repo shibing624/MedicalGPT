@@ -614,12 +614,12 @@ def main():
         "use_fast": model_args.use_fast_tokenizer,
         "model_max_length": model_args.model_max_length,
         "trust_remote_code": model_args.trust_remote_code,
-        "padding_side": "right",
     }
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    # tokenizer.padding_side = "right"  # set padding side to the right, equal to label's -100 padding side
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 0  # set as the <unk> token
 
@@ -896,7 +896,10 @@ def main():
         logger.info("*** Train ***")
         sample = next(iter(trainer.get_train_dataloader()))
         logger.debug(f"Train dataloader example: {sample}")
-        logger.debug(f"Details: \ninput_ids: {list(sample['input_ids'])}, \nlabels: {list(sample['labels'])}")
+        logger.debug(f"Detail input_ids: {list(sample['input_ids'])[:3]}, \nlabels: {list(sample['labels'])[:3]}")
+        logger.debug(f"Decode input_ids[0]: {tokenizer.decode(sample['input_ids'][0])}")
+        replaced_labels = [label if label != IGNORE_INDEX else tokenizer.pad_token_id for label in sample['labels'][0]]
+        logger.debug(f"Decode labels[0]: {tokenizer.decode(replaced_labels)}")
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
             checkpoint = training_args.resume_from_checkpoint
