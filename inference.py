@@ -46,6 +46,47 @@ def generate_answer(
         tokenizer,
         prompt,
         device,
+        max_new_tokens=512,
+        temperature=0.7,
+        top_k=40,
+        top_p=0.9,
+        do_sample=True,
+        repetition_penalty=1.0,
+        context_len=2048
+):
+    generation_config = dict(
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        top_k=top_k,
+        top_p=top_p,
+        do_sample=do_sample,
+        repetition_penalty=repetition_penalty,
+    )
+    input_ids = tokenizer(prompt).input_ids
+    max_src_len = context_len - max_new_tokens - 8
+    input_ids = input_ids[-max_src_len:]
+    generation_output = model.generate(
+        input_ids=torch.as_tensor([input_ids]).to(device),
+        **generation_config,
+    )
+    output_ids = generation_output[0]
+    output = tokenizer.decode(output_ids, skip_special_tokens=False).strip()
+    stop_str = tokenizer.eos_token or "</s>"
+    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
+    pos = output.rfind(stop_str, l_prompt)
+    if pos != -1:
+        output = output[l_prompt:pos]
+    else:
+        output = output[l_prompt:]
+    return output
+
+
+@torch.inference_mode()
+def stream_generate_answer(
+        model,
+        tokenizer,
+        prompt,
+        device,
         streamer,
         do_print=True,
         max_new_tokens=512,
@@ -106,6 +147,7 @@ def main():
     parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (single-turn)")
     parser.add_argument('--predictions_file', default='./predictions.json', type=str)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
+    parser.add_argument('--use_stream', action='store_true', help='Whether to use stream generation')
     parser.add_argument('--gpus', default="0", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
     args = parser.parse_args()
@@ -195,17 +237,29 @@ def main():
 
             prompt = conv.get_prompt()
             chatio.prompt_for_output(conv.roles[1])
-            response = generate_answer(
-                model,
-                tokenizer,
-                prompt,
-                device,
-                streamer,
-                do_print=True,
-                max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature,
-                repetition_penalty=args.repetition_penalty
-            )
+            if args.use_stream:
+                response = stream_generate_answer(
+                    model,
+                    tokenizer,
+                    prompt,
+                    device,
+                    streamer,
+                    do_print=True,
+                    max_new_tokens=args.max_new_tokens,
+                    temperature=args.temperature,
+                    repetition_penalty=args.repetition_penalty
+                )
+            else:
+                response = generate_answer(
+                    model,
+                    tokenizer,
+                    prompt,
+                    device,
+                    max_new_tokens=args.max_new_tokens,
+                    temperature=args.temperature,
+                    repetition_penalty=args.repetition_penalty
+                )
+                print(response, flush=True)
             # NOTE: strip is important to align with the training data.
             conv.messages[-1][-1] = response.strip()
             # print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
@@ -223,8 +277,6 @@ def main():
                 tokenizer,
                 prompt,
                 device,
-                streamer,
-                do_print=False,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty
