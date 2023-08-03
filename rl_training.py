@@ -188,7 +188,7 @@ def print_trainable_parameters(model):
     )
 
 
-def get_reward_score(reward_model, reward_tokenizer, question, answer, device):
+def get_reward_model_output(reward_model, reward_tokenizer, question, answer, device):
     """
     Get the reward score for a given question and answer pair.
     """
@@ -196,6 +196,25 @@ def get_reward_score(reward_model, reward_tokenizer, question, answer, device):
     score = reward_model(**inputs).logits[0].cpu().detach()
 
     return score
+
+
+def calculate_rewards(reward_score_outputs, reward_baseline=0):
+    """
+    Calculate the reward for a given score output.
+    :param reward_score_outputs: 
+    :param reward_baseline: 
+    :return: 
+    """
+    rewards = []
+    for score in reward_score_outputs:
+        if isinstance(score, torch.Tensor) and score.numel() == 1:
+            reward_value = score.item() - reward_baseline
+            rewards.append(torch.tensor(reward_value))
+        else:
+            # Use the average of the tensor elements as `score` is multiple elements
+            reward_value = torch.mean(score).item() - reward_baseline
+            rewards.append(torch.tensor(reward_value))
+    return rewards
 
 
 def main():
@@ -435,10 +454,10 @@ def main():
 
             # Compute reward score
             score_outputs = [
-                get_reward_score(reward_model, reward_tokenizer, q, r, device) for q, r in
+                get_reward_model_output(reward_model, reward_tokenizer, q, r, device) for q, r in
                 zip(batch["query"], batch["response"])
             ]
-            rewards = [torch.tensor(float(score) - args.reward_baseline) for score in score_outputs]
+            rewards = calculate_rewards(score_outputs, args.reward_baseline)
 
             # Run PPO step
             try:
