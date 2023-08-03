@@ -80,13 +80,13 @@ def stream_generate_answer(
         tokenizer,
         prompt,
         device,
-        streamer,
         do_print=True,
         max_new_tokens=512,
         temperature=0.7,
         repetition_penalty=1.0,
         context_len=2048
 ):
+    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=False)
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
     input_ids = input_ids[-max_src_len:]
@@ -113,8 +113,7 @@ def stream_generate_answer(
         if stop:
             break
     if do_print:
-        print("", flush=True)
-    thread.join()
+        print()
     return generated_text
 
 
@@ -191,12 +190,6 @@ def main():
             print(example)
 
     chatio = SimpleChatIO()
-    streamer = TextIteratorStreamer(
-        tokenizer,
-        timeout=60.0,
-        skip_prompt=True,
-        skip_special_tokens=False
-    )
 
     # Chat
     def new_chat():
@@ -235,7 +228,6 @@ def main():
                     tokenizer,
                     prompt,
                     device,
-                    streamer,
                     do_print=True,
                     max_new_tokens=args.max_new_tokens,
                     temperature=args.temperature,
