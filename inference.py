@@ -84,6 +84,7 @@ def generate_answer(
             print(new_text, end="", flush=True)
         if stop:
             break
+    thread.join()
     if do_print:
         print("", flush=True)
     return generated_text
