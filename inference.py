@@ -95,7 +95,8 @@ def main():
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
-    parser.add_argument('--template_name', default="alpaca", type=str, help="Prompt template name")
+    parser.add_argument('--template_name', default="vicuna", type=str,
+                        help="Prompt template name, eg: alpaca, vicuna, baichuan-chat, chatglm2 etc.")
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
     parser.add_argument("--max_new_tokens", type=int, default=512)
