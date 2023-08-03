@@ -73,7 +73,7 @@ def generate_answer(
     output = tokenizer.decode(output_ids, skip_special_tokens=False).strip()
     stop_str = tokenizer.eos_token or "</s>"
     l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
-    pos = output.rfind(stop_str, l_prompt)
+    pos = output.find(stop_str, l_prompt)
     if pos != -1:
         output = output[l_prompt:pos]
     else:
@@ -205,6 +205,7 @@ def main():
     chatio = SimpleChatIO()
     streamer = TextIteratorStreamer(
         tokenizer,
+        timeout=60.0,
         skip_prompt=True,
         skip_special_tokens=False
     )
@@ -224,11 +225,11 @@ def main():
             except UnicodeDecodeError:
                 print("UnicodeDecodeError, please try again.")
                 continue
-            if inp == "!!exit" or not inp:
+            if inp == "exit":
                 print("exit...")
                 break
-            if inp == "!!reset":
-                print("resetting...")
+            if inp == "clear":
+                print("history cleared.")
                 conv = new_chat()
                 continue
 
@@ -259,7 +260,7 @@ def main():
                     temperature=args.temperature,
                     repetition_penalty=args.repetition_penalty
                 )
-                print(response, flush=True)
+                print(response.strip(), flush=True)
             # NOTE: strip is important to align with the training data.
             conv.messages[-1][-1] = response.strip()
             # print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
