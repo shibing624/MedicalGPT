@@ -797,8 +797,8 @@ def main():
             logger.debug(f"Num train_samples: {len(train_dataset)}")
             logger.debug("Tokenized training example:")
             logger.debug(f"Decode input_ids[0]: {tokenizer.decode(train_dataset[0]['input_ids'])}")
-            replaced_labels = [label if label != IGNORE_INDEX else tokenizer.unk_token_id
-                               for label in train_dataset[0]['labels']]
+            replaced_labels = [label if label != IGNORE_INDEX else tokenizer.pad_token_id
+                               for label in list(train_dataset[0]['labels'])]
             logger.debug(f"Decode labels[0]: {tokenizer.decode(replaced_labels)}")
 
     eval_dataset = None
@@ -926,7 +926,7 @@ def main():
         logger.debug(f"Train dataloader example: {sample}")
         logger.debug(f"Detail input_ids: {list(sample['input_ids'])[:3]}, \nlabels: {list(sample['labels'])[:3]}")
         logger.debug(f"Decode input_ids[0]: {tokenizer.decode(sample['input_ids'][0])}")
-        replaced_labels = [label if label != IGNORE_INDEX else tokenizer.unk_token_id for label in sample['labels'][0]]
+        replaced_labels = [label if label != IGNORE_INDEX else tokenizer.pad_token_id for label in sample['labels'][0]]
         logger.debug(f"Decode labels[0]: {tokenizer.decode(replaced_labels)}")
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
