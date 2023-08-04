@@ -21,7 +21,7 @@ import math
 import os
 from dataclasses import dataclass, field
 from glob import glob
-from typing import List, Sequence, Optional, Dict
+from typing import List, Sequence, Optional, Dict, Literal
 
 import torch
 from datasets import load_dataset
@@ -87,6 +87,10 @@ class ModelArguments:
     max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
     max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
+    padding_side: Optional[Literal["left", "right"]] = field(
+        default="left",
+        metadata={"help": "The side on which the model should have padding applied."}
+    )
     cache_dir: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
@@ -666,14 +670,13 @@ def main():
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
         "use_fast": model_args.use_fast_tokenizer,
-        "model_max_length": model_args.model_max_length,
+        "padding_side": model_args.padding_side,
         "trust_remote_code": model_args.trust_remote_code,
     }
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
-    # tokenizer.padding_side = "right"  # set padding side to the right, equal to label's -100 padding side
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 0  # set as the <unk> token
 
@@ -776,7 +779,7 @@ def main():
 
                 if len(conv.messages) < 2 or len(conv.messages) % 2 != 0:
                     continue
-                prompt, dialogs = conv.get_prompt()
+                _, dialogs = conv.get_prompt()
                 yield dialogs
 
         # Tokenize conversations
