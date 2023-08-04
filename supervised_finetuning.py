@@ -750,7 +750,7 @@ def main():
                 if len(parts) != 2:
                     break
                 parts[0] += sep
-                instruction_len = len(tokenizer(parts[0], add_special_tokens=False).input_ids) - 2
+                instruction_len = len(tokenizer(parts[0]).input_ids) - 2
 
                 # Ignore the user instructions
                 target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
