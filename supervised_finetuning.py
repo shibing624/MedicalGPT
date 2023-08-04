@@ -84,8 +84,6 @@ class ModelArguments:
             )
         },
     )
-    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
-    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
     padding_side: Optional[Literal["left", "right"]] = field(
         default="left",
@@ -125,10 +123,6 @@ class ModelArguments:
                     MODEL_CLASSES.keys()))
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
-        if self.max_source_length < 30:
-            raise ValueError("You must specify a valid max_source_length >= 30 to run training.")
-        if self.max_target_length < 30:
-            raise ValueError("You must specify a valid max_target_length >= 30 to run training.")
 
 
 @dataclass
@@ -163,6 +157,8 @@ class DataTrainingArguments:
             )
         },
     )
+    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
+    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
@@ -176,6 +172,14 @@ class DataTrainingArguments:
         default=None,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
+
+    def __post_init__(self):
+        if self.max_train_samples is not None and 0 < self.max_train_samples <= 1000:
+            logger.warning("You may set max_train_samples = -1 to run all samples in production.")
+        if self.max_source_length < 30:
+            raise ValueError("You must specify a valid max_source_length >= 30 to run training.")
+        if self.max_target_length < 30:
+            raise ValueError("You must specify a valid max_target_length >= 30 to run training.")
 
 
 @dataclass
