@@ -84,7 +84,8 @@ class ModelArguments:
             )
         },
     )
-    model_max_length: Optional[int] = field(default=512, metadata={"help": "The maximum length of the model"})
+    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
+    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
     cache_dir: Optional[str] = field(
         default=None,
@@ -120,8 +121,10 @@ class ModelArguments:
                     MODEL_CLASSES.keys()))
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
-        if self.model_max_length < 256:
-            raise ValueError("You must specify a valid model_max_length >= 256 to run training.")
+        if self.max_source_length < 30:
+            raise ValueError("You must specify a valid max_source_length >= 30 to run training.")
+        if self.max_target_length < 30:
+            raise ValueError("You must specify a valid max_target_length >= 30 to run training.")
 
 
 @dataclass
@@ -209,7 +212,7 @@ class Conversation:
     # The name of this template
     name: str
     # The system prompt
-    system: str
+    system_prompt: str
     # Two roles
     roles: Sequence[str]
     # All messages. Each item is (role, message).
@@ -225,94 +228,145 @@ class Conversation:
     # Stops generation if meeting any token in this list
     stop_token_ids: List[int] = None
 
-    def get_prompt(self) -> str:
-        """Get the prompt for generation."""
+    def get_prompt(self):
+        """Get the prompt and dialogs for generation."""
+        dialogs = []
         if self.sep_style == SeparatorStyle.ADD_COLON_SINGLE:
-            ret = self.system + self.sep
-            for role, message in self.messages:
+            prompt = self.system_prompt + self.sep
+            for i, (role, message) in enumerate(self.messages):
                 if message:
-                    ret += role + ": " + message + self.sep
+                    dialog = role + ": " + message + self.sep
+                    prompt += dialog
+                    if i == 0:
+                        dialogs.append(prompt)
+                    else:
+                        dialogs.append(dialog)
                 else:
-                    ret += role + ":"
-            return ret
+                    prompt += role + ":"
+            return prompt, dialogs
         elif self.sep_style == SeparatorStyle.ADD_COLON_TWO:
             seps = [self.sep, self.sep2]
-            ret = self.system + seps[0]
+            prompt = self.system_prompt + seps[0]
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    ret += role + ": " + message + seps[i % 2]
+                    dialog = role + ": " + message + seps[i % 2]
+                    prompt += dialog
+                    if i == 0:
+                        dialogs.append(prompt)
+                    else:
+                        dialogs.append(dialog)
                 else:
-                    ret += role + ":"
-            return ret
+                    prompt += role + ":"
+            return prompt, dialogs
         elif self.sep_style == SeparatorStyle.NO_COLON_SINGLE:
-            ret = self.system
-            for role, message in self.messages:
+            prompt = self.system_prompt
+            for i, (role, message) in enumerate(self.messages):
                 if message:
-                    ret += role + message + self.sep
+                    dialog = role + message + self.sep
+                    prompt += dialog
+                    if i == 0:
+                        dialogs.append(prompt)
+                    else:
+                        dialogs.append(dialog)
                 else:
-                    ret += role
-            return ret
+                    prompt += role
+            return prompt, dialogs
         elif self.sep_style == SeparatorStyle.NO_COLON_TWO:
             seps = [self.sep, self.sep2]
-            ret = self.system
+            prompt = self.system_prompt
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    ret += role + message + seps[i % 2]
+                    dialog = role + message + seps[i % 2]
+                    prompt += dialog
+                    if i == 0:
+                        dialogs.append(prompt)
+                    else:
+                        dialogs.append(dialog)
                 else:
-                    ret += role
-            return ret
+                    prompt += role
+            return prompt, dialogs
         elif self.sep_style == SeparatorStyle.LLAMA2:
             seps = [self.sep, self.sep2]
-            ret = ""
+            prompt = ""
             for i, (role, message) in enumerate(self.messages):
                 if message:
                     if i == 0:
-                        ret += self.system + message
+                        prompt += self.system_prompt + message
+                        dialogs.append(prompt)
                     else:
-                        ret += role + " " + message + seps[i % 2]
+                        dialog = role + " " + message + seps[i % 2]
+                        prompt += dialog
+                        dialogs.append(dialog)
                 else:
-                    ret += role
-            return ret
+                    prompt += role
+            return prompt, dialogs
         elif self.sep_style == SeparatorStyle.CHATGLM:
-            seps = [self.sep, self.sep2]
-            if self.system:
-                ret = self.system + seps[0]
+            # source: https://huggingface.co/THUDM/chatglm-6b/blob/main/modeling_chatglm.py#L1307
+            # source: https://huggingface.co/THUDM/chatglm2-6b/blob/main/modeling_chatglm.py#L1007
+            round_add_n = 1 if self.name == "chatglm2" else 0
+            if self.system_prompt:
+                prompt = self.system_prompt + self.sep
             else:
-                ret = ""
+                prompt = ""
+            for i, (role, message) in enumerate(self.messages):
+                dialog = ""
+                if i % 2 == 0:
+                    dialog = f"[Round {i // 2 + round_add_n}]{self.sep}"
+                    prompt += dialog
+
+                if message:
+                    dialog += f"{role}：{message}{self.sep}"
+                    prompt += dialog
+                    if i == 0:
+                        dialogs.append(prompt)
+                    else:
+                        dialogs.append(dialog)
+                else:
+                    prompt += f"{role}："
+            return prompt, dialogs
+        elif self.sep_style == SeparatorStyle.CHATML:
+            prompt = "" if self.system_prompt == "" else self.system_prompt + self.sep + "\n"
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    ret += role + ": " + message + seps[i % 2]
+                    dialog = role + "\n" + message + self.sep + "\n"
+                    prompt += dialog
+                    if i == 0:
+                        dialogs.append(prompt)
+                    else:
+                        dialogs.append(dialog)
                 else:
-                    ret += role + ":"
-            return ret
-        elif self.sep_style == SeparatorStyle.CHATML:
-            ret = "" if self.system == "" else self.system + self.sep + "\n"
-            for role, message in self.messages:
-                if message:
-                    ret += role + "\n" + message + self.sep + "\n"
-                else:
-                    ret += role + "\n"
-            return ret
+                    prompt += role + "\n"
+            return prompt, dialogs
         elif self.sep_style == SeparatorStyle.CHATINTERN:
             # source: https://huggingface.co/internlm/internlm-chat-7b-8k/blob/bd546fa984b4b0b86958f56bf37f94aa75ab8831/modeling_internlm.py#L771
             seps = [self.sep, self.sep2]
-            ret = self.system
+            prompt = self.system_prompt
             for i, (role, message) in enumerate(self.messages):
                 if i % 2 == 0:
-                    ret += "<s>"
+                    prompt += "<s>"
                 if message:
-                    ret += role + ":" + message + seps[i % 2] + "\n"
+                    dialog = role + ":" + message + seps[i % 2] + "\n"
+                    prompt += dialog
+                    if i == 0:
+                        dialogs.append(prompt)
+                    else:
+                        dialogs.append(dialog)
                 else:
-                    ret += role + ":"
-            return ret
+                    prompt += role + ":"
+            return prompt, dialogs
         elif self.sep_style == SeparatorStyle.PHOENIX:
-            ret = self.system
-            for role, message in self.messages:
+            prompt = self.system_prompt
+            for i, (role, message) in enumerate(self.messages):
                 if message:
-                    ret += role + ": " + "<s>" + message + "</s>"
+                    dialog = role + ": " + "<s>" + message + "</s>"
+                    prompt += dialog
+                    if i == 0:
+                        dialogs.append(prompt)
+                    else:
+                        dialogs.append(dialog)
                 else:
-                    ret += role + ": " + "<s>"
-            return ret
+                    prompt += role + ": " + "<s>"
+            return prompt, dialogs
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
 
@@ -333,7 +387,7 @@ class Conversation:
     def copy(self):
         return Conversation(
             name=self.name,
-            system=self.system,
+            system_prompt=self.system_prompt,
             roles=self.roles,
             messages=[[x, y] for x, y in self.messages],
             offset=self.offset,
@@ -347,7 +401,7 @@ class Conversation:
     def dict(self):
         return {
             "template_name": self.name,
-            "system": self.system,
+            "system": self.system_prompt,
             "roles": self.roles,
             "messages": self.messages,
             "offset": self.offset,
@@ -372,8 +426,8 @@ def register_conv_template(template: Conversation, override: bool = False):
 register_conv_template(
     Conversation(
         name="zero_shot",
-        system="A chat between a curious human and an artificial intelligence assistant. "
-               "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+        system_prompt="A chat between a curious human and an artificial intelligence assistant. "
+                      "The assistant gives helpful, detailed, and polite answers to the human's questions.",
         roles=("Human", "Assistant"),
         messages=[],
         offset=0,
@@ -387,8 +441,8 @@ register_conv_template(
 register_conv_template(
     Conversation(
         name="vicuna",
-        system="A chat between a curious user and an artificial intelligence assistant. "
-               "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+        system_prompt="A chat between a curious user and an artificial intelligence assistant. "
+                      "The assistant gives helpful, detailed, and polite answers to the user's questions.",
         roles=("USER", "ASSISTANT"),
         messages=[],
         offset=0,
@@ -402,7 +456,7 @@ register_conv_template(
 register_conv_template(
     Conversation(
         name="alpaca",
-        system="Below is an instruction that describes a task. Write a response that appropriately completes the request.",
+        system_prompt="Below is an instruction that describes a task. Write a response that appropriately completes the request.",
         roles=("### Instruction", "### Response"),
         messages=[],
         offset=0,
@@ -414,29 +468,29 @@ register_conv_template(
 
 # ChatGLM default template
 register_conv_template(
+    # source: https://huggingface.co/THUDM/chatglm-6b/blob/main/modeling_chatglm.py#L1307
     Conversation(
         name="chatglm",
-        system="",
+        system_prompt="",
         roles=("问", "答"),
         messages=[],
         offset=0,
         sep_style=SeparatorStyle.CHATGLM,
         sep="\n",
-        sep2="</s>",
     )
 )
 
 # ChatGLM2 default template
 register_conv_template(
+    # source: https://huggingface.co/THUDM/chatglm2-6b/blob/main/modeling_chatglm.py#L1007
     Conversation(
         name="chatglm2",
-        system="",
+        system_prompt="",
         roles=("问", "答"),
         messages=[],
         offset=0,
         sep_style=SeparatorStyle.CHATGLM,
         sep="\n\n",
-        sep2="</s>",
     )
 )
 
@@ -444,7 +498,7 @@ register_conv_template(
 register_conv_template(
     Conversation(
         name="phoenix",
-        system="A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n",
+        system_prompt="A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n",
         roles=("Human", "Assistant"),
         messages=[],
         offset=0,
@@ -457,7 +511,7 @@ register_conv_template(
 register_conv_template(
     Conversation(
         name="internlm-chat",
-        system="A chat between a curious <|User|> and an <|Bot|>. The <|Bot|> gives helpful, detailed, and polite answers to the <|User|>'s questions.\n\n",
+        system_prompt="A chat between a curious <|User|> and an <|Bot|>. The <|Bot|> gives helpful, detailed, and polite answers to the <|User|>'s questions.\n\n",
         roles=("<|User|>", "<|Bot|>"),
         messages=[],
         offset=0,
@@ -473,7 +527,7 @@ register_conv_template(
 register_conv_template(
     Conversation(
         name="starchat",
-        system="<system>\n",
+        system_prompt="<system>\n",
         roles=("<|user|>", "<|assistant|>"),
         messages=[],
         offset=0,
@@ -490,7 +544,7 @@ register_conv_template(
     # https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/main/generation_config.json
     Conversation(
         name="baichuan-chat",
-        system="",
+        system_prompt="",
         roles=(" <reserved_102> ", " <reserved_103> "),
         messages=[],
         offset=0,
@@ -506,11 +560,11 @@ register_conv_template(
 register_conv_template(
     Conversation(
         name="llama-2",
-        system="<s>[INST] <<SYS>>\nYou are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. "
-               "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
-               "Please ensure that your responses are socially unbiased and positive in nature.\n\n"
-               "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
-               "If you don't know the answer to a question, please don't share false information.\n<</SYS>>\n\n",
+        system_prompt="<s>[INST] <<SYS>>\nYou are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. "
+                      "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
+                      "Please ensure that your responses are socially unbiased and positive in nature.\n\n"
+                      "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
+                      "If you don't know the answer to a question, please don't share false information.\n<</SYS>>\n\n",
         roles=("[INST]", "[/INST]"),
         messages=[],
         offset=0,
@@ -680,79 +734,73 @@ def main():
             )
     logger.info(f"Raw datasets: {raw_datasets}")
 
+    # Preprocessing the datasets
+    max_source_length = data_args.max_source_length
+    max_target_length = data_args.max_target_length
+    max_length = max_source_length + max_target_length
+
     def preprocess_function(examples):
         """
         Preprocessing the datasets.
             part of code modified from https://github.com/lm-sys/FastChat
         """
+        result = {"input_ids": [], "labels": []}
         conv = get_conv_template('vicuna')
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         # Apply prompt templates
-        conversations = []
-        sources = examples.get('conversations', []) or examples.get('items', [])
-        for i, source in enumerate(sources):
-            if len(source) < 2:
-                continue
-            data_role = source[0].get("from", "")
-            if data_role not in roles or roles[data_role] != conv.roles[0]:
-                # Skip the first one if it is not from human
-                source = source[1:]
-            if len(source) < 2:
-                continue
-            conv.messages = []
-            for j, sentence in enumerate(source):
-                data_role = sentence.get("from", "")
-                if data_role not in roles:
-                    logger.warning(f"unknown role: {data_role}, {i}. (ignored)")
+        def get_dialogs(examples):
+            sources = examples.get('conversations', []) or examples.get('items', [])
+            for i, source in enumerate(sources):
+                if len(source) < 2:
                     continue
-                if data_role and data_role in roles:
-                    role = roles.get(data_role, "")
-                    if role == conv.roles[j % 2]:
-                        conv.append_message(role, sentence["value"])
-            if len(conv.messages) < 2 or len(conv.messages) % 2 != 0:
-                continue
-            conversations.append(conv.get_prompt())
+
+                data_role = source[0].get("from", "")
+                if data_role not in roles or roles[data_role] != conv.roles[0]:
+                    # Skip the first one if it is not from human
+                    source = source[1:]
+                if len(source) < 2:
+                    continue
+
+                conv.messages = []
+                for j, sentence in enumerate(source):
+                    data_role = sentence.get("from", "")
+                    if data_role not in roles:
+                        logger.warning(f"unknown role: {data_role}, {i}. (ignored)")
+                        continue
+
+                    if data_role and data_role in roles:
+                        role = roles.get(data_role, "")
+                        if role == conv.roles[j % 2]:
+                            conv.append_message(role, sentence["value"])
+
+                if len(conv.messages) < 2 or len(conv.messages) % 2 != 0:
+                    continue
+                prompt, dialogs = conv.get_prompt()
+                yield dialogs
 
         # Tokenize conversations
-        input_ids = tokenizer(
-            conversations,
-            return_tensors="pt",
-            padding="max_length",
-            max_length=tokenizer.model_max_length,
-            truncation=True,
-            add_special_tokens=False
-        ).input_ids
-        targets = input_ids.clone()
+        for dialogs in get_dialogs(examples):
+            input_ids = []
+            labels = []
+            for i in range(len(dialogs) // 2):
+                source_ids = tokenizer.encode(dialogs[2 * i], add_special_tokens=(i == 0))
+                target_ids = tokenizer.encode(dialogs[2 * i + 1], add_special_tokens=False)
 
-        # Mask targets. Only compute loss on the assistant outputs.
-        sep = conv.sep + conv.roles[1] + ": "
-        for conversation, target in zip(conversations, targets):
-            total_len = int(target.ne(tokenizer.pad_token_id).sum())
-            turns = conversation.split(conv.sep2)
-            cur_len = 0
-            for i, turn in enumerate(turns):
-                if turn == "":
+                if len(source_ids) > max_source_length:
+                    source_ids = source_ids[:max_source_length]
+                if len(target_ids) > max_target_length - 1:  # eos token
+                    target_ids = target_ids[:max_target_length - 1]
+
+                if len(input_ids) + len(source_ids) + len(target_ids) + 1 > max_length:
                     break
-                turn_len = len(tokenizer(turn, add_special_tokens=False).input_ids) + 1  # 1 is </s> token at the end
-                parts = turn.split(sep)
-                if len(parts) != 2:
-                    break
-                parts[0] += sep
-                instruction_len = len(tokenizer(parts[0], add_special_tokens=False).input_ids) - 1
-                # Ignore the user instructions
-                target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
-                cur_len += turn_len
-            target[cur_len:] = IGNORE_INDEX
-            if cur_len < tokenizer.model_max_length:
-                if cur_len != total_len:
-                    target[:] = IGNORE_INDEX
-                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}. (ignored)")
-        return dict(
-            input_ids=input_ids,
-            labels=targets,
-            attention_mask=input_ids.ne(tokenizer.pad_token_id),
-        )
+
+                input_ids += source_ids + target_ids + [tokenizer.eos_token_id]
+                labels += [IGNORE_INDEX] * len(source_ids) + target_ids + [tokenizer.pad_token_id]
+
+            result["input_ids"].append(input_ids)
+            result["labels"].append(labels)
+        return result
 
     def filter_empty_labels(example):
         """Remove empty labels dataset."""

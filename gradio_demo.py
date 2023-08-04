@@ -22,6 +22,7 @@ from transformers import (
     LlamaTokenizer,
     LlamaForCausalLM,
 )
+from transformers.generation import GenerationConfig
 
 from supervised_finetuning import get_conv_template
 
@@ -42,27 +43,19 @@ def generate_answer(
         device,
         max_new_tokens=512,
         temperature=0.7,
-        top_k=40,
-        top_p=0.9,
-        do_sample=True,
         repetition_penalty=1.0,
         context_len=2048
 ):
-    generation_config = dict(
-        max_new_tokens=max_new_tokens,
-        temperature=temperature,
-        top_k=top_k,
-        top_p=top_p,
-        do_sample=do_sample,
-        repetition_penalty=repetition_penalty,
-    )
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
     input_ids = input_ids[-max_src_len:]
-    generation_output = model.generate(
+    generation_config = dict(
         input_ids=torch.as_tensor([input_ids]).to(device),
-        **generation_config,
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        repetition_penalty=repetition_penalty,
     )
+    generation_output = model.generate(**generation_config)
     output_ids = generation_output[0]
     output = tokenizer.decode(output_ids, skip_special_tokens=False).strip()
     stop_str = tokenizer.eos_token or "</s>"
@@ -121,6 +114,7 @@ def main():
         device_map='auto',
         trust_remote_code=True,
     )
+    base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
     if args.resize_emb:
         model_vocab_size = base_model.get_input_embeddings().weight.size(0)
         tokenzier_vocab_size = len(tokenizer)
@@ -161,7 +155,7 @@ def main():
         conv.append_message(conv.roles[0], now_input)
         conv.append_message(conv.roles[1], '')
 
-        prompt = conv.get_prompt()
+        prompt, _ = conv.get_prompt()
         output = generate_answer(
             model,
             tokenizer,

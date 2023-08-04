@@ -12,6 +12,8 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --max_train_samples 1000 \
     --max_eval_samples 10 \
     --num_train_epochs 1 \
+    --max_source_length 256 \
+    --max_target_length 256 \
     --learning_rate 2e-5 \
     --warmup_ratio 0.05 \
     --weight_decay 0.05 \
@@ -23,8 +25,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --save_strategy steps \
     --save_total_limit 3 \
     --gradient_accumulation_steps 1 \
-    --preprocessing_num_workers 1 \
-    --model_max_length 534 \
+    --preprocessing_num_workers 4 \
     --output_dir outputs-sft-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
