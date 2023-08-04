@@ -86,10 +86,6 @@ class ModelArguments:
     )
     model_max_length: Optional[int] = field(default=512, metadata={"help": "Max sequence length for the model."})
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
-    padding_side: Optional[Literal["left", "right"]] = field(
-        default="left",
-        metadata={"help": "The side on which the model should have padding applied."}
-    )
     cache_dir: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
@@ -620,7 +616,6 @@ def main():
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
         "use_fast": model_args.use_fast_tokenizer,
-        "padding_side": model_args.padding_side,
         "model_max_length": model_args.model_max_length,
         "trust_remote_code": model_args.trust_remote_code,
     }
