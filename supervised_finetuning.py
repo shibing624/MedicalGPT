@@ -139,6 +139,7 @@ class DataTrainingArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The train jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."})
+    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The template name."})
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -243,28 +244,34 @@ class Conversation:
             prompt = self.system_prompt + self.sep
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    dialog = role + ": " + message + self.sep
+                    dialog = f"{role}: {message}{self.sep}"
                     prompt += dialog
                     if i == 0:
-                        dialogs.append(prompt)
+                        dialogs.append(f"{prompt}{role}: ")
                     else:
-                        dialogs.append(dialog)
+                        if i % 2 == 0:
+                            dialogs.append(f"{dialog}{role}: ")
+                        else:
+                            dialogs.append(f"{message}{self.sep}")
                 else:
-                    prompt += role + ":"
+                    prompt += f"{role}:"
             return prompt, dialogs
         elif self.sep_style == SeparatorStyle.ADD_COLON_TWO:
             seps = [self.sep, self.sep2]
             prompt = self.system_prompt + seps[0]
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    dialog = role + ": " + message + seps[i % 2]
+                    dialog = f"{role}: {message}{seps[i % 2]}"
                     prompt += dialog
                     if i == 0:
-                        dialogs.append(prompt)
+                        dialogs.append(f"{prompt}{role}: ")
                     else:
-                        dialogs.append(dialog)
+                        if i % 2 == 0:
+                            dialogs.append(f"{dialog}{role}: ")
+                        else:
+                            dialogs.append(f"{message}{seps[i % 2]}")
                 else:
-                    prompt += role + ":"
+                    prompt += f"{role}:"
             return prompt, dialogs
         elif self.sep_style == SeparatorStyle.NO_COLON_SINGLE:
             prompt = self.system_prompt
@@ -273,9 +280,12 @@ class Conversation:
                     dialog = role + message + self.sep
                     prompt += dialog
                     if i == 0:
-                        dialogs.append(prompt)
+                        dialogs.append(f"{prompt}{role}")
                     else:
-                        dialogs.append(dialog)
+                        if i % 2 == 0:
+                            dialogs.append(f"{dialog}{role}")
+                        else:
+                            dialogs.append(f"{message}{self.sep}")
                 else:
                     prompt += role
             return prompt, dialogs
@@ -287,9 +297,12 @@ class Conversation:
                     dialog = role + message + seps[i % 2]
                     prompt += dialog
                     if i == 0:
-                        dialogs.append(prompt)
+                        dialogs.append(f"{prompt}{role}")
                     else:
-                        dialogs.append(dialog)
+                        if i % 2 == 0:
+                            dialogs.append(f"{dialog}{role}")
+                        else:
+                            dialogs.append(f"{message}{seps[i % 2]}")
                 else:
                     prompt += role
             return prompt, dialogs
@@ -300,11 +313,14 @@ class Conversation:
                 if message:
                     if i == 0:
                         prompt += self.system_prompt + message
-                        dialogs.append(prompt)
+                        dialogs.append(f"{prompt}{role} ")
                     else:
                         dialog = role + " " + message + seps[i % 2]
                         prompt += dialog
-                        dialogs.append(dialog)
+                        if i % 2 == 0:
+                            dialogs.append(f"{dialog}{role} ")
+                        else:
+                            dialogs.append(f"{message}{seps[i % 2]}")
                 else:
                     prompt += role
             return prompt, dialogs
@@ -317,18 +333,19 @@ class Conversation:
             else:
                 prompt = ""
             for i, (role, message) in enumerate(self.messages):
-                dialog = ""
                 if i % 2 == 0:
-                    dialog = f"[Round {i // 2 + round_add_n}]{self.sep}"
-                    prompt += dialog
+                    prompt += f"[Round {i // 2 + round_add_n}]{self.sep}"
 
                 if message:
-                    dialog += f"{role}：{message}{self.sep}"
+                    dialog = f"{role}：{message}{self.sep}"
                     prompt += dialog
                     if i == 0:
-                        dialogs.append(prompt)
+                        dialogs.append(f"{prompt}[Round {round_add_n + 1}]{self.sep}{role}：")
                     else:
-                        dialogs.append(dialog)
+                        if i % 2 == 0:
+                            dialogs.append(f"{dialog}[Round {i // 2 + round_add_n}]{self.sep}{role}：")
+                        else:
+                            dialogs.append(f"{message}{self.sep}")
                 else:
                     prompt += f"{role}："
             return prompt, dialogs
@@ -339,9 +356,12 @@ class Conversation:
                     dialog = role + "\n" + message + self.sep + "\n"
                     prompt += dialog
                     if i == 0:
-                        dialogs.append(prompt)
+                        dialogs.append(f"{prompt}{role}\n")
                     else:
-                        dialogs.append(dialog)
+                        if i % 2 == 0:
+                            dialogs.append(f"{dialog}{role}\n")
+                        else:
+                            dialogs.append(f"{message}{self.sep}")
                 else:
                     prompt += role + "\n"
             return prompt, dialogs
@@ -356,9 +376,12 @@ class Conversation:
                     dialog = role + ":" + message + seps[i % 2] + "\n"
                     prompt += dialog
                     if i == 0:
-                        dialogs.append(prompt)
+                        dialogs.append(f"{prompt}{role}:")
                     else:
-                        dialogs.append(dialog)
+                        if i % 2 == 0:
+                            dialogs.append(f"{dialog}{role}:")
+                        else:
+                            dialogs.append(f"{message}{seps[i % 2]}")
                 else:
                     prompt += role + ":"
             return prompt, dialogs
@@ -366,14 +389,17 @@ class Conversation:
             prompt = self.system_prompt
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    dialog = role + ": " + "<s>" + message + "</s>"
+                    dialog = role + ": <s>" + message + self.sep
                     prompt += dialog
                     if i == 0:
-                        dialogs.append(prompt)
+                        dialogs.append(f"{prompt}{role}: <s>")
                     else:
-                        dialogs.append(dialog)
+                        if i % 2 == 0:
+                            dialogs.append(f"{dialog}{role}: <s>")
+                        else:
+                            dialogs.append(f"{message}{self.sep}")
                 else:
-                    prompt += role + ": " + "<s>"
+                    prompt += role + ": <s>"
             return prompt, dialogs
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
@@ -751,8 +777,7 @@ def main():
         Preprocessing the datasets.
             part of code modified from https://github.com/lm-sys/FastChat
         """
-        result = {"input_ids": [], "labels": []}
-        conv = get_conv_template('vicuna')
+        conv = get_conv_template(data_args.template_name)
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         # Apply prompt templates
@@ -783,10 +808,13 @@ def main():
 
                 if len(conv.messages) < 2 or len(conv.messages) % 2 != 0:
                     continue
+
                 _, dialogs = conv.get_prompt()
                 yield dialogs
 
         # Tokenize conversations
+        input_ids_list = []
+        labels_list = []
         for dialogs in get_dialogs(examples):
             input_ids = []
             labels = []
@@ -798,6 +826,8 @@ def main():
                     source_ids = source_ids[:max_source_length]
                 if len(target_ids) > max_target_length - 1:  # eos token
                     target_ids = target_ids[:max_target_length - 1]
+                if target_ids[-1] == tokenizer.eos_token_id:
+                    target_ids = target_ids[:-1]
 
                 if len(input_ids) + len(source_ids) + len(target_ids) + 1 > max_length:
                     break
@@ -805,9 +835,9 @@ def main():
                 input_ids += source_ids + target_ids + [tokenizer.eos_token_id]
                 labels += [IGNORE_INDEX] * len(source_ids) + target_ids + [tokenizer.pad_token_id]
 
-            result["input_ids"].append(input_ids)
-            result["labels"].append(labels)
-        return result
+            input_ids_list.append(input_ids)
+            labels_list.append(labels)
+        return dict(input_ids=input_ids_list, labels=labels_list)
 
     def filter_empty_labels(example):
         """Remove empty labels dataset."""
