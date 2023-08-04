@@ -21,7 +21,7 @@ import math
 import os
 from dataclasses import dataclass, field
 from glob import glob
-from typing import List, Sequence, Optional, Dict, Literal
+from typing import List, Sequence, Optional, Dict
 
 import torch
 from datasets import load_dataset
@@ -689,7 +689,7 @@ def main():
         Preprocessing the datasets.
             part of code modified from https://github.com/lm-sys/FastChat
         """
-        conv = get_conv_template(data_args.template_name)
+        conv = get_conv_template(data_args.template_name)  # default: vicuna
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         # Apply prompt templates
@@ -735,17 +735,41 @@ def main():
             total_len = int(target.ne(tokenizer.pad_token_id).sum())
 
             turns = conversation.split(conv.sep2)
-            cur_len = 1
+            if model_args.model_type == "llama":
+                cur_len = 1
+            elif model_args.model_type == "baichuan":
+                cur_len = 0
+            elif model_args.model_type == "chatglm":
+                cur_len = 2
+            else:
+                cur_len = 1
             target[:cur_len] = IGNORE_INDEX
             for i, turn in enumerate(turns):
                 if turn == "":
                     break
-                turn_len = len(tokenizer(turn).input_ids)
+                if model_args.model_type == "llama":
+                    turn_len = len(tokenizer(turn).input_ids)
+                elif model_args.model_type == "baichuan":
+                    turn_len = len(tokenizer(turn + conv.sep2).input_ids)
+                elif model_args.model_type == "chatglm":
+                    turn_len = len(tokenizer(turn + conv.sep2).input_ids) - 2
+                else:
+                    turn_len = len(tokenizer(turn).input_ids)
+
                 parts = turn.split(sep)
                 if len(parts) != 2:
                     break
                 parts[0] += sep
-                instruction_len = len(tokenizer(parts[0]).input_ids) - 2
+
+                if model_args.model_type == "llama":
+                    cut_len = 2
+                elif model_args.model_type == "baichuan":
+                    cut_len = 1
+                elif model_args.model_type == "chatglm":
+                    cut_len = 2
+                else:
+                    cut_len = 2
+                instruction_len = len(tokenizer(parts[0]).input_ids) - cut_len
 
                 # Ignore the user instructions
                 target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
