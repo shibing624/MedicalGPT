@@ -220,7 +220,7 @@ def main():
             conv.append_message(conv.roles[0], inp)
             conv.append_message(conv.roles[1], '')
 
-            prompt, _ = conv.get_prompt()
+            prompt = conv.get_prompt()
             chatio.prompt_for_output(conv.roles[1])
             if args.use_stream:
                 response = stream_generate_answer(
@@ -255,7 +255,7 @@ def main():
             conv.append_message(conv.roles[0], example)
             conv.append_message(conv.roles[1], '')
 
-            prompt, _ = conv.get_prompt()
+            prompt = conv.get_prompt()
             response = generate_answer(
                 model,
                 tokenizer,

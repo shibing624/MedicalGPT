@@ -84,6 +84,7 @@ class ModelArguments:
             )
         },
     )
+    model_max_length: Optional[int] = field(default=512, metadata={"help": "Max sequence length for the model."})
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
     padding_side: Optional[Literal["left", "right"]] = field(
         default="left",
@@ -123,6 +124,8 @@ class ModelArguments:
                     MODEL_CLASSES.keys()))
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
+        if self.model_max_length < 30:
+            raise ValueError("You must specify a valid model_max_length >= 30 to run training.")
 
 
 @dataclass
@@ -158,8 +161,6 @@ class DataTrainingArguments:
             )
         },
     )
-    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
-    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
@@ -177,10 +178,6 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.max_train_samples is not None and 0 < self.max_train_samples <= 1000:
             logger.warning("You may set max_train_samples = -1 to run all samples in production.")
-        if self.max_source_length < 30:
-            raise ValueError("You must specify a valid max_source_length >= 30 to run training.")
-        if self.max_target_length < 30:
-            raise ValueError("You must specify a valid max_target_length >= 30 to run training.")
 
 
 @dataclass
@@ -230,177 +227,98 @@ class Conversation:
     offset: int
     # Separators
     sep_style: int
-    sep: str
-    sep2: str = None
+    sep: str = ""
+    sep2: str = "</s>"
     # Stop criteria (the default one is EOS token)
     stop_str: str = None
     # Stops generation if meeting any token in this list
     stop_token_ids: List[int] = None
 
-    def get_prompt(self):
+    def get_prompt(self) -> str:
         """Get the prompt and dialogs for generation."""
-        dialogs = []
         if self.sep_style == SeparatorStyle.ADD_COLON_SINGLE:
-            prompt = self.system_prompt + self.sep
-            for i, (role, message) in enumerate(self.messages):
+            ret = self.system_prompt + self.sep
+            for role, message in self.messages:
                 if message:
-                    dialog = f"{role}: {message}{self.sep}"
-                    prompt += dialog
-                    if i == 0:
-                        dialogs.append(f"{prompt}{role}: ")
-                    else:
-                        if i % 2 == 0:
-                            dialogs.append(f"{dialog}{role}: ")
-                        else:
-                            dialogs.append(f"{message}{self.sep}")
+                    ret += role + ": " + message + self.sep
                 else:
-                    prompt += f"{role}:"
-            return prompt, dialogs
+                    ret += role + ":"
+            return ret
         elif self.sep_style == SeparatorStyle.ADD_COLON_TWO:
             seps = [self.sep, self.sep2]
-            prompt = self.system_prompt + seps[0]
+            ret = self.system_prompt + seps[0]
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    dialog = f"{role}: {message}{seps[i % 2]}"
-                    prompt += dialog
-                    if i == 0:
-                        dialogs.append(f"{prompt}{role}: ")
-                    else:
-                        if i % 2 == 0:
-                            dialogs.append(f"{dialog}{role}: ")
-                        else:
-                            dialogs.append(f"{message}{seps[i % 2]}")
+                    ret += role + ": " + message + seps[i % 2]
                 else:
-                    prompt += f"{role}:"
-            return prompt, dialogs
+                    ret += role + ":"
+            return ret
         elif self.sep_style == SeparatorStyle.NO_COLON_SINGLE:
-            prompt = self.system_prompt
-            for i, (role, message) in enumerate(self.messages):
+            ret = self.system_prompt
+            for role, message in self.messages:
                 if message:
-                    dialog = role + message + self.sep
-                    prompt += dialog
-                    if i == 0:
-                        dialogs.append(f"{prompt}{role}")
-                    else:
-                        if i % 2 == 0:
-                            dialogs.append(f"{dialog}{role}")
-                        else:
-                            dialogs.append(f"{message}{self.sep}")
+                    ret += role + message + self.sep
                 else:
-                    prompt += role
-            return prompt, dialogs
+                    ret += role
+            return ret
         elif self.sep_style == SeparatorStyle.NO_COLON_TWO:
             seps = [self.sep, self.sep2]
-            prompt = self.system_prompt
+            ret = self.system_prompt
             for i, (role, message) in enumerate(self.messages):
                 if message:
-                    dialog = role + message + seps[i % 2]
-                    prompt += dialog
-                    if i == 0:
-                        dialogs.append(f"{prompt}{role}")
-                    else:
-                        if i % 2 == 0:
-                            dialogs.append(f"{dialog}{role}")
-                        else:
-                            dialogs.append(f"{message}{seps[i % 2]}")
+                    ret += role + message + seps[i % 2]
                 else:
-                    prompt += role
-            return prompt, dialogs
+                    ret += role
+            return ret
         elif self.sep_style == SeparatorStyle.LLAMA2:
             seps = [self.sep, self.sep2]
-            prompt = ""
+            ret = ""
             for i, (role, message) in enumerate(self.messages):
                 if message:
                     if i == 0:
-                        prompt += self.system_prompt + message
-                        dialogs.append(f"{prompt}{role} ")
+                        ret += self.system_prompt + message
                     else:
-                        dialog = role + " " + message + seps[i % 2]
-                        prompt += dialog
-                        if i % 2 == 0:
-                            dialogs.append(f"{dialog}{role} ")
-                        else:
-                            dialogs.append(f"{message}{seps[i % 2]}")
+                        ret += role + " " + message + seps[i % 2]
                 else:
-                    prompt += role
-            return prompt, dialogs
+                    ret += role
+            return ret
         elif self.sep_style == SeparatorStyle.CHATGLM:
             # source: https://huggingface.co/THUDM/chatglm-6b/blob/main/modeling_chatglm.py#L1307
             # source: https://huggingface.co/THUDM/chatglm2-6b/blob/main/modeling_chatglm.py#L1007
             round_add_n = 1 if self.name == "chatglm2" else 0
             if self.system_prompt:
-                prompt = self.system_prompt + self.sep
+                ret = self.system_prompt + self.sep
             else:
-                prompt = ""
+                ret = ""
             for i, (role, message) in enumerate(self.messages):
                 if i % 2 == 0:
-                    prompt += f"[Round {i // 2 + round_add_n}]{self.sep}"
+                    ret += f"[Round {i // 2 + round_add_n}]{self.sep}"
 
                 if message:
-                    dialog = f"{role}：{message}{self.sep}"
-                    prompt += dialog
-                    if i == 0:
-                        dialogs.append(f"{prompt}[Round {round_add_n + 1}]{self.sep}{role}：")
-                    else:
-                        if i % 2 == 0:
-                            dialogs.append(f"{dialog}[Round {i // 2 + round_add_n}]{self.sep}{role}：")
-                        else:
-                            dialogs.append(f"{message}{self.sep}")
+                    ret += f"{role}：{message}{self.sep}"
                 else:
-                    prompt += f"{role}："
-            return prompt, dialogs
-        elif self.sep_style == SeparatorStyle.CHATML:
-            prompt = "" if self.system_prompt == "" else self.system_prompt + self.sep + "\n"
-            for i, (role, message) in enumerate(self.messages):
-                if message:
-                    dialog = role + "\n" + message + self.sep + "\n"
-                    prompt += dialog
-                    if i == 0:
-                        dialogs.append(f"{prompt}{role}\n")
-                    else:
-                        if i % 2 == 0:
-                            dialogs.append(f"{dialog}{role}\n")
-                        else:
-                            dialogs.append(f"{message}{self.sep}")
-                else:
-                    prompt += role + "\n"
-            return prompt, dialogs
+                    ret += f"{role}："
+            return ret
         elif self.sep_style == SeparatorStyle.CHATINTERN:
             # source: https://huggingface.co/internlm/internlm-chat-7b-8k/blob/bd546fa984b4b0b86958f56bf37f94aa75ab8831/modeling_internlm.py#L771
             seps = [self.sep, self.sep2]
-            prompt = self.system_prompt
+            ret = self.system_prompt
             for i, (role, message) in enumerate(self.messages):
                 if i % 2 == 0:
-                    prompt += "<s>"
+                    ret += "<s>"
                 if message:
-                    dialog = role + ":" + message + seps[i % 2] + "\n"
-                    prompt += dialog
-                    if i == 0:
-                        dialogs.append(f"{prompt}{role}:")
-                    else:
-                        if i % 2 == 0:
-                            dialogs.append(f"{dialog}{role}:")
-                        else:
-                            dialogs.append(f"{message}{seps[i % 2]}")
+                    ret += role + ":" + message + seps[i % 2] + "\n"
                 else:
-                    prompt += role + ":"
-            return prompt, dialogs
+                    ret += role + ":"
+            return ret
         elif self.sep_style == SeparatorStyle.PHOENIX:
-            prompt = self.system_prompt
-            for i, (role, message) in enumerate(self.messages):
+            ret = self.system_prompt
+            for role, message in self.messages:
                 if message:
-                    dialog = role + ": <s>" + message + self.sep
-                    prompt += dialog
-                    if i == 0:
-                        dialogs.append(f"{prompt}{role}: <s>")
-                    else:
-                        if i % 2 == 0:
-                            dialogs.append(f"{dialog}{role}: <s>")
-                        else:
-                            dialogs.append(f"{message}{self.sep}")
+                    ret += role + ": " + "<s>" + message + "</s>"
                 else:
-                    prompt += role + ": <s>"
-            return prompt, dialogs
+                    ret += role + ": " + "<s>"
+            return ret
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
 
@@ -511,6 +429,7 @@ register_conv_template(
         offset=0,
         sep_style=SeparatorStyle.CHATGLM,
         sep="\n",
+        sep2="</s>",
     )
 )
 
@@ -525,6 +444,7 @@ register_conv_template(
         offset=0,
         sep_style=SeparatorStyle.CHATGLM,
         sep="\n\n",
+        sep2="</s>",
     )
 )
 
@@ -701,6 +621,7 @@ def main():
         "cache_dir": model_args.cache_dir,
         "use_fast": model_args.use_fast_tokenizer,
         "padding_side": model_args.padding_side,
+        "model_max_length": model_args.model_max_length,
         "trust_remote_code": model_args.trust_remote_code,
     }
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
@@ -768,10 +689,6 @@ def main():
     logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets
-    max_source_length = data_args.max_source_length
-    max_target_length = data_args.max_target_length
-    max_length = max_source_length + max_target_length
-
     def preprocess_function(examples):
         """
         Preprocessing the datasets.
@@ -781,63 +698,82 @@ def main():
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
         # Apply prompt templates
-        def get_dialogs(examples):
-            sources = examples.get('conversations', []) or examples.get('items', [])
-            for i, source in enumerate(sources):
-                if len(source) < 2:
+        conversations = []
+        sources = examples.get('conversations', []) or examples.get('items', [])
+        for i, source in enumerate(sources):
+            if len(source) < 2:
+                continue
+            data_role = source[0].get("from", "")
+            if data_role not in roles or roles[data_role] != conv.roles[0]:
+                # Skip the first one if it is not from human
+                source = source[1:]
+            if len(source) < 2:
+                continue
+            conv.messages = []
+            for j, sentence in enumerate(source):
+                data_role = sentence.get("from", "")
+                if data_role not in roles:
+                    logger.warning(f"unknown role: {data_role}, {i}. (ignored)")
                     continue
-
-                data_role = source[0].get("from", "")
-                if data_role not in roles or roles[data_role] != conv.roles[0]:
-                    # Skip the first one if it is not from human
-                    source = source[1:]
-                if len(source) < 2:
-                    continue
-
-                conv.messages = []
-                for j, sentence in enumerate(source):
-                    data_role = sentence.get("from", "")
-                    if data_role not in roles:
-                        logger.warning(f"unknown role: {data_role}, {i}. (ignored)")
-                        continue
-
-                    if data_role and data_role in roles:
-                        role = roles.get(data_role, "")
-                        if role == conv.roles[j % 2]:
-                            conv.append_message(role, sentence["value"])
-
-                if len(conv.messages) < 2 or len(conv.messages) % 2 != 0:
-                    continue
-
-                _, dialogs = conv.get_prompt()
-                yield dialogs
+                if data_role and data_role in roles:
+                    role = roles.get(data_role, "")
+                    if role == conv.roles[j % 2]:
+                        conv.append_message(role, sentence["value"])
+            if len(conv.messages) < 2 or len(conv.messages) % 2 != 0:
+                continue
+            conversations.append(conv.get_prompt())
 
         # Tokenize conversations
-        input_ids_list = []
-        labels_list = []
-        for dialogs in get_dialogs(examples):
-            input_ids = []
-            labels = []
-            for i in range(len(dialogs) // 2):
-                source_ids = tokenizer.encode(dialogs[2 * i], add_special_tokens=(i == 0))
-                target_ids = tokenizer.encode(dialogs[2 * i + 1], add_special_tokens=False)
+        input_ids = tokenizer(
+            conversations,
+            return_tensors="pt",
+            padding="max_length",
+            max_length=tokenizer.model_max_length,
+            truncation=True,
+        ).input_ids
+        targets = input_ids.clone()
+        assert conv.sep_style == SeparatorStyle.ADD_COLON_TWO
 
-                if len(source_ids) > max_source_length:
-                    source_ids = source_ids[:max_source_length]
-                if len(target_ids) > max_target_length - 1:  # eos token
-                    target_ids = target_ids[:max_target_length - 1]
-                if target_ids[-1] == tokenizer.eos_token_id:
-                    target_ids = target_ids[:-1]
+        # Mask targets. Only compute loss on the assistant outputs.
+        sep = conv.sep + conv.roles[1] + ": "
+        for idx, (conversation, target) in enumerate(zip(conversations, targets)):
+            total_len = int(target.ne(tokenizer.pad_token_id).sum())
 
-                if len(input_ids) + len(source_ids) + len(target_ids) + 1 > max_length:
+            turns = conversation.split(conv.sep2)
+            cur_len = 1
+            target[:cur_len] = IGNORE_INDEX
+            for i, turn in enumerate(turns):
+                if turn == "":
                     break
+                turn_len = len(tokenizer(turn).input_ids)
+                parts = turn.split(sep)
+                if len(parts) != 2:
+                    break
+                parts[0] += sep
+                instruction_len = len(tokenizer(parts[0], add_special_tokens=False).input_ids) - 2
 
-                input_ids += source_ids + target_ids + [tokenizer.eos_token_id]
-                labels += [IGNORE_INDEX] * len(source_ids) + target_ids + [tokenizer.pad_token_id]
+                # Ignore the user instructions
+                target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
+                cur_len += turn_len
 
-            input_ids_list.append(input_ids)
-            labels_list.append(labels)
-        return dict(input_ids=input_ids_list, labels=labels_list)
+            target[cur_len:] = IGNORE_INDEX
+
+            # Inspect and check the correctness of masking
+            if idx < 1:
+                z = target.clone()
+                z = torch.where(z == IGNORE_INDEX, tokenizer.unk_token_id, z)
+                logger.debug(f"target:\n{tokenizer.decode(z)}")
+
+            if cur_len < tokenizer.model_max_length:
+                if cur_len != total_len:
+                    target[:] = IGNORE_INDEX
+                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}. (ignored)")
+
+        return dict(
+            input_ids=input_ids,
+            labels=targets,
+            attention_mask=input_ids.ne(tokenizer.pad_token_id),
+        )
 
     def filter_empty_labels(example):
         """Remove empty labels dataset."""
@@ -912,6 +848,10 @@ def main():
             torch_dtype=torch_dtype,
             cache_dir=model_args.cache_dir
         )
+        orig_ctx_len = getattr(config, "max_position_embeddings", None)
+        if orig_ctx_len and model_args.model_max_length > orig_ctx_len:
+            scaling_factor = float(math.ceil(model_args.model_max_length / orig_ctx_len))
+            config.rope_scaling = {"type": "linear", "factor": scaling_factor}
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             config=config,
@@ -1001,6 +941,7 @@ def main():
         logger.debug(f"Training metrics: {metrics}")
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
+        model.config.use_cache = True  # enable cache after training
         trainer.save_state()
         logger.info(f"Saving model checkpoint to {training_args.output_dir}")
         save_model(training_args.output_dir, model, tokenizer, training_args)

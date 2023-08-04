@@ -155,7 +155,7 @@ def main():
         conv.append_message(conv.roles[0], now_input)
         conv.append_message(conv.roles[1], '')
 
-        prompt, _ = conv.get_prompt()
+        prompt = conv.get_prompt()
         output = generate_answer(
             model,
             tokenizer,
