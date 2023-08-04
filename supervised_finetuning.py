@@ -758,12 +758,6 @@ def main():
 
             target[cur_len:] = IGNORE_INDEX
 
-            # Inspect and check the correctness of masking
-            if idx < 1:
-                z = target.clone()
-                z = torch.where(z == IGNORE_INDEX, tokenizer.unk_token_id, z)
-                logger.debug(f"target:\n{tokenizer.decode(z)}")
-
             if cur_len < tokenizer.model_max_length:
                 if cur_len != total_len:
                     target[:] = IGNORE_INDEX
@@ -802,7 +796,10 @@ def main():
             train_dataset = train_dataset.filter(filter_empty_labels, num_proc=data_args.preprocessing_num_workers)
             logger.debug(f"Num train_samples: {len(train_dataset)}")
             logger.debug("Tokenized training example:")
-            logger.debug(tokenizer.decode(train_dataset[0]['input_ids']))
+            logger.debug(f"Decode input_ids[0]: {tokenizer.decode(train_dataset[0]['input_ids'])}")
+            replaced_labels = [label if label != IGNORE_INDEX else tokenizer.unk_token_id
+                               for label in train_dataset[0]['labels']]
+            logger.debug(f"Decode labels[0]: {tokenizer.decode(replaced_labels)}")
 
     eval_dataset = None
     max_eval_samples = 0
@@ -929,7 +926,7 @@ def main():
         logger.debug(f"Train dataloader example: {sample}")
         logger.debug(f"Detail input_ids: {list(sample['input_ids'])[:3]}, \nlabels: {list(sample['labels'])[:3]}")
         logger.debug(f"Decode input_ids[0]: {tokenizer.decode(sample['input_ids'][0])}")
-        replaced_labels = [label if label != IGNORE_INDEX else tokenizer.pad_token_id for label in sample['labels'][0]]
+        replaced_labels = [label if label != IGNORE_INDEX else tokenizer.unk_token_id for label in sample['labels'][0]]
         logger.debug(f"Decode labels[0]: {tokenizer.decode(replaced_labels)}")
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
