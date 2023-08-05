@@ -525,7 +525,6 @@ def main():
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
         "use_fast": model_args.use_fast_tokenizer,
-        "model_max_length": model_args.model_max_length,
         "trust_remote_code": model_args.trust_remote_code,
     }
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
@@ -605,7 +604,7 @@ def main():
         input_ids_list = []
         targets_list = []
         roles = ["human", "gpt"]
-        prompt_template = get_conv_template(data_args.prompt_template)
+        prompt_template = get_conv_template(data_args.template_name)
 
         def get_dialog(examples):
             for i, source in enumerate(examples['conversations']):
@@ -734,10 +733,6 @@ def main():
             torch_dtype=torch_dtype,
             cache_dir=model_args.cache_dir
         )
-        orig_ctx_len = getattr(config, "max_position_embeddings", None)
-        if orig_ctx_len and model_args.model_max_length > orig_ctx_len:
-            scaling_factor = float(math.ceil(model_args.model_max_length / orig_ctx_len))
-            config.rope_scaling = {"type": "linear", "factor": scaling_factor}
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             config=config,
@@ -805,10 +800,6 @@ def main():
         tokenizer=tokenizer,
         label_pad_token_id=IGNORE_INDEX if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     )
-    # Override the decoding parameters of Trainer
-    training_args.generation_max_length = training_args.generation_max_length if \
-        training_args.generation_max_length is not None else data_args.max_target_length
-
     # Initialize our Trainer
     trainer = SavePeftModelTrainer(
         model=model,
