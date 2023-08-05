@@ -27,7 +27,6 @@ import torch
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
-from tqdm import tqdm
 from transformers import (
     AutoConfig,
     BloomForCausalLM,
@@ -632,7 +631,7 @@ def main():
                 dialog = prompt_template.get_dialog(history_messages)
                 yield dialog
 
-        for dialog in tqdm(get_dialog(examples)):
+        for dialog in get_dialog(examples):
             input_ids, labels = [], []
 
             for i in range(len(dialog) // 2):
