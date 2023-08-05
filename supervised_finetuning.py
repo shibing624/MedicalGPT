@@ -642,11 +642,12 @@ def main():
                     source_ids = source_ids[:max_source_length]
                 if len(target_ids) > max_target_length - 1:  # eos token
                     target_ids = target_ids[:max_target_length - 1]
-
+                if target_ids[-1] == tokenizer.eos_token_id:
+                    target_ids = target_ids[:-1]
                 if len(input_ids) + len(source_ids) + len(target_ids) + 1 > max_length:
                     break
 
-                input_ids += source_ids + target_ids + [tokenizer.eos_token_id]
+                input_ids += source_ids + target_ids + [tokenizer.eos_token_id]  # add eos token for each turn
                 labels += [IGNORE_INDEX] * len(source_ids) + target_ids + [tokenizer.eos_token_id]
 
             input_ids_list.append(input_ids)
