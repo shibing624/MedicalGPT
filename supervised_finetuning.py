@@ -42,6 +42,7 @@ from transformers import (
     set_seed,
     BitsAndBytesConfig,
     deepspeed,
+    DataCollatorForSeq2Seq,
 )
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.trainer import TRAINING_ARGS_NAME
@@ -156,6 +157,10 @@ class DataTrainingArguments:
     )
     max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
     max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
+    ignore_pad_token_for_loss: bool = field(
+        default=True,
+        metadata={"help": "If only pad tokens should be ignored. This assumes that `config.pad_token_id` is defined."},
+    )
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
@@ -607,7 +612,7 @@ def main():
                 if len(source) < 2:
                     continue
                 data_role = source[0].get("from", "")
-                if data_role not in roles or roles[data_role] != roles[0]:
+                if data_role not in roles or data_role != roles[0]:
                     # Skip the first one if it is not from human
                     source = source[1:]
                 if len(source) < 2:
@@ -795,12 +800,23 @@ def main():
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
         model.is_parallelizable = True
         model.model_parallel = True
+
+    data_collator = DataCollatorForSeq2Seq(
+        tokenizer=tokenizer,
+        label_pad_token_id=IGNORE_INDEX if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
+    )
+    # Override the decoding parameters of Trainer
+    training_args.generation_max_length = training_args.generation_max_length if \
+        training_args.generation_max_length is not None else data_args.max_target_length
+
+    # Initialize our Trainer
     trainer = SavePeftModelTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
+        data_collator=data_collator,
     )
 
     # Training
