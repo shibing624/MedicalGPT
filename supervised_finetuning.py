@@ -21,7 +21,7 @@ import math
 import os
 from dataclasses import dataclass, field
 from glob import glob
-from typing import List, Sequence, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 
 import torch
 from datasets import load_dataset
@@ -84,7 +84,6 @@ class ModelArguments:
             )
         },
     )
-    model_max_length: Optional[int] = field(default=512, metadata={"help": "Max sequence length for the model."})
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
     cache_dir: Optional[str] = field(
         default=None,
@@ -120,8 +119,6 @@ class ModelArguments:
                     MODEL_CLASSES.keys()))
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
-        if self.model_max_length < 30:
-            raise ValueError("You must specify a valid model_max_length >= 30 to run training.")
 
 
 @dataclass
@@ -157,6 +154,8 @@ class DataTrainingArguments:
             )
         },
     )
+    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
+    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
@@ -174,6 +173,8 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.max_train_samples is not None and 0 < self.max_train_samples <= 1000:
             logger.warning("You may set max_train_samples = -1 to run all samples in production.")
+        if self.max_source_length < 30:
+            raise ValueError("You must specify a valid max_source_length >= 30 to run training.")
 
 
 @dataclass
@@ -195,18 +196,6 @@ class CastOutputToFloat(torch.nn.Sequential):
         return super().forward(x).to(torch.float32)
 
 
-class SeparatorStyle:
-    ADD_COLON_SINGLE = 1
-    ADD_COLON_TWO = 2
-    NO_COLON_SINGLE = 3
-    NO_COLON_TWO = 4
-    LLAMA2 = 5
-    CHATGLM = 6
-    CHATML = 7
-    CHATINTERN = 8
-    PHOENIX = 9
-
-
 @dataclass
 class Conversation:
     """A class that manages prompt templates and keeps all conversation history."""
@@ -215,261 +204,198 @@ class Conversation:
     name: str
     # The system prompt
     system_prompt: str
-    # Two roles
-    roles: Sequence[str]
-    # All messages. Each item is (role, message).
-    messages: List[List[str]]
-    # The number of few shot examples
-    offset: int
-    # Separators
-    sep_style: int
-    sep: str = ""
-    sep2: str = "</s>"
-    # Stop criteria (the default one is EOS token)
-    stop_str: str = None
-    # Stops generation if meeting any token in this list
-    stop_token_ids: List[int] = None
+    # All messages. question and answer history.
+    messages: Optional[List[Tuple[str, str]]]
+    # Conversation prompt
+    prompt: str
+    # Separator
+    sep: str
 
-    def get_prompt(self) -> str:
-        """Get the prompt and dialogs for generation."""
-        if self.sep_style == SeparatorStyle.ADD_COLON_SINGLE:
-            ret = self.system_prompt + self.sep
-            for role, message in self.messages:
-                if message:
-                    ret += role + ": " + message + self.sep
-                else:
-                    ret += role + ":"
-            return ret
-        elif self.sep_style == SeparatorStyle.ADD_COLON_TWO:
-            seps = [self.sep, self.sep2]
-            ret = self.system_prompt + seps[0]
-            for i, (role, message) in enumerate(self.messages):
-                if message:
-                    ret += role + ": " + message + seps[i % 2]
-                else:
-                    ret += role + ":"
-            return ret
-        elif self.sep_style == SeparatorStyle.NO_COLON_SINGLE:
-            ret = self.system_prompt
-            for role, message in self.messages:
-                if message:
-                    ret += role + message + self.sep
-                else:
-                    ret += role
-            return ret
-        elif self.sep_style == SeparatorStyle.NO_COLON_TWO:
-            seps = [self.sep, self.sep2]
-            ret = self.system_prompt
-            for i, (role, message) in enumerate(self.messages):
-                if message:
-                    ret += role + message + seps[i % 2]
-                else:
-                    ret += role
-            return ret
-        elif self.sep_style == SeparatorStyle.LLAMA2:
-            seps = [self.sep, self.sep2]
-            ret = ""
-            for i, (role, message) in enumerate(self.messages):
-                if message:
-                    if i == 0:
-                        ret += self.system_prompt + message
-                    else:
-                        ret += role + " " + message + seps[i % 2]
-                else:
-                    ret += role
-            return ret
-        elif self.sep_style == SeparatorStyle.CHATGLM:
-            # source: https://huggingface.co/THUDM/chatglm-6b/blob/main/modeling_chatglm.py#L1307
-            # source: https://huggingface.co/THUDM/chatglm2-6b/blob/main/modeling_chatglm.py#L1007
-            round_add_n = 1 if self.name == "chatglm2" else 0
-            if self.system_prompt:
-                ret = self.system_prompt + self.sep
+    def get_prompt(
+            self,
+            messages: Optional[List[Tuple[str, str]]] = None,
+            system_prompt: Optional[str] = ""
+    ) -> str:
+        """
+        Returns a string containing prompt without response.
+        """
+        return "".join(self._format_example(messages, system_prompt))
+
+    def get_dialog(
+            self,
+            messages: Optional[List[Tuple[str, str]]] = None,
+            system_prompt: Optional[str] = ""
+    ) -> List[str]:
+        """
+        Returns a list containing 2 * n elements where the 2k-th is a query and the (2k+1)-th is a response.
+        """
+        return self._format_example(messages, system_prompt)
+
+    def _format_example(
+            self,
+            messages: Optional[List[Tuple[str, str]]] = None,
+            system_prompt: Optional[str] = ""
+    ) -> List[str]:
+        system_prompt = system_prompt or self.system_prompt
+        system_prompt = system_prompt + self.sep if system_prompt else ""  # add separator for non-empty system prompt
+        convs = []
+        for turn_idx, (user_query, bot_resp) in enumerate(messages):
+            if turn_idx == 0:
+                convs.append(system_prompt + self.prompt.format(query=user_query))
+                convs.append(bot_resp)
             else:
-                ret = ""
-            for i, (role, message) in enumerate(self.messages):
-                if i % 2 == 0:
-                    ret += f"[Round {i // 2 + round_add_n}]{self.sep}"
-
-                if message:
-                    ret += f"{role}：{message}{self.sep}"
-                else:
-                    ret += f"{role}："
-            return ret
-        elif self.sep_style == SeparatorStyle.CHATINTERN:
-            # source: https://huggingface.co/internlm/internlm-chat-7b-8k/blob/bd546fa984b4b0b86958f56bf37f94aa75ab8831/modeling_internlm.py#L771
-            seps = [self.sep, self.sep2]
-            ret = self.system_prompt
-            for i, (role, message) in enumerate(self.messages):
-                if i % 2 == 0:
-                    ret += "<s>"
-                if message:
-                    ret += role + ":" + message + seps[i % 2] + "\n"
-                else:
-                    ret += role + ":"
-            return ret
-        elif self.sep_style == SeparatorStyle.PHOENIX:
-            ret = self.system_prompt
-            for role, message in self.messages:
-                if message:
-                    ret += role + ": " + "<s>" + message + "</s>"
-                else:
-                    ret += role + ": " + "<s>"
-            return ret
-        else:
-            raise ValueError(f"Invalid style: {self.sep_style}")
-
-    def append_message(self, role: str, message: str):
-        """Append a new message."""
-        self.messages.append([role, message])
-
-    def to_gradio_chatbot(self):
-        """Convert the conversation to gradio chatbot format."""
-        ret = []
-        for i, (role, msg) in enumerate(self.messages[self.offset:]):
-            if i % 2 == 0:
-                ret.append([msg, None])
-            else:
-                ret[-1][-1] = msg
-        return ret
-
-    def copy(self):
-        return Conversation(
-            name=self.name,
-            system_prompt=self.system_prompt,
-            roles=self.roles,
-            messages=[[x, y] for x, y in self.messages],
-            offset=self.offset,
-            sep_style=self.sep_style,
-            sep=self.sep,
-            sep2=self.sep2,
-            stop_str=self.stop_str,
-            stop_token_ids=self.stop_token_ids,
-        )
-
-    def dict(self):
-        return {
-            "template_name": self.name,
-            "system": self.system_prompt,
-            "roles": self.roles,
-            "messages": self.messages,
-            "offset": self.offset,
-        }
+                convs.append(self.sep + self.prompt.format(query=user_query))
+                convs.append(bot_resp)
+        return convs
 
 
 # A global registry for all conversation templates
 conv_templates: Dict[str, Conversation] = {}
 
 
-def register_conv_template(template: Conversation, override: bool = False):
+def register_conv_template(template: Conversation):
     """Register a new conversation template."""
-    if not override:
-        assert (
-                template.name not in conv_templates
-        ), f"{template.name} has been registered."
-
     conv_templates[template.name] = template
 
 
-# A template similar to the "one_shot" template above but remove the example.
-register_conv_template(
-    Conversation(
-        name="zero_shot",
-        system_prompt="A chat between a curious human and an artificial intelligence assistant. "
-                      "The assistant gives helpful, detailed, and polite answers to the human's questions.",
-        roles=("Human", "Assistant"),
-        messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.ADD_COLON_SINGLE,
-        sep="\n### ",
-        stop_str="###",
-    )
-)
-
-# Vicuna v1.1 template
+"""Vicuna v1.1 template
+Supports: https://huggingface.co/lmsys/vicuna-7b-delta-v1.1
+          https://huggingface.co/lmsys/vicuna-13b-delta-v1.1
+"""
 register_conv_template(
     Conversation(
         name="vicuna",
         system_prompt="A chat between a curious user and an artificial intelligence assistant. "
                       "The assistant gives helpful, detailed, and polite answers to the user's questions.",
-        roles=("USER", "ASSISTANT"),
         messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.ADD_COLON_TWO,
-        sep=" ",
-        sep2="</s>",
-    )
-)
-
-# Alpaca default template
-register_conv_template(
-    Conversation(
-        name="alpaca",
-        system_prompt="Below is an instruction that describes a task. Write a response that appropriately completes the request.",
-        roles=("### Instruction", "### Response"),
-        messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.ADD_COLON_TWO,
-        sep="\n\n",
-        sep2="</s>",
-    )
-)
-
-# ChatGLM default template
-register_conv_template(
-    # source: https://huggingface.co/THUDM/chatglm-6b/blob/main/modeling_chatglm.py#L1307
-    Conversation(
-        name="chatglm",
-        system_prompt="",
-        roles=("问", "答"),
-        messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.CHATGLM,
-        sep="\n",
-        sep2="</s>",
-    )
-)
-
-# ChatGLM2 default template
-register_conv_template(
-    # source: https://huggingface.co/THUDM/chatglm2-6b/blob/main/modeling_chatglm.py#L1007
-    Conversation(
-        name="chatglm2",
-        system_prompt="",
-        roles=("问", "答"),
-        messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.CHATGLM,
-        sep="\n\n",
-        sep2="</s>",
-    )
-)
-
-# Phoenix default template
-register_conv_template(
-    Conversation(
-        name="phoenix",
-        system_prompt="A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n",
-        roles=("Human", "Assistant"),
-        messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.PHOENIX,
+        prompt="USER: {query} ASSISTANT: ",
         sep="</s>",
     )
 )
 
-# Internlm-chat template
+"""Alpaca template"""
 register_conv_template(
     Conversation(
-        name="internlm-chat",
-        system_prompt="A chat between a curious <|User|> and an <|Bot|>. The <|Bot|> gives helpful, detailed, and polite answers to the <|User|>'s questions.\n\n",
-        roles=("<|User|>", "<|Bot|>"),
+        name="alpaca",
+        system_prompt="Below is an instruction that describes a task. "
+                      "Write a response that appropriately completes the request.",
         messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.CHATINTERN,
-        sep="<eoh>",
-        sep2="<eoa>",
-        stop_token_ids=[1, 103028],
-        stop_str="<|User|>",
+        prompt="### Instruction:\n{query}\n\n### Response:\n",
+        sep="\n\n",
+    )
+)
+
+"""Baichuan-13B-Chat template
+source: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/f5f47be2adbbdceb784f334d6fa1ca2c73e65097/modeling_baichuan.py#L507
+Support: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
+"""
+register_conv_template(
+    Conversation(
+        name="baichuan",
+        system_prompt="",
+        messages=[],
+        prompt=" <reserved_102> {query} <reserved_103> ",
+        sep="</s>",
+    )
+)
+
+"""ziya template"""
+register_conv_template(
+    Conversation(
+        name="ziya",
+        system_prompt="",
+        messages=[],
+        prompt="<human>:{query}\n<bot>:",
+        sep="\n",
+    )
+)
+
+"""Linly template"""
+register_conv_template(
+    Conversation(
+        name="linly",
+        system_prompt="",
+        messages=[],
+        prompt="User: {query}\nBot: ",
+        sep="\n",
+    )
+)
+
+"""ChatGLM default template
+source: https://huggingface.co/THUDM/chatglm-6b/blob/main/modeling_chatglm.py#L1307
+"""
+register_conv_template(
+    Conversation(
+        name="chatglm",
+        system_prompt="",
+        messages=[],
+        prompt="问：{query}\n答：",
+        sep="\n",
+    )
+)
+
+"""ChatGLM2 default template
+source: https://huggingface.co/THUDM/chatglm2-6b/blob/main/modeling_chatglm.py#L1007
+"""
+register_conv_template(
+    # source:
+    Conversation(
+        name="chatglm2",
+        system_prompt="",
+        messages=[],
+        prompt="问：{query}\n\n答：",
+        sep="\n\n",
+    )
+)
+
+"""Phoenix default template"""
+register_conv_template(
+    Conversation(
+        name="phoenix",
+        system_prompt="A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n",
+        messages=[],
+        prompt="Human: <s>{query}</s>Assistant: ",
+        sep="</s>",
+    )
+)
+
+"""
+Supports: https://huggingface.co/BelleGroup/BELLE-LLaMA-EXT-13B
+"""
+register_conv_template(
+    Conversation(
+        name="belle",
+        system_prompt="",
+        messages=[],
+        prompt="Human: {query}\n\nBelle: ",
+        sep="\n\n",
+    )
+)
+
+"""
+Supports: https://huggingface.co/qhduan/aquilachat-7b
+"""
+register_conv_template(
+    Conversation(
+        name="aquila",
+        system_prompt="A chat between a curious human and an artificial intelligence assistant. "
+                      "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+        messages=[],
+        prompt="Human: {query}###Assistant: ",
+        sep="###",
+    )
+)
+
+r"""
+Supports: https://huggingface.co/internlm/internlm-chat-7b
+"""
+register_conv_template(
+    Conversation(
+        name="intern",
+        system_prompt="",
+        messages=[],
+        prompt="<|User|>:{query}<eoh>\n<|Bot|>:",
+        sep="<eoa>\n",
     )
 )
 
@@ -478,30 +404,9 @@ register_conv_template(
     Conversation(
         name="starchat",
         system_prompt="<system>\n",
-        roles=("<|user|>", "<|assistant|>"),
         messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.CHATML,
-        sep="<|end|>",
-        stop_token_ids=[0, 49155],
-        stop_str="<|end|>",
-    )
-)
-
-# Baichuan-13B-Chat template
-register_conv_template(
-    # source: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/f5f47be2adbbdceb784f334d6fa1ca2c73e65097/modeling_baichuan.py#L507
-    # https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/main/generation_config.json
-    Conversation(
-        name="baichuan-chat",
-        system_prompt="",
-        roles=(" <reserved_102> ", " <reserved_103> "),
-        messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.NO_COLON_TWO,
-        sep="",
-        sep2="</s>",
-        stop_token_ids=[2, 195],
+        prompt="<|user|>\n{query}<|end|>\n<|assistant|>\n",
+        sep="<|end|>\n",
     )
 )
 
@@ -510,25 +415,24 @@ register_conv_template(
 register_conv_template(
     Conversation(
         name="llama-2",
-        system_prompt="<s>[INST] <<SYS>>\nYou are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. "
-                      "Your answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content. "
+        system_prompt="<<SYS>>\nYou are a helpful, respectful and honest assistant. "
+                      "Always answer as helpfully as possible, while being safe. "
+                      "Your answers should not include any harmful, unethical, racist, sexist, "
+                      "toxic, dangerous, or illegal content. "
                       "Please ensure that your responses are socially unbiased and positive in nature.\n\n"
-                      "If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. "
+                      "If a question does not make any sense, or is not factually coherent, "
+                      "explain why instead of answering something not correct. "
                       "If you don't know the answer to a question, please don't share false information.\n<</SYS>>\n\n",
-        roles=("[INST]", "[/INST]"),
         messages=[],
-        offset=0,
-        sep_style=SeparatorStyle.LLAMA2,
-        sep=" ",
-        sep2=" </s><s>",
-        stop_token_ids=[2],
+        prompt=" [INST] {query} [/INST] ",
+        sep="</s>",
     )
 )
 
 
 def get_conv_template(name: str) -> Conversation:
     """Get a conversation template."""
-    return conv_templates[name].copy()
+    return conv_templates[name]
 
 
 class SavePeftModelTrainer(Trainer):
@@ -684,108 +588,69 @@ def main():
     logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets
+    max_source_length = data_args.max_source_length
+    max_target_length = data_args.max_target_length
+    max_length = max_source_length + max_target_length
+
     def preprocess_function(examples):
         """
         Preprocessing the datasets.
             part of code modified from https://github.com/lm-sys/FastChat
         """
-        conv = get_conv_template(data_args.template_name)  # default: vicuna
-        roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
+        input_ids_list = []
+        targets_list = []
+        roles = ["human", "gpt"]
+        prompt_template = get_conv_template(data_args.prompt_template)
 
-        # Apply prompt templates
-        conversations = []
-        sources = examples.get('conversations', []) or examples.get('items', [])
-        for i, source in enumerate(sources):
-            if len(source) < 2:
-                continue
-            data_role = source[0].get("from", "")
-            if data_role not in roles or roles[data_role] != conv.roles[0]:
-                # Skip the first one if it is not from human
-                source = source[1:]
-            if len(source) < 2:
-                continue
-            conv.messages = []
-            for j, sentence in enumerate(source):
-                data_role = sentence.get("from", "")
-                if data_role not in roles:
-                    logger.warning(f"unknown role: {data_role}, {i}. (ignored)")
+        def get_dialog(examples):
+            for i, source in enumerate(examples['conversations']):
+                if len(source) < 2:
                     continue
-                if data_role and data_role in roles:
-                    role = roles.get(data_role, "")
-                    if role == conv.roles[j % 2]:
-                        conv.append_message(role, sentence["value"])
-            if len(conv.messages) < 2 or len(conv.messages) % 2 != 0:
-                continue
-            conversations.append(conv.get_prompt())
+                data_role = source[0].get("from", "")
+                if data_role not in roles or roles[data_role] != roles[0]:
+                    # Skip the first one if it is not from human
+                    source = source[1:]
+                if len(source) < 2:
+                    continue
+                messages = []
+                for j, sentence in enumerate(source):
+                    data_role = sentence.get("from", "")
+                    if data_role not in roles:
+                        logger.warning(f"unknown role: {data_role}, {i}. (ignored)")
+                        break
+                    if data_role == roles[j % 2]:
+                        messages.append(sentence["value"])
+                if len(messages) < 2 or len(messages) % 2 != 0:
+                    continue
+                # Convert the list to pairs of elements
+                history_messages = [(messages[k], messages[k + 1]) for k in range(0, len(messages), 2)]
+                dialog = prompt_template.get_dialog(history_messages)
+                yield dialog
 
-        # Tokenize conversations
-        input_ids = tokenizer(
-            conversations,
-            return_tensors="pt",
-            padding="max_length",
-            max_length=tokenizer.model_max_length,
-            truncation=True,
-        ).input_ids
-        targets = input_ids.clone()
-        assert conv.sep_style == SeparatorStyle.ADD_COLON_TWO
+        for dialog in get_dialog(examples):
+            input_ids, labels = [], []
 
-        # Mask targets. Only compute loss on the assistant outputs.
-        sep = conv.sep + conv.roles[1] + ": "
-        for idx, (conversation, target) in enumerate(zip(conversations, targets)):
-            total_len = int(target.ne(tokenizer.pad_token_id).sum())
+            for i in range(len(dialog) // 2):
+                source_ids = tokenizer.encode(text=dialog[2 * i], add_special_tokens=(i == 0))
+                target_ids = tokenizer.encode(text=dialog[2 * i + 1], add_special_tokens=False)
 
-            turns = conversation.split(conv.sep2)
-            if model_args.model_type == "llama":
-                cur_len = 1
-            elif model_args.model_type == "baichuan":
-                cur_len = 0
-            elif model_args.model_type == "chatglm":
-                cur_len = 2
-            else:
-                cur_len = 1
-            target[:cur_len] = IGNORE_INDEX
-            for i, turn in enumerate(turns):
-                if turn == "":
+                if len(source_ids) > max_source_length:
+                    source_ids = source_ids[:max_source_length]
+                if len(target_ids) > max_target_length - 1:  # eos token
+                    target_ids = target_ids[:max_target_length - 1]
+
+                if len(input_ids) + len(source_ids) + len(target_ids) + 1 > max_length:
                     break
-                if model_args.model_type == "llama":
-                    turn_len = len(tokenizer(turn).input_ids)
-                elif model_args.model_type == "baichuan":
-                    turn_len = len(tokenizer(turn + conv.sep2).input_ids)
-                elif model_args.model_type == "chatglm":
-                    turn_len = len(tokenizer(turn + conv.sep2).input_ids) - 2
-                else:
-                    turn_len = len(tokenizer(turn).input_ids)
 
-                parts = turn.split(sep)
-                if len(parts) != 2:
-                    break
-                parts[0] += sep
+                input_ids += source_ids + target_ids + [tokenizer.eos_token_id]
+                labels += [IGNORE_INDEX] * len(source_ids) + target_ids + [tokenizer.eos_token_id]
 
-                if model_args.model_type == "llama":
-                    cut_len = 2
-                elif model_args.model_type == "baichuan":
-                    cut_len = 1
-                elif model_args.model_type == "chatglm":
-                    cut_len = 2
-                else:
-                    cut_len = 2
-                instruction_len = len(tokenizer(parts[0]).input_ids) - cut_len
-
-                # Ignore the user instructions
-                target[cur_len: cur_len + instruction_len] = IGNORE_INDEX
-                cur_len += turn_len
-
-            target[cur_len:] = IGNORE_INDEX
-
-            if cur_len < tokenizer.model_max_length:
-                if cur_len != total_len:
-                    target[:] = IGNORE_INDEX
-                    logger.warning(f"tokenization mismatch: {cur_len} vs. {total_len}. (ignored)")
+            input_ids_list.append(input_ids)
+            targets_list.append(labels)
 
         return dict(
-            input_ids=input_ids,
-            labels=targets,
-            attention_mask=input_ids.ne(tokenizer.pad_token_id),
+            input_ids=input_ids_list,
+            labels=targets_list,
         )
 
     def filter_empty_labels(example):
