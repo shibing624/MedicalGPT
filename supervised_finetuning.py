@@ -27,6 +27,7 @@ import torch
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
+from tqdm import tqdm
 from transformers import (
     AutoConfig,
     BloomForCausalLM,
@@ -631,7 +632,7 @@ def main():
                 dialog = prompt_template.get_dialog(history_messages)
                 yield dialog
 
-        for dialog in get_dialog(examples):
+        for dialog in tqdm(get_dialog(examples)):
             input_ids, labels = [], []
 
             for i in range(len(dialog) // 2):
@@ -642,6 +643,8 @@ def main():
                     source_ids = source_ids[:max_source_length]
                 if len(target_ids) > max_target_length - 1:  # eos token
                     target_ids = target_ids[:max_target_length - 1]
+                if source_ids[0] == tokenizer.eos_token_id:
+                    source_ids = source_ids[1:]
                 if target_ids[-1] == tokenizer.eos_token_id:
                     target_ids = target_ids[:-1]
                 if len(input_ids) + len(source_ids) + len(target_ids) + 1 > max_length:
