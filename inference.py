@@ -213,8 +213,6 @@ def main():
             print(f"Output: {response}\n")
             results.append({"Input": prompt, "Output": response})
 
-        dirname = os.path.dirname(args.predictions_file)
-        os.makedirs(dirname, exist_ok=True)
         with open(args.predictions_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
 
