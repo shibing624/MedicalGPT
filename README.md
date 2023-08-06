@@ -63,7 +63,7 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 启动服务，命令如下：
 ```shell
-python gradio_demo.py --model_type base_model_type --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
+CUDA_VISIBLE_DEVICES=0 python gradio_demo.py --model_type base_model_type --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
 ```
 
 参数说明：
@@ -137,7 +137,7 @@ baichuan:
 训练完成后，现在我们加载训练好的模型，验证模型生成文本的效果。
 
 ```shell
-python inference.py \
+CUDA_VISIBLE_DEVICES=0 python inference.py \
     --model_type base_model_type \
     --base_model path_to_model_hf_dir \
     --tokenizer_path path_to_model_hf_dir \
@@ -153,14 +153,12 @@ python inference.py \
 - `--lora_model {lora_model}`：LoRA解压后文件所在目录，也可使用HF Model Hub模型调用名称。如果已经合并了LoRA权重到预训练模型，则可以不提供此参数
 - `--tokenizer_path {tokenizer_path}`：存放对应tokenizer的目录。若不提供此参数，则其默认值与--base_model相同
 - `--template_name`：模板名称，如`vicuna`、`alpaca`等。若不提供此参数，则其默认值是alpaca
-- `--interactive`：以交互方式启动，以便进行多次单轮问答
+- `--interactive`：以交互方式启动多轮问答，使用流式推理
 - `--data_file {file_name}`：非交互方式启动下，按行读取file_name中的的内容进行预测
 - `--predictions_file {file_name}`：非交互式方式下，将预测的结果以json格式写入file_name
 - `--resize_emb`：是否调整embedding大小，若不调整，则使用预训练模型的embedding大小，默认不调整
 - `--only_cpu`：仅使用CPU进行推理
 - `--gpus {gpu_ids}`：指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
-
-
 
 
 #### Inference Examples

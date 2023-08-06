@@ -19,8 +19,8 @@ from transformers import (
     LlamaTokenizer,
     LlamaForCausalLM,
     TextIteratorStreamer,
+    GenerationConfig,
 )
-from transformers.generation import GenerationConfig
 
 from supervised_finetuning import get_conv_template
 
@@ -31,47 +31,6 @@ MODEL_CLASSES = {
     "baichuan": (AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoModelForCausalLM, AutoTokenizer),
 }
-
-
-class SimpleChatIO:
-    def prompt_for_input(self, role) -> str:
-        return input(f"{role}: ")
-
-    def prompt_for_output(self, role: str):
-        print(f"{role}: ", end="", flush=True)
-
-
-@torch.inference_mode()
-def generate_answer(
-        model,
-        tokenizer,
-        prompt,
-        device,
-        max_new_tokens=512,
-        temperature=0.7,
-        repetition_penalty=1.0,
-        context_len=2048
-):
-    input_ids = tokenizer(prompt).input_ids
-    max_src_len = context_len - max_new_tokens - 8
-    input_ids = input_ids[-max_src_len:]
-    generation_config = dict(
-        input_ids=torch.as_tensor([input_ids]).to(device),
-        max_new_tokens=max_new_tokens,
-        temperature=temperature,
-        repetition_penalty=repetition_penalty,
-    )
-    generation_output = model.generate(**generation_config)
-    output_ids = generation_output[0]
-    output = tokenizer.decode(output_ids, skip_special_tokens=False).strip()
-    stop_str = tokenizer.eos_token or "</s>"
-    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
-    pos = output.find(stop_str, l_prompt)
-    if pos != -1:
-        output = output[l_prompt:pos]
-    else:
-        output = output[l_prompt:]
-    return output
 
 
 @torch.inference_mode()
@@ -86,7 +45,7 @@ def stream_generate_answer(
         repetition_penalty=1.0,
         context_len=2048
 ):
-    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=False)
+    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
     input_ids = input_ids[-max_src_len:]
@@ -133,7 +92,6 @@ def main():
     parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (single-turn)")
     parser.add_argument('--predictions_file', default='./predictions.json', type=str)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
-    parser.add_argument('--use_stream', action='store_true', help='Whether to use stream generation')
     parser.add_argument('--gpus', default="0", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
     args = parser.parse_args()
@@ -159,8 +117,10 @@ def main():
         device_map='auto',
         trust_remote_code=True,
     )
-    base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
-
+    try:
+        base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
+    except OSError:
+        print("Failed to load generation config, use default.")
     if args.resize_emb:
         model_vocab_size = base_model.get_input_embeddings().weight.size(0)
         tokenzier_vocab_size = len(tokenizer)
@@ -189,78 +149,60 @@ def main():
         for example in examples[:10]:
             print(example)
 
-    chatio = SimpleChatIO()
-
     # Chat
-    def new_chat():
-        return get_conv_template(args.template_name)
+    prompt_template = get_conv_template(args.template_name)
 
     if args.interactive:
-        print("Start inference with interactive mode. command: `clear`, `exit`")
-        conv = new_chat()
+        print("Welcome to the CLI application, use `clear` to remove the history, use `exit` to exit the application.")
+        history = []
         while True:
             try:
-                inp = chatio.prompt_for_input(conv.roles[0])
-            except EOFError:
-                inp = ""
+                query = input(f"{prompt_template.roles[0]}: ")
             except UnicodeDecodeError:
-                print("UnicodeDecodeError, please try again.")
+                print("Detected decoding error at the inputs, please try again.")
                 continue
-            if inp == "":
+            except Exception:
+                raise
+            if query == "":
                 print("Please input text, try again.")
                 continue
-            if inp == "exit":
+            if query.strip() == "exit":
                 print("exit...")
                 break
-            if inp == "clear":
+            if query.strip() == "clear":
+                history = []
                 print("history cleared.")
-                conv = new_chat()
                 continue
 
-            conv.append_message(conv.roles[0], inp)
-            conv.append_message(conv.roles[1], '')
+            print(f"{prompt_template.roles[1]}: ", end="", flush=True)
 
-            prompt = conv.get_prompt()
-            chatio.prompt_for_output(conv.roles[1])
-            if args.use_stream:
-                response = stream_generate_answer(
-                    model,
-                    tokenizer,
-                    prompt,
-                    device,
-                    do_print=True,
-                    max_new_tokens=args.max_new_tokens,
-                    temperature=args.temperature,
-                    repetition_penalty=args.repetition_penalty
-                )
-            else:
-                response = generate_answer(
-                    model,
-                    tokenizer,
-                    prompt,
-                    device,
-                    max_new_tokens=args.max_new_tokens,
-                    temperature=args.temperature,
-                    repetition_penalty=args.repetition_penalty
-                )
-                print(response.strip(), flush=True)
-            # NOTE: strip is important to align with the training data.
-            conv.messages[-1][-1] = response.strip()
-            # print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
-    else:
-        print("Start inference.")
-        results = []
-        for index, example in enumerate(examples):
-            conv = new_chat()
-            conv.append_message(conv.roles[0], example)
-            conv.append_message(conv.roles[1], '')
-
-            prompt = conv.get_prompt()
-            response = generate_answer(
+            history.append([query, ''])
+            prompt = prompt_template.get_prompt(messages=history)
+            response = stream_generate_answer(
                 model,
                 tokenizer,
                 prompt,
                 device,
+                do_print=True,
+                max_new_tokens=args.max_new_tokens,
+                temperature=args.temperature,
+                repetition_penalty=args.repetition_penalty
+            )
+            if history:
+                history[-1][-1] = response.strip()
+    else:
+        print("Start inference.")
+        results = []
+        for index, example in enumerate(examples):
+            # Single turn inference
+            history = [[example, '']]
+            prompt = prompt_template.get_prompt(messages=history)
+            response = stream_generate_answer(
+                model,
+                tokenizer,
+                prompt,
+                device,
+                do_print=False,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty

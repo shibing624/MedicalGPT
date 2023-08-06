@@ -8,6 +8,7 @@ pip install mdtex2html
 """
 import argparse
 import os
+from threading import Thread
 
 import gradio as gr
 import mdtex2html
@@ -21,8 +22,9 @@ from transformers import (
     BloomTokenizerFast,
     LlamaTokenizer,
     LlamaForCausalLM,
+    GenerationConfig,
+    TextIteratorStreamer,
 )
-from transformers.generation import GenerationConfig
 
 from supervised_finetuning import get_conv_template
 
@@ -36,36 +38,34 @@ MODEL_CLASSES = {
 
 
 @torch.inference_mode()
-def generate_answer(
+def stream_generate_answer(
         model,
         tokenizer,
         prompt,
         device,
         max_new_tokens=512,
         temperature=0.7,
+        top_p=0.8,
         repetition_penalty=1.0,
         context_len=2048
 ):
+    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
     input_ids = input_ids[-max_src_len:]
-    generation_config = dict(
+    generation_kwargs = dict(
         input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
         temperature=temperature,
+        top_p=top_p,
         repetition_penalty=repetition_penalty,
+        streamer=streamer,
     )
-    generation_output = model.generate(**generation_config)
-    output_ids = generation_output[0]
-    output = tokenizer.decode(output_ids, skip_special_tokens=False).strip()
-    stop_str = tokenizer.eos_token or "</s>"
-    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
-    pos = output.find(stop_str, l_prompt)
-    if pos != -1:
-        output = output[l_prompt:pos]
-    else:
-        output = output[l_prompt:]
-    return output
+
+    thread = Thread(target=model.generate, kwargs=generation_kwargs)
+    thread.start()
+
+    yield from streamer
 
 
 def main():
@@ -114,7 +114,10 @@ def main():
         device_map='auto',
         trust_remote_code=True,
     )
-    base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
+    try:
+        base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
+    except OSError:
+        print("Failed to load generation config, use default.")
     if args.resize_emb:
         model_vocab_size = base_model.get_input_embeddings().weight.size(0)
         tokenzier_vocab_size = len(tokenizer)
@@ -139,7 +142,8 @@ def main():
     def reset_state():
         return [], []
 
-    conv = get_conv_template(args.template_name)
+    prompt_template = get_conv_template(args.template_name)
+    history = []
 
     def predict(
             input,
@@ -152,24 +156,23 @@ def main():
         now_input = input
         chatbot.append((input, ""))
         history = history or []
-        conv.append_message(conv.roles[0], now_input)
-        conv.append_message(conv.roles[1], '')
+        history.append([now_input, ''])
 
-        prompt = conv.get_prompt()
-        output = generate_answer(
-            model,
-            tokenizer,
-            prompt,
-            device,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            top_p=top_p,
-        )
-        output = output.strip()
-        conv.messages[-1][-1] = output
-        history.append((now_input, output))
-        chatbot[-1] = (now_input, output)
-        return chatbot, history
+        prompt = prompt_template.get_prompt(messages=history)
+        response = ""
+        for new_text in stream_generate_answer(
+                model,
+                tokenizer,
+                prompt,
+                device,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                top_p=top_p,
+        ):
+            response += new_text
+            new_history = history + [(now_input, response)]
+            chatbot[-1] = (now_input, response)
+            yield chatbot, new_history
 
     with gr.Blocks() as demo:
         gr.HTML("""<h1 align="center">MedicalGPT</h1>""")
@@ -196,7 +199,7 @@ def main():
                         show_progress=True)
         submitBtn.click(reset_user_input, [], [user_input])
         emptyBtn.click(reset_state, outputs=[chatbot, history], show_progress=True)
-    demo.queue().launch(share=False, inbrowser=True, server_name='0.0.0.0', server_port=8081)
+    demo.queue().launch(share=False, inbrowser=True, server_name='0.0.0.0', server_port=8082)
 
 
 if __name__ == '__main__':
