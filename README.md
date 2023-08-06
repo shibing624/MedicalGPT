@@ -63,7 +63,7 @@ Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 启动服务，命令如下：
 ```shell
-python gradio_demo.py --model_type base_model_type --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
+CUDA_VISIBLE_DEVICES=0 python gradio_demo.py --model_type base_model_type --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
 ```
 
 参数说明：
@@ -137,7 +137,7 @@ baichuan:
 训练完成后，现在我们加载训练好的模型，验证模型生成文本的效果。
 
 ```shell
-python inference.py \
+CUDA_VISIBLE_DEVICES=0 python inference.py \
     --model_type base_model_type \
     --base_model path_to_model_hf_dir \
     --tokenizer_path path_to_model_hf_dir \

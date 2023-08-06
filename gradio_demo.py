@@ -43,6 +43,7 @@ def generate_answer(
         device,
         max_new_tokens=512,
         temperature=0.7,
+        top_p=0.8,
         repetition_penalty=1.0,
         context_len=2048
 ):
@@ -53,6 +54,7 @@ def generate_answer(
         input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
         temperature=temperature,
+        top_p=top_p,
         repetition_penalty=repetition_penalty,
     )
     generation_output = model.generate(**generation_config)
