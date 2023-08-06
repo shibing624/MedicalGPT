@@ -139,7 +139,8 @@ def main():
     def reset_state():
         return [], []
 
-    conv = get_conv_template(args.template_name)
+    prompt_template = get_conv_template(args.template_name)
+    history = []
 
     def predict(
             input,
@@ -152,10 +153,9 @@ def main():
         now_input = input
         chatbot.append((input, ""))
         history = history or []
-        conv.append_message(conv.roles[0], now_input)
-        conv.append_message(conv.roles[1], '')
+        history.append([now_input, ''])
 
-        prompt = conv.get_prompt()
+        prompt = prompt_template.get_prompt()
         output = generate_answer(
             model,
             tokenizer,
@@ -166,8 +166,9 @@ def main():
             top_p=top_p,
         )
         output = output.strip()
-        conv.messages[-1][-1] = output
-        history.append((now_input, output))
+        if history:
+            history[-1][-1] = output
+        history.append([now_input, output])
         chatbot[-1] = (now_input, output)
         return chatbot, history
 

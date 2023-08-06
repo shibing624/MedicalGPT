@@ -240,7 +240,7 @@ def main():
         results = []
         for index, example in enumerate(examples):
             # Single turn inference
-            history = [(example, '')]
+            history = [[example, '']]
             prompt = prompt_template.get_prompt(messages=history)
             response = generate_answer(
                 model,

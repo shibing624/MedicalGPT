@@ -208,7 +208,7 @@ class Conversation:
     # The system prompt
     system_prompt: str
     # All messages. question and answer history.
-    messages: Optional[List[Sequence[str, str]]]
+    messages: Optional[List[List[str, str]]]
     # The roles of the speakers
     roles: Optional[Sequence[str]]
     # Conversation prompt
@@ -218,7 +218,7 @@ class Conversation:
 
     def get_prompt(
             self,
-            messages: Optional[List[Sequence[str, str]]] = None,
+            messages: Optional[List[List[str, str]]] = None,
             system_prompt: Optional[str] = ""
     ) -> str:
         """
@@ -228,7 +228,7 @@ class Conversation:
 
     def get_dialog(
             self,
-            messages: Optional[List[Sequence[str, str]]] = None,
+            messages: Optional[List[List[str, str]]] = None,
             system_prompt: Optional[str] = ""
     ) -> List[str]:
         """
@@ -238,14 +238,14 @@ class Conversation:
 
     def _format_example(
             self,
-            messages: Optional[List[Sequence[str, str]]] = None,
+            messages: Optional[List[List[str, str]]] = None,
             system_prompt: Optional[str] = ""
     ) -> List[str]:
         system_prompt = system_prompt or self.system_prompt
         system_prompt = system_prompt + self.sep if system_prompt else ""  # add separator for non-empty system prompt
         messages = messages or self.messages
         convs = []
-        for turn_idx, (user_query, bot_resp) in enumerate(messages):
+        for turn_idx, [user_query, bot_resp] in enumerate(messages):
             if turn_idx == 0:
                 convs.append(system_prompt + self.prompt.format(query=user_query))
                 convs.append(bot_resp)
@@ -646,7 +646,7 @@ def main():
                 if len(messages) < 2 or len(messages) % 2 != 0:
                     continue
                 # Convert the list to pairs of elements
-                history_messages = [(messages[k], messages[k + 1]) for k in range(0, len(messages), 2)]
+                history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
                 dialog = prompt_template.get_dialog(history_messages)
                 yield dialog
 
