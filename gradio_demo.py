@@ -159,7 +159,7 @@ def main():
         history = history or []
         history.append([now_input, ''])
 
-        prompt = prompt_template.get_prompt()
+        prompt = prompt_template.get_prompt(messages=history)
         output = generate_answer(
             model,
             tokenizer,
