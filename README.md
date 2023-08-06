@@ -142,7 +142,8 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
     --base_model path_to_model_hf_dir \
     --tokenizer_path path_to_model_hf_dir \
     --lora_model path_to_lora \
-    --interactive
+    --interactive \
+    --use_stream
 ```
 
 参数说明：
@@ -159,8 +160,7 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 - `--resize_emb`：是否调整embedding大小，若不调整，则使用预训练模型的embedding大小，默认不调整
 - `--only_cpu`：仅使用CPU进行推理
 - `--gpus {gpu_ids}`：指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
-
-
+- `--use_stream`：启用使用流式推理
 
 
 #### Inference Examples

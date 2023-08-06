@@ -51,13 +51,12 @@ def generate_answer(
     max_src_len = context_len - max_new_tokens - 8
     input_ids = input_ids[-max_src_len:]
     generation_config = dict(
-        input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
         temperature=temperature,
         top_p=top_p,
         repetition_penalty=repetition_penalty,
     )
-    generation_output = model.generate(**generation_config)
+    generation_output = model.generate(input_ids=torch.as_tensor([input_ids]).to(device), **generation_config)
     output_ids = generation_output[0]
     output = tokenizer.decode(output_ids, skip_special_tokens=True).strip()
     stop_str = tokenizer.eos_token or "</s>"
