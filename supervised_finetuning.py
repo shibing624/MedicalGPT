@@ -56,8 +56,6 @@ MODEL_CLASSES = {
     "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
 }
 
-IGNORE_INDEX = LabelSmoother.ignore_index
-
 
 @dataclass
 class ModelArguments:
@@ -535,6 +533,7 @@ def main():
         tokenizer.pad_token_id = 0  # set as the <unk> token
 
     logger.debug(f"Tokenizer: {tokenizer}")
+    IGNORE_INDEX = LabelSmoother.ignore_index if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
 
     # Get datasets
     if data_args.dataset_name is not None:
@@ -799,10 +798,7 @@ def main():
         model.is_parallelizable = True
         model.model_parallel = True
 
-    data_collator = DataCollatorForSeq2Seq(
-        tokenizer=tokenizer,
-        label_pad_token_id=IGNORE_INDEX if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    )
+    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, label_pad_token_id=IGNORE_INDEX)
     # Initialize our Trainer
     trainer = SavePeftModelTrainer(
         model=model,
