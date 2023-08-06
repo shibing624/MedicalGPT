@@ -34,39 +34,6 @@ MODEL_CLASSES = {
 
 
 @torch.inference_mode()
-def generate_answer(
-        model,
-        tokenizer,
-        prompt,
-        device,
-        max_new_tokens=512,
-        temperature=0.7,
-        repetition_penalty=1.0,
-        context_len=2048
-):
-    input_ids = tokenizer(prompt).input_ids
-    max_src_len = context_len - max_new_tokens - 8
-    input_ids = input_ids[-max_src_len:]
-    generation_config = dict(
-        input_ids=torch.as_tensor([input_ids]).to(device),
-        max_new_tokens=max_new_tokens,
-        temperature=temperature,
-        repetition_penalty=repetition_penalty,
-    )
-    generation_output = model.generate(**generation_config)
-    output_ids = generation_output[0]
-    output = tokenizer.decode(output_ids, skip_special_tokens=True).strip()
-    stop_str = tokenizer.eos_token or "</s>"
-    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=True))
-    pos = output.find(stop_str, l_prompt)
-    if pos != -1:
-        output = output[l_prompt:pos]
-    else:
-        output = output[l_prompt:]
-    return output
-
-
-@torch.inference_mode()
 def stream_generate_answer(
         model,
         tokenizer,
@@ -125,7 +92,6 @@ def main():
     parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (single-turn)")
     parser.add_argument('--predictions_file', default='./predictions.json', type=str)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
-    parser.add_argument('--use_stream', action='store_true', help='Whether to use stream generation')
     parser.add_argument('--gpus', default="0", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
     args = parser.parse_args()
@@ -212,29 +178,16 @@ def main():
 
             history.append([query, ''])
             prompt = prompt_template.get_prompt(messages=history)
-            if args.use_stream:
-                response = stream_generate_answer(
-                    model,
-                    tokenizer,
-                    prompt,
-                    device,
-                    do_print=True,
-                    max_new_tokens=args.max_new_tokens,
-                    temperature=args.temperature,
-                    repetition_penalty=args.repetition_penalty
-                )
-            else:
-                response = generate_answer(
-                    model,
-                    tokenizer,
-                    prompt,
-                    device,
-                    max_new_tokens=args.max_new_tokens,
-                    temperature=args.temperature,
-                    repetition_penalty=args.repetition_penalty
-                )
-                print(response.strip(), flush=True)
-            # NOTE: strip is important to align with the training data.
+            response = stream_generate_answer(
+                model,
+                tokenizer,
+                prompt,
+                device,
+                do_print=True,
+                max_new_tokens=args.max_new_tokens,
+                temperature=args.temperature,
+                repetition_penalty=args.repetition_penalty
+            )
             if history:
                 history[-1][-1] = response.strip()
     else:
@@ -244,11 +197,12 @@ def main():
             # Single turn inference
             history = [[example, '']]
             prompt = prompt_template.get_prompt(messages=history)
-            response = generate_answer(
+            response = stream_generate_answer(
                 model,
                 tokenizer,
                 prompt,
                 device,
+                do_print=False,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty

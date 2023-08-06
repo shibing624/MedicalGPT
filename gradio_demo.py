@@ -8,6 +8,7 @@ pip install mdtex2html
 """
 import argparse
 import os
+from threading import Thread
 
 import gradio as gr
 import mdtex2html
@@ -22,6 +23,7 @@ from transformers import (
     LlamaTokenizer,
     LlamaForCausalLM,
     GenerationConfig,
+    TextIteratorStreamer,
 )
 
 from supervised_finetuning import get_conv_template
@@ -36,7 +38,7 @@ MODEL_CLASSES = {
 
 
 @torch.inference_mode()
-def generate_answer(
+def stream_generate_answer(
         model,
         tokenizer,
         prompt,
@@ -47,26 +49,23 @@ def generate_answer(
         repetition_penalty=1.0,
         context_len=2048
 ):
+    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
     input_ids = input_ids[-max_src_len:]
-    generation_config = dict(
+    generation_kwargs = dict(
+        input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
         temperature=temperature,
         top_p=top_p,
         repetition_penalty=repetition_penalty,
+        streamer=streamer,
     )
-    generation_output = model.generate(input_ids=torch.as_tensor([input_ids]).to(device), **generation_config)
-    output_ids = generation_output[0]
-    output = tokenizer.decode(output_ids, skip_special_tokens=True).strip()
-    stop_str = tokenizer.eos_token or "</s>"
-    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=True))
-    pos = output.find(stop_str, l_prompt)
-    if pos != -1:
-        output = output[l_prompt:pos]
-    else:
-        output = output[l_prompt:]
-    return output
+
+    thread = Thread(target=model.generate, kwargs=generation_kwargs)
+    thread.start()
+
+    yield from streamer
 
 
 def main():
@@ -160,21 +159,20 @@ def main():
         history.append([now_input, ''])
 
         prompt = prompt_template.get_prompt(messages=history)
-        output = generate_answer(
-            model,
-            tokenizer,
-            prompt,
-            device,
-            max_new_tokens=max_new_tokens,
-            temperature=temperature,
-            top_p=top_p,
-        )
-        output = output.strip()
-        if history:
-            history[-1][-1] = output
-        history.append([now_input, output])
-        chatbot[-1] = (now_input, output)
-        return chatbot, history
+        response = ""
+        for new_text in stream_generate_answer(
+                model,
+                tokenizer,
+                prompt,
+                device,
+                max_new_tokens=max_new_tokens,
+                temperature=temperature,
+                top_p=top_p,
+        ):
+            response += new_text
+            new_history = history + [(now_input, response)]
+            chatbot[-1] = (now_input, response)
+            yield chatbot, new_history
 
     with gr.Blocks() as demo:
         gr.HTML("""<h1 align="center">MedicalGPT</h1>""")
