@@ -33,14 +33,6 @@ MODEL_CLASSES = {
 }
 
 
-class SimpleChatIO:
-    def prompt_for_input(self, role) -> str:
-        return input(f"{role}: ")
-
-    def prompt_for_output(self, role: str):
-        print(f"{role}: ", end="", flush=True)
-
-
 @torch.inference_mode()
 def generate_answer(
         model,
@@ -189,39 +181,35 @@ def main():
         for example in examples[:10]:
             print(example)
 
-    chatio = SimpleChatIO()
-
     # Chat
-    def new_chat():
-        return get_conv_template(args.template_name)
+    prompt_template = get_conv_template(args.template_name)
 
     if args.interactive:
-        print("Start inference with interactive mode. command: `clear`, `exit`")
-        conv = new_chat()
+        print("Welcome to the CLI application, use `clear` to remove the history, use `exit` to exit the application.")
+        history = []
         while True:
             try:
-                inp = chatio.prompt_for_input(conv.roles[0])
-            except EOFError:
-                inp = ""
+                query = input(f"{prompt_template.roles[0]}: ")
             except UnicodeDecodeError:
-                print("UnicodeDecodeError, please try again.")
+                print("Detected decoding error at the inputs, please try again.")
                 continue
-            if inp == "":
+            except Exception:
+                raise
+            if query == "":
                 print("Please input text, try again.")
                 continue
-            if inp == "exit":
+            if query.strip() == "exit":
                 print("exit...")
                 break
-            if inp == "clear":
+            if query.strip() == "clear":
+                history = []
                 print("history cleared.")
-                conv = new_chat()
                 continue
 
-            conv.append_message(conv.roles[0], inp)
-            conv.append_message(conv.roles[1], '')
+            print(f"{prompt_template.roles[1]}: ", end="", flush=True)
 
-            prompt = conv.get_prompt()
-            chatio.prompt_for_output(conv.roles[1])
+            history.append([query, ''])
+            prompt = prompt_template.get_prompt(messages=history)
             if args.use_stream:
                 response = stream_generate_answer(
                     model,
@@ -245,17 +233,15 @@ def main():
                 )
                 print(response.strip(), flush=True)
             # NOTE: strip is important to align with the training data.
-            conv.messages[-1][-1] = response.strip()
-            # print("\n", {"prompt": prompt, "outputs": outputs}, "\n")
+            if history:
+                history[-1][-1] = response.strip()
     else:
         print("Start inference.")
         results = []
         for index, example in enumerate(examples):
-            conv = new_chat()
-            conv.append_message(conv.roles[0], example)
-            conv.append_message(conv.roles[1], '')
-
-            prompt = conv.get_prompt()
+            # Single turn inference
+            history = [(example, '')]
+            prompt = prompt_template.get_prompt(messages=history)
             response = generate_answer(
                 model,
                 tokenizer,

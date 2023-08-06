@@ -21,7 +21,7 @@ import math
 import os
 from dataclasses import dataclass, field
 from glob import glob
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Sequence
 
 import torch
 from datasets import load_dataset
@@ -208,7 +208,9 @@ class Conversation:
     # The system prompt
     system_prompt: str
     # All messages. question and answer history.
-    messages: Optional[List[Tuple[str, str]]]
+    messages: Optional[List[Sequence[str, str]]]
+    # The roles of the speakers
+    roles: Optional[Sequence[str]]
     # Conversation prompt
     prompt: str
     # Separator
@@ -216,7 +218,7 @@ class Conversation:
 
     def get_prompt(
             self,
-            messages: Optional[List[Tuple[str, str]]] = None,
+            messages: Optional[List[Sequence[str, str]]] = None,
             system_prompt: Optional[str] = ""
     ) -> str:
         """
@@ -226,7 +228,7 @@ class Conversation:
 
     def get_dialog(
             self,
-            messages: Optional[List[Tuple[str, str]]] = None,
+            messages: Optional[List[Sequence[str, str]]] = None,
             system_prompt: Optional[str] = ""
     ) -> List[str]:
         """
@@ -236,11 +238,12 @@ class Conversation:
 
     def _format_example(
             self,
-            messages: Optional[List[Tuple[str, str]]] = None,
+            messages: Optional[List[Sequence[str, str]]] = None,
             system_prompt: Optional[str] = ""
     ) -> List[str]:
         system_prompt = system_prompt or self.system_prompt
         system_prompt = system_prompt + self.sep if system_prompt else ""  # add separator for non-empty system prompt
+        messages = messages or self.messages
         convs = []
         for turn_idx, (user_query, bot_resp) in enumerate(messages):
             if turn_idx == 0:
@@ -250,6 +253,10 @@ class Conversation:
                 convs.append(self.sep + self.prompt.format(query=user_query))
                 convs.append(bot_resp)
         return convs
+
+    def append_message(self, query: str, answer: str):
+        """Append a new message."""
+        self.messages.append([query, answer])
 
 
 # A global registry for all conversation templates
@@ -271,6 +278,7 @@ register_conv_template(
         system_prompt="A chat between a curious user and an artificial intelligence assistant. "
                       "The assistant gives helpful, detailed, and polite answers to the user's questions.",
         messages=[],
+        roles=("USER", "ASSISTANT"),
         prompt="USER: {query} ASSISTANT: ",
         sep="</s>",
     )
@@ -283,6 +291,7 @@ register_conv_template(
         system_prompt="Below is an instruction that describes a task. "
                       "Write a response that appropriately completes the request.",
         messages=[],
+        roles=("### Instruction", "### Response"),
         prompt="### Instruction:\n{query}\n\n### Response:\n",
         sep="\n\n",
     )
@@ -294,9 +303,10 @@ Support: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
 """
 register_conv_template(
     Conversation(
-        name="baichuan",
+        name="baichuan-chat",
         system_prompt="",
         messages=[],
+        roles=(" <reserved_102> ", " <reserved_103> "),
         prompt=" <reserved_102> {query} <reserved_103> ",
         sep="</s>",
     )
@@ -308,6 +318,7 @@ register_conv_template(
         name="ziya",
         system_prompt="",
         messages=[],
+        roles=("<human>", "<bot>"),
         prompt="<human>:{query}\n<bot>:",
         sep="\n",
     )
@@ -319,6 +330,7 @@ register_conv_template(
         name="linly",
         system_prompt="",
         messages=[],
+        roles=("User", "Bot"),
         prompt="User: {query}\nBot: ",
         sep="\n",
     )
@@ -332,6 +344,7 @@ register_conv_template(
         name="chatglm",
         system_prompt="",
         messages=[],
+        roles=("问", "答"),
         prompt="问：{query}\n答：",
         sep="\n",
     )
@@ -346,6 +359,7 @@ register_conv_template(
         name="chatglm2",
         system_prompt="",
         messages=[],
+        roles=("问", "答"),
         prompt="问：{query}\n\n答：",
         sep="\n\n",
     )
@@ -357,6 +371,7 @@ register_conv_template(
         name="phoenix",
         system_prompt="A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n",
         messages=[],
+        roles=("Human", "Assistant"),
         prompt="Human: <s>{query}</s>Assistant: ",
         sep="</s>",
     )
@@ -370,6 +385,7 @@ register_conv_template(
         name="belle",
         system_prompt="",
         messages=[],
+        roles=("Human", "Belle"),
         prompt="Human: {query}\n\nBelle: ",
         sep="\n\n",
     )
@@ -384,6 +400,7 @@ register_conv_template(
         system_prompt="A chat between a curious human and an artificial intelligence assistant. "
                       "The assistant gives helpful, detailed, and polite answers to the human's questions.",
         messages=[],
+        roles=("Human", "Assistant"),
         prompt="Human: {query}###Assistant: ",
         sep="###",
     )
@@ -397,6 +414,7 @@ register_conv_template(
         name="intern",
         system_prompt="",
         messages=[],
+        roles=("<|User|>", "<|Bot|>"),
         prompt="<|User|>:{query}<eoh>\n<|Bot|>:",
         sep="<eoa>\n",
     )
@@ -408,6 +426,7 @@ register_conv_template(
         name="starchat",
         system_prompt="<system>\n",
         messages=[],
+        roles=("<|user|>", "<|assistant|>"),
         prompt="<|user|>\n{query}<|end|>\n<|assistant|>\n",
         sep="<|end|>\n",
     )
@@ -427,6 +446,7 @@ register_conv_template(
                       "explain why instead of answering something not correct. "
                       "If you don't know the answer to a question, please don't share false information.\n<</SYS>>\n\n",
         messages=[],
+        roles=("[INST]", "[/INST]"),
         prompt=" [INST] {query} [/INST] ",
         sep="</s>",
     )
