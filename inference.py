@@ -19,8 +19,8 @@ from transformers import (
     LlamaTokenizer,
     LlamaForCausalLM,
     TextIteratorStreamer,
+    GenerationConfig,
 )
-from transformers.generation import GenerationConfig
 
 from supervised_finetuning import get_conv_template
 
@@ -55,9 +55,9 @@ def generate_answer(
     )
     generation_output = model.generate(**generation_config)
     output_ids = generation_output[0]
-    output = tokenizer.decode(output_ids, skip_special_tokens=False).strip()
+    output = tokenizer.decode(output_ids, skip_special_tokens=True).strip()
     stop_str = tokenizer.eos_token or "</s>"
-    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
+    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=True))
     pos = output.find(stop_str, l_prompt)
     if pos != -1:
         output = output[l_prompt:pos]
@@ -78,7 +78,7 @@ def stream_generate_answer(
         repetition_penalty=1.0,
         context_len=2048
 ):
-    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=False)
+    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
     input_ids = input_ids[-max_src_len:]
@@ -151,8 +151,10 @@ def main():
         device_map='auto',
         trust_remote_code=True,
     )
-    base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
-
+    try:
+        base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
+    except OSError:
+        print("Failed to load generation config, use default.")
     if args.resize_emb:
         model_vocab_size = base_model.get_input_embeddings().weight.size(0)
         tokenzier_vocab_size = len(tokenizer)

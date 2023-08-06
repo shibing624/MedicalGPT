@@ -21,8 +21,8 @@ from transformers import (
     BloomTokenizerFast,
     LlamaTokenizer,
     LlamaForCausalLM,
+    GenerationConfig,
 )
-from transformers.generation import GenerationConfig
 
 from supervised_finetuning import get_conv_template
 
@@ -57,9 +57,9 @@ def generate_answer(
     )
     generation_output = model.generate(**generation_config)
     output_ids = generation_output[0]
-    output = tokenizer.decode(output_ids, skip_special_tokens=False).strip()
+    output = tokenizer.decode(output_ids, skip_special_tokens=True).strip()
     stop_str = tokenizer.eos_token or "</s>"
-    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=False))
+    l_prompt = len(tokenizer.decode(input_ids, skip_special_tokens=True))
     pos = output.find(stop_str, l_prompt)
     if pos != -1:
         output = output[l_prompt:pos]
@@ -114,7 +114,10 @@ def main():
         device_map='auto',
         trust_remote_code=True,
     )
-    base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
+    try:
+        base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
+    except OSError:
+        print("Failed to load generation config, use default.")
     if args.resize_emb:
         model_vocab_size = base_model.get_input_embeddings().weight.size(0)
         tokenzier_vocab_size = len(tokenizer)
@@ -197,7 +200,7 @@ def main():
                         show_progress=True)
         submitBtn.click(reset_user_input, [], [user_input])
         emptyBtn.click(reset_state, outputs=[chatbot, history], show_progress=True)
-    demo.queue().launch(share=False, inbrowser=True, server_name='0.0.0.0', server_port=8081)
+    demo.queue().launch(share=False, inbrowser=True, server_name='0.0.0.0', server_port=8082)
 
 
 if __name__ == '__main__':
