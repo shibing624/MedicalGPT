@@ -207,8 +207,8 @@ class Conversation:
     name: str
     # The system prompt
     system_prompt: str
-    # All messages. question and answer history.
-    messages: Optional[List[List[str, str]]]
+    # All messages. format: list of [question, answer]
+    messages: Optional[List[Sequence[str]]]
     # The roles of the speakers
     roles: Optional[Sequence[str]]
     # Conversation prompt
@@ -218,7 +218,7 @@ class Conversation:
 
     def get_prompt(
             self,
-            messages: Optional[List[List[str, str]]] = None,
+            messages: Optional[List[Sequence[str]]] = None,
             system_prompt: Optional[str] = ""
     ) -> str:
         """
@@ -228,7 +228,7 @@ class Conversation:
 
     def get_dialog(
             self,
-            messages: Optional[List[List[str, str]]] = None,
+            messages: Optional[List[Sequence[str]]] = None,
             system_prompt: Optional[str] = ""
     ) -> List[str]:
         """
@@ -238,7 +238,7 @@ class Conversation:
 
     def _format_example(
             self,
-            messages: Optional[List[List[str, str]]] = None,
+            messages: Optional[List[Sequence[str]]] = None,
             system_prompt: Optional[str] = ""
     ) -> List[str]:
         system_prompt = system_prompt or self.system_prompt
