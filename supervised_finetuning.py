@@ -661,9 +661,9 @@ def main():
                     source_ids = source_ids[:max_source_length]
                 if len(target_ids) > max_target_length - 1:  # eos token
                     target_ids = target_ids[:max_target_length - 1]
-                if source_ids[0] == tokenizer.eos_token_id:
+                if len(source_ids) > 0 and source_ids[0] == tokenizer.eos_token_id:
                     source_ids = source_ids[1:]
-                if target_ids[-1] == tokenizer.eos_token_id:
+                if len(target_ids) > 0 and target_ids[-1] == tokenizer.eos_token_id:
                     target_ids = target_ids[:-1]
                 if len(input_ids) + len(source_ids) + len(target_ids) + 1 > max_length:
                     break
