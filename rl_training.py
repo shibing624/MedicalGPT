@@ -348,16 +348,19 @@ def main():
             "query": [],
             "input_ids": [],
         }
-        for instruction, input in zip(examples['instruction'], examples['input']):
-            if input:
-                instruction = instruction + "\n" + input
-            source = PROMPT_TEMPLATE.format_map({"instruction": instruction})
-            tokenized_question = tokenizer(
-                source, truncation=True, max_length=max_source_length, padding="max_length",
-                return_tensors="pt"
-            )
-            new_examples["query"].append(source)
-            new_examples["input_ids"].append(tokenized_question["input_ids"])
+        for conversation in examples['conversations']:
+            for message in conversation:
+                instruction = message['value']
+                input = message['from']
+                if input:
+                    instruction = instruction + "\n" + input
+                source = PROMPT_TEMPLATE.format_map({"instruction": instruction})
+                tokenized_question = tokenizer(
+                    source, truncation=True, max_length=max_source_length, padding="max_length",
+                    return_tensors="pt"
+                )
+                new_examples["query"].append(source)
+                new_examples["input_ids"].append(tokenized_question["input_ids"])
 
         return new_examples
 
