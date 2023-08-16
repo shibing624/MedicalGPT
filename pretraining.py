@@ -457,7 +457,7 @@ def main():
                 raise ValueError(f"train files must be same type, e.g. all txt or all jsonl, but got {types}")
             data_files["train"] = train_data_files
         if data_args.validation_file_dir is not None and os.path.exists(data_args.validation_file_dir):
-            eval_data_files = glob(f'{data_args.train_file_dir}/**/*.txt', recursive=True) + glob(
+            eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.txt', recursive=True) + glob(
                 f'{data_args.train_file_dir}/**/*.json', recursive=True) + glob(
                 f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"eval files: {eval_data_files}")
