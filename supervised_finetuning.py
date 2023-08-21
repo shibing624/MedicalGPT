@@ -336,7 +336,7 @@ register_conv_template(
     )
 )
 
-"""ChatGLM default template
+"""ChatGLM1 template
 source: https://huggingface.co/THUDM/chatglm-6b/blob/main/modeling_chatglm.py#L1307
 """
 register_conv_template(
@@ -350,7 +350,7 @@ register_conv_template(
     )
 )
 
-"""ChatGLM2 default template
+"""ChatGLM2 template
 source: https://huggingface.co/THUDM/chatglm2-6b/blob/main/modeling_chatglm.py#L1007
 """
 register_conv_template(
@@ -406,7 +406,7 @@ register_conv_template(
     )
 )
 
-r"""
+"""
 Supports: https://huggingface.co/internlm/internlm-chat-7b
 """
 register_conv_template(
