@@ -132,6 +132,7 @@ class ScriptArguments:
     )
     # Training arguments
     use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
+    qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
     target_modules: Optional[str] = field(default=None)
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
@@ -374,8 +375,8 @@ def main():
     ddp = world_size != 1
     if ddp:
         args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
-    if args.qlora and (len(args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
-        logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
+    if args.qlora and is_deepspeed_zero3_enabled():
+        logger.warning("ZeRO3 are both currently incompatible with QLoRA.")
     config = config_class.from_pretrained(
         args.model_name_or_path,
         trust_remote_code=args.trust_remote_code,
