@@ -1,24 +1,33 @@
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 dpo_training.py \
+CUDA_VISIBLE_DEVICES=0 python dpo_training.py \
     --model_type bloom \
     --model_name_or_path bigscience/bloomz-560m \
-    --reward_model_name_or_path OpenAssistant/reward-model-deberta-v3-large-v2 \
-    --torch_dtype float16 \
-    --device_map auto \
-    --train_file_dir ./data/finetune \
-    --validation_file_dir ./data/finetune \
-    --batch_size 8 \
+    --train_file_dir ./data/reward \
+    --validation_file_dir ./data/reward \
+    --per_device_train_batch_size 4 \
+    --per_device_eval_batch_size 4 \
+    --do_train \
+    --do_eval \
+    --use_peft True \
+    --max_train_samples 1000 \
+    --max_eval_samples 10 \
+    --max_steps 1000 \
+    --eval_steps 50 \
+    --save_steps 50 \
+    --save_strategy steps \
     --max_source_length 256 \
     --max_target_length 256 \
-    --max_train_samples 1000 \
-    --use_peft True \
+    --output_dir outputs-dpo-v1 \
+    --overwrite_output_dir \
+    --ddp_timeout 30000 \
+    --logging_first_step True \
+    --target_modules all \
     --lora_rank 8 \
     --lora_alpha 16 \
     --lora_dropout 0.05 \
-    --do_train \
-    --max_steps 100 \
-    --learning_rate 1e-5 \
-    --save_steps 50 \
-    --output_dir outputs-rl-v1 \
-    --early_stopping True \
-    --target_kl 0.1 \
-    --reward_baseline 0.0
+    --torch_dtype float16 \
+    --fp16 True \
+    --device_map auto \
+    --report_to tensorboard \
+    --ddp_find_unused_parameters False \
+    --remove_unused_columns False \
+    --gradient_checkpointing True

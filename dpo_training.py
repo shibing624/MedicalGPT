@@ -134,11 +134,9 @@ class ScriptArguments:
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
     lora_alpha: Optional[float] = field(default=16.0)
-    modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
     do_train: bool = field(default=False, metadata={"help": "Whether to run training."})
     do_eval: bool = field(default=False, metadata={"help": "Whether to run eval on the validation set."})
-    early_stopping: Optional[bool] = field(default=False, metadata={"help": "Whether to early stop"})
     beta: Optional[float] = field(default=0.1, metadata={"help": "The beta parameter for DPO loss"})
     learning_rate: Optional[float] = field(default=5e-4, metadata={"help": "Learning rate"})
     lr_scheduler_type: Optional[str] = field(default="cosine", metadata={"help": "The lr scheduler type"})
@@ -158,6 +156,11 @@ class ScriptArguments:
     logging_steps: Optional[int] = field(default=1, metadata={"help": "X steps to log the model"})
     output_dir: Optional[str] = field(default="outputs-dpo", metadata={"help": "The output directory"})
     max_steps: Optional[int] = field(default=200, metadata={"help": "Number of steps to train"})
+    eval_strategy: Optional[str] = field(default="steps", metadata={"help": "Evaluation strategy"})
+    remove_unused_columns: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Remove unused columns from the dataset if `datasets.Dataset` is used"},
+    )
     report_to: Optional[str] = field(default="tensorboard", metadata={"help": "Report to wandb or tensorboard"})
 
     def __post_init__(self):
@@ -395,7 +398,7 @@ def main():
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         gradient_checkpointing=args.gradient_checkpointing,
         learning_rate=args.learning_rate,
-        evaluation_strategy="steps",
+        evaluation_strategy=args.eval_strategy,
         eval_steps=args.eval_steps,
         output_dir=args.output_dir,
         report_to=args.report_to,
@@ -404,7 +407,7 @@ def main():
         optim=args.optimizer_type,
         bf16=args.bf16,
         fp16=args.fp16,
-        remove_unused_columns=False,
+        remove_unused_columns=args.remove_unused_columns,
         run_name=f"dpo_{args.model_type}",
     )
 
