@@ -26,4 +26,5 @@ CUDA_VISIBLE_DEVICES=0 python dpo_training.py \
     --device_map auto \
     --report_to tensorboard \
     --remove_unused_columns False \
-    --gradient_checkpointing True
+    --gradient_checkpointing True \
+    --cache_dir ./cache

@@ -38,4 +38,5 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --device_map auto \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
-    --gradient_checkpointing True
+    --gradient_checkpointing True \
+    --cache_dir ./cache
