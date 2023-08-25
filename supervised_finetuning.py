@@ -41,7 +41,6 @@ from transformers import (
     TrainingArguments,
     set_seed,
     BitsAndBytesConfig,
-    deepspeed,
     DataCollatorForSeq2Seq,
 )
 from transformers.deepspeed import is_deepspeed_zero3_enabled
@@ -746,7 +745,7 @@ def main():
         ddp = world_size != 1
         if ddp:
             model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
-        if training_args.qlora and (len(training_args.fsdp) > 0 or deepspeed.is_deepspeed_zero3_enabled()):
+        if training_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
         config = config_class.from_pretrained(
             model_args.model_name_or_path,

@@ -12,7 +12,7 @@ from typing import Dict, Optional
 import torch
 from datasets import load_dataset
 from loguru import logger
-from peft import LoraConfig, TaskType, AutoPeftModelForCausalLM
+from peft import LoraConfig, TaskType
 from transformers import (
     AutoConfig,
     BloomForCausalLM,
@@ -24,7 +24,9 @@ from transformers import (
     AutoTokenizer,
     HfArgumentParser,
     TrainingArguments,
+    BitsAndBytesConfig,
 )
+from transformers.deepspeed import is_deepspeed_zero3_enabled
 from trl import DPOTrainer
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
@@ -333,7 +335,7 @@ def main():
         )
         logger.debug(f"Num train_samples: {len(train_dataset)}")
         logger.debug("First train example:")
-        logger.debug(train_dataset[0]['prompt'])
+        logger.debug(train_dataset[0]['prompt'] + train_dataset[0]['chosen'])
 
     eval_dataset = None
     max_eval_samples = 0
@@ -360,7 +362,7 @@ def main():
         )
         logger.debug(f"Num eval_samples: {len(eval_dataset)}")
         logger.debug("First eval example:")
-        logger.debug(eval_dataset[0]['prompt'])
+        logger.debug(eval_dataset[0]['prompt'] + eval_dataset[0]['chosen'])
 
     logger.info("Loading model")
     torch_dtype = (
@@ -369,32 +371,43 @@ def main():
         else getattr(torch, args.torch_dtype)
     )
     world_size = int(os.environ.get("WORLD_SIZE", 1))
-    if world_size > 1:
+    ddp = world_size != 1
+    if ddp:
         args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+    if args.qlora and (len(args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
+        logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
     config = config_class.from_pretrained(
         args.model_name_or_path,
-        torch_dtype=torch_dtype,
         trust_remote_code=args.trust_remote_code,
+        torch_dtype=torch_dtype,
         cache_dir=args.cache_dir
     )
-    model = AutoPeftModelForCausalLM.from_pretrained(
+    model = model_class.from_pretrained(
         args.model_name_or_path,
         config=config,
-        load_in_4bit=args.load_in_4bit,
-        load_in_8bit=args.load_in_8bit,
+        low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch_dtype,
+        ) if args.qlora else None,
     )
-    model_ref = AutoPeftModelForCausalLM.from_pretrained(
+    model_ref = model_class.from_pretrained(
         args.model_name_or_path,
         config=config,
-        low_cpu_mem_usage=True,
-        load_in_4bit=args.load_in_4bit,
-        load_in_8bit=args.load_in_8bit,
+        low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch_dtype,
+        ) if args.qlora else None,
     )
-    print_trainable_parameters(model)
 
     # Initialize our Trainer
     if args.gradient_checkpointing:
@@ -450,6 +463,7 @@ def main():
         max_prompt_length=args.max_source_length,
         max_length=full_max_length,
     )
+    print_trainable_parameters(trainer.model)
 
     # Training
     if args.do_train:
