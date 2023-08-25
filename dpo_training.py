@@ -184,6 +184,27 @@ def print_trainable_parameters(model):
         f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
     )
 
+def find_all_linear_names(peft_model, int4=False, int8=False):
+    """Find all linear layer names in the model. reference from qlora paper."""
+    cls = torch.nn.Linear
+    if int4 or int8:
+        import bitsandbytes as bnb
+        if int4:
+            cls = bnb.nn.Linear4bit
+        elif int8:
+            cls = bnb.nn.Linear8bitLt
+    lora_module_names = set()
+    for name, module in peft_model.named_modules():
+        if isinstance(module, cls):
+            # last layer is not add to lora_module_names
+            if 'lm_head' in name:
+                continue
+            if 'output_layer' in name:
+                continue
+            names = name.split('.')
+            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+    return sorted(lora_module_names)
+
 
 def return_prompt_and_responses(examples) -> Dict[str, str]:
     """Load the paired dataset and convert it to the necessary format.
@@ -341,14 +362,6 @@ def main():
         logger.debug(eval_dataset[0]['prompt'])
 
     logger.info("Load model")
-    peft_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        target_modules=args.target_modules,
-        inference_mode=False,
-        r=args.lora_rank,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-    )
     torch_dtype = (
         args.torch_dtype
         if args.torch_dtype in ["auto", None]
@@ -412,6 +425,18 @@ def main():
     )
 
     # Initialize DPO trainer
+    target_modules = args.target_modules.split(',') if args.target_modules else None
+    if target_modules and 'all' in target_modules:
+        target_modules = find_all_linear_names(model, int4=args.load_in_4bit, int8=args.load_in_8bit)
+    logger.info(f"Peft target_modules: {target_modules}")
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=args.target_modules,
+        inference_mode=False,
+        r=args.lora_rank,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
+    )
     trainer = DPOTrainer(
         model,
         model_ref,
