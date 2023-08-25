@@ -19,7 +19,6 @@ CUDA_VISIBLE_DEVICES=0 python dpo_training.py \
     --output_dir outputs-dpo-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
-    --logging_first_step True \
     --target_modules all \
     --lora_rank 8 \
     --lora_alpha 16 \
