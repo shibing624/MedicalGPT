@@ -26,7 +26,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --gradient_accumulation_steps 1 \
     --preprocessing_num_workers 1 \
     --block_size 1024 \
-    --output_dir outputs-pt-v1 \
+    --output_dir outputs-pt-bloom-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
