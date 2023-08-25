@@ -134,7 +134,7 @@ class DataTrainingArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The train jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."})
-    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The template name."})
+    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The prompt template name."})
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={
@@ -524,10 +524,10 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, PeftArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-    logger.warning(f"Model args: {model_args}")
-    logger.warning(f"Data args: {data_args}")
-    logger.warning(f"Training args: {training_args}")
-    logger.warning(
+    logger.info(f"Model args: {model_args}")
+    logger.info(f"Data args: {data_args}")
+    logger.info(f"Training args: {training_args}")
+    logger.info(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
@@ -614,6 +614,7 @@ def main():
     max_source_length = data_args.max_source_length
     max_target_length = data_args.max_target_length
     max_length = max_source_length + max_target_length
+    prompt_template = get_conv_template(data_args.template_name)
 
     def preprocess_function(examples):
         """
@@ -623,7 +624,6 @@ def main():
         input_ids_list = []
         targets_list = []
         roles = ["human", "gpt"]
-        prompt_template = get_conv_template(data_args.template_name)
 
         def get_dialog(examples):
             for i, source in enumerate(examples['conversations']):
@@ -647,8 +647,7 @@ def main():
                     continue
                 # Convert the list to pairs of elements
                 history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
-                dialog = prompt_template.get_dialog(history_messages)
-                yield dialog
+                yield prompt_template.get_dialog(history_messages)
 
         for dialog in get_dialog(examples):
             input_ids, labels = [], []

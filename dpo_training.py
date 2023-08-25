@@ -1,22 +1,20 @@
 # -*- coding: utf-8 -*-
 """
 @author:XuMing(xuming624@qq.com)
-@description: Train a model from SFT using PPO
+@description: Train a model from SFT using DPO
 """
 
 import os
 from dataclasses import dataclass, field
 from glob import glob
-from typing import Optional
+from typing import Dict, Optional
 
 import torch
 from datasets import load_dataset
 from loguru import logger
-from peft import LoraConfig, TaskType
-from tqdm import tqdm
+from peft import LoraConfig, TaskType, AutoPeftModelForCausalLM
 from transformers import (
     AutoConfig,
-    AutoModelForSequenceClassification,
     BloomForCausalLM,
     AutoModelForCausalLM,
     AutoModel,
@@ -25,10 +23,9 @@ from transformers import (
     BloomTokenizerFast,
     AutoTokenizer,
     HfArgumentParser,
+    TrainingArguments,
 )
-from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
-
-from supervised_finetuning import get_conv_template
+from trl import DPOTrainer
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -45,7 +42,7 @@ MODEL_CLASSES = {
 @dataclass
 class ScriptArguments:
     """
-    The name of the Casual LM model we wish to fine with PPO
+    The name of the Casual LM model we wish to fine with DPO
     """
     # Model arguments
     model_type: str = field(
@@ -55,11 +52,11 @@ class ScriptArguments:
     model_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "The model checkpoint for weights initialization."}
     )
-    reward_model_name_or_path: Optional[str] = field(default=None, metadata={"help": "The reward model name"})
     tokenizer_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "The tokenizer for weights initialization."}
     )
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
+    load_in_4bit: bool = field(default=False, metadata={"help": "Whether to load the model in 4bit mode or not."})
     cache_dir: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
@@ -95,9 +92,9 @@ class ScriptArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The input jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."}, )
-    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The template name."})
-    batch_size: Optional[int] = field(default=8, metadata={"help": "Batch size"})
-    mini_batch_size: Optional[int] = field(default=1, metadata={"help": "PPO minibatch size"})
+    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The prompt template name."})
+    per_device_train_batch_size: Optional[int] = field(default=4, metadata={"help": "Train batch size per device"})
+    per_device_eval_batch_size: Optional[int] = field(default=1, metadata={"help": "Eval batch size per device"})
     max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
     max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     min_target_length: Optional[int] = field(default=4, metadata={"help": "Min length of output text"})
@@ -129,35 +126,37 @@ class ScriptArguments:
         },
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None, metadata={"help": "The number of processes to use for the preprocessing."},
+        default=4, metadata={"help": "The number of processes to use for the preprocessing."},
     )
     # Training arguments
     use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
     target_modules: Optional[str] = field(default=None)
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
-    lora_alpha: Optional[float] = field(default=32.0)
+    lora_alpha: Optional[float] = field(default=16.0)
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
-
     do_train: bool = field(default=False, metadata={"help": "Whether to run training."})
     do_eval: bool = field(default=False, metadata={"help": "Whether to run eval on the validation set."})
     early_stopping: Optional[bool] = field(default=False, metadata={"help": "Whether to early stop"})
-    target_kl: Optional[float] = field(default=0.1, metadata={"help": "The kl target for early stopping"})
-    reward_baseline: Optional[float] = field(
-        default=0.0, metadata={"help": "Baseline value that is subtracted from the reward"},
+    beta: Optional[float] = field(default=0.1, metadata={"help": "The beta parameter for DPO loss"})
+    learning_rate: Optional[float] = field(default=5e-4, metadata={"help": "Learning rate"})
+    lr_scheduler_type: Optional[str] = field(default="cosine", metadata={"help": "The lr scheduler type"})
+    warmup_steps: Optional[int] = field(default=100, metadata={"help": "The number of warmup steps"})
+    weight_decay: Optional[float] = field(default=0.05, metadata={"help": "The weight decay"})
+    optimizer_type: Optional[str] = field(default="paged_adamw_32bit", metadata={"help": "The optimizer type"})
+    fp16: Optional[bool] = field(default=True, metadata={"help": "Whether to use fp16"})
+    bf16: Optional[bool] = field(default=False, metadata={"help": "Whether to use bf16"})
+    gradient_checkpointing: Optional[bool] = field(
+        default=True, metadata={"help": "Whether to use gradient checkpointing"}
     )
-    init_kl_coef: Optional[float] = field(
-        default=0.2, metadata={"help": "Initial KL penalty coefficient (used for adaptive and linear control)"},
-    )
-    adap_kl_ctrl: Optional[bool] = field(default=True, metadata={"help": "Use adaptive KL control, otherwise linear"})
-    learning_rate: Optional[float] = field(default=1.5e-5, metadata={"help": "Learning rate"})
     gradient_accumulation_steps: Optional[int] = field(
-        default=1, metadata={"help": "the number of gradient accumulation steps"}
+        default=4, metadata={"help": "The number of gradient accumulation steps"}
     )
     save_steps: Optional[int] = field(default=50, metadata={"help": "X steps to save the model"})
-    output_dir: Optional[str] = field(default="outputs-rl", metadata={"help": "The output directory"})
-    seed: Optional[int] = field(default=0, metadata={"help": "Seed"})
+    eval_steps: Optional[int] = field(default=50, metadata={"help": "X steps to evaluate the model"})
+    logging_steps: Optional[int] = field(default=1, metadata={"help": "X steps to log the model"})
+    output_dir: Optional[str] = field(default="outputs-dpo", metadata={"help": "The output directory"})
     max_steps: Optional[int] = field(default=200, metadata={"help": "Number of steps to train"})
     report_to: Optional[str] = field(default="tensorboard", metadata={"help": "Report to wandb or tensorboard"})
 
@@ -166,8 +165,6 @@ class ScriptArguments:
             raise ValueError("You must specify a valid model_type to run training.")
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
-        if self.reward_model_name_or_path is None:
-            raise ValueError("You must specify a valid reward_model_name_or_path to run training.")
 
 
 def print_trainable_parameters(model):
@@ -185,33 +182,24 @@ def print_trainable_parameters(model):
     )
 
 
-def get_reward_model_output(reward_model, reward_tokenizer, question, answer, device):
-    """
-    Get the reward score for a given question and answer pair.
-    """
-    inputs = reward_tokenizer(question, answer, return_tensors='pt').to(device)
-    score = reward_model(**inputs).logits[0].cpu().detach()
+def return_prompt_and_responses(examples) -> Dict[str, str]:
+    """Load the paired dataset and convert it to the necessary format.
 
-    return score
+    The dataset is converted to a dictionary with the following structure:
+    {
+        'prompt': List[str],
+        'chosen': List[str],
+        'rejected': List[str],
+    }
 
-
-def calculate_rewards(reward_score_outputs, reward_baseline=0):
+    Prompts are structured as follows:
+      "Question: " + <prompt> + "\n\nAnswer: "
     """
-    Calculate the reward for a given score output.
-    :param reward_score_outputs: 
-    :param reward_baseline: 
-    :return: 
-    """
-    rewards = []
-    for score in reward_score_outputs:
-        if isinstance(score, torch.Tensor) and score.numel() == 1:
-            reward_value = score.item() - reward_baseline
-            rewards.append(torch.tensor(reward_value))
-        else:
-            # Use the average of the tensor elements as `score` is multiple elements
-            reward_value = torch.mean(score).item() - reward_baseline
-            rewards.append(torch.tensor(reward_value))
-    return rewards
+    return {
+        "prompt": ["Question: " + question + "\n\nAnswer: " for question in examples["question"]],
+        "chosen": examples["response_chosen"],
+        "rejected": examples["response_rejected"],
+    }
 
 
 def main():
@@ -234,51 +222,6 @@ def main():
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 0  # set as the <unk> token
-
-    logger.info("Load model")
-    peft_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        target_modules=args.target_modules,
-        inference_mode=False,
-        r=args.lora_rank,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-    )
-    torch_dtype = (
-        args.torch_dtype
-        if args.torch_dtype in ["auto", None]
-        else getattr(torch, args.torch_dtype)
-    )
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    if world_size > 1:
-        args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
-    config = config_class.from_pretrained(
-        args.model_name_or_path,
-        torch_dtype=torch_dtype,
-        trust_remote_code=args.trust_remote_code,
-        cache_dir=args.cache_dir
-    )
-    model = AutoModelForCausalLMWithValueHead.from_pretrained(
-        args.model_name_or_path,
-        config=config,
-        load_in_8bit=args.load_in_8bit,
-        device_map=args.device_map,
-        trust_remote_code=args.trust_remote_code,
-        peft_config=peft_config if args.use_peft else None,
-    )
-    print_trainable_parameters(model)
-    # Load reward model
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    reward_model = AutoModelForSequenceClassification.from_pretrained(
-        args.reward_model_name_or_path,
-        config=config,
-        load_in_8bit=args.load_in_8bit,
-        trust_remote_code=args.trust_remote_code,
-    )
-    reward_model.to(device)
-    reward_tokenizer = AutoTokenizer.from_pretrained(
-        args.reward_model_name_or_path, **tokenizer_kwargs
-    )
 
     # Get datasets
     if args.dataset_name is not None:
@@ -337,63 +280,22 @@ def main():
     # Preprocessing the datasets
     max_source_length = args.max_source_length
     max_target_length = args.max_target_length
-    prompt_template = get_conv_template(args.template_name)
-
-    def preprocess_function(examples):
-        new_examples = {
-            "query": [],
-            "input_ids": [],
-        }
-        roles = ["human", "gpt"]
-
-        def get_prompt(examples):
-            for i, source in enumerate(examples['conversations']):
-                if len(source) < 2:
-                    continue
-                data_role = source[0].get("from", "")
-                if data_role not in roles or data_role != roles[0]:
-                    # Skip the first one if it is not from human
-                    source = source[1:]
-                if len(source) < 2:
-                    continue
-                messages = []
-                for j, sentence in enumerate(source):
-                    data_role = sentence.get("from", "")
-                    if data_role not in roles:
-                        logger.warning(f"unknown role: {data_role}, {i}. (ignored)")
-                        break
-                    if data_role == roles[j % 2]:
-                        messages.append(sentence["value"])
-                if len(messages) < 2 or len(messages) % 2 != 0:
-                    continue
-                # Convert the list to pairs of elements
-                history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
-                yield prompt_template.get_prompt(history_messages)
-
-        for prompt in get_prompt(examples):
-            for i in range(len(prompt) // 2):
-                source_txt = prompt[2 * i]
-                tokenized_question = tokenizer(
-                    source_txt, truncation=True, max_length=max_source_length, padding="max_length",
-                    return_tensors="pt"
-                )
-                new_examples["query"].append(source_txt)
-                new_examples["input_ids"].append(tokenized_question["input_ids"])
-
-        return new_examples
+    full_max_length = max_source_length + max_target_length
 
     # Preprocess the dataset
     train_dataset = None
+    max_train_samples = 0
     if args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = raw_datasets['train']
+        max_train_samples = len(train_dataset)
         if args.max_train_samples is not None and args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
         logger.debug(f"Example train_dataset[0]: {train_dataset[0]}")
         tokenized_dataset = train_dataset.shuffle().map(
-            preprocess_function,
+            return_prompt_and_responses,
             batched=True,
             num_proc=args.preprocessing_num_workers,
             remove_columns=train_dataset.column_names,
@@ -401,98 +303,148 @@ def main():
             desc="Running tokenizer on dataset",
         )
         train_dataset = tokenized_dataset.filter(
-            lambda x: len(x['input_ids']) > 0
+            lambda x: 0 < len(x['prompt']) + len(x['chosen']) <= full_max_length
+                      and 0 < len(x['prompt']) + len(x['rejected']) <= full_max_length
         )
         logger.debug(f"Num train_samples: {len(train_dataset)}")
+        logger.debug("First train example:")
+        logger.debug(train_dataset[0]['prompt'])
 
-    def collator(data):
-        return dict((key, [d[key] for d in data]) for key in data[0])
+    eval_dataset = None
+    max_eval_samples = 0
+    if args.do_eval:
+        if "validation" not in raw_datasets:
+            raise ValueError("--do_eval requires a validation dataset")
+        eval_dataset = raw_datasets["validation"]
+        max_eval_samples = len(eval_dataset)
+        if args.max_eval_samples is not None and args.max_eval_samples > 0:
+            max_eval_samples = min(len(eval_dataset), args.max_eval_samples)
+            eval_dataset = eval_dataset.select(range(max_eval_samples))
+        logger.debug(f"Example eval_dataset[0]: {eval_dataset[0]}")
+        tokenized_dataset = eval_dataset.map(
+            return_prompt_and_responses,
+            batched=True,
+            num_proc=args.preprocessing_num_workers,
+            remove_columns=eval_dataset.column_names,
+            load_from_cache_file=not args.overwrite_cache,
+            desc="Running tokenizer on dataset",
+        )
+        eval_dataset = tokenized_dataset.filter(
+            lambda x: 0 < len(x['input_ids_rejected']) <= full_max_length and 0 < len(
+                x['input_ids_chosen']) <= full_max_length
+        )
+        logger.debug(f"Num eval_samples: {len(eval_dataset)}")
+        logger.debug("First eval example:")
+        logger.debug(eval_dataset[0]['prompt'])
 
-    output_dir = args.output_dir
-    config = PPOConfig(
-        steps=args.max_steps,
-        model_name=args.model_name_or_path,
-        learning_rate=args.learning_rate,
-        log_with=args.report_to,
-        batch_size=args.batch_size,
-        mini_batch_size=args.mini_batch_size,
+    logger.info("Load model")
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=args.target_modules,
+        inference_mode=False,
+        r=args.lora_rank,
+        lora_alpha=args.lora_alpha,
+        lora_dropout=args.lora_dropout,
+    )
+    torch_dtype = (
+        args.torch_dtype
+        if args.torch_dtype in ["auto", None]
+        else getattr(torch, args.torch_dtype)
+    )
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    if world_size > 1:
+        args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+    config = config_class.from_pretrained(
+        args.model_name_or_path,
+        torch_dtype=torch_dtype,
+        trust_remote_code=args.trust_remote_code,
+        cache_dir=args.cache_dir
+    )
+    model = AutoPeftModelForCausalLM.from_pretrained(
+        args.model_name_or_path,
+        config=config,
+        load_in_4bit=args.load_in_4bit,
+        load_in_8bit=args.load_in_8bit,
+        device_map=args.device_map,
+        trust_remote_code=args.trust_remote_code,
+    )
+    model_ref = AutoPeftModelForCausalLM.from_pretrained(
+        args.model_name_or_path,
+        config=config,
+        low_cpu_mem_usage=True,
+        load_in_4bit=args.load_in_4bit,
+        load_in_8bit=args.load_in_8bit,
+        device_map=args.device_map,
+        trust_remote_code=args.trust_remote_code,
+    )
+    print_trainable_parameters(model)
+
+    # Initialize our Trainer
+    if args.gradient_checkpointing:
+        model.gradient_checkpointing_enable()
+        model.config.use_cache = False
+    else:
+        model.config.use_cache = True
+
+    training_args = TrainingArguments(
+        per_device_train_batch_size=args.per_device_train_batch_size,
+        per_device_eval_batch_size=args.per_device_eval_batch_size,
+        max_steps=args.max_steps,
+        logging_steps=args.logging_steps,
+        save_steps=args.save_steps,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        optimize_cuda_cache=True,
-        early_stopping=args.early_stopping,
-        target_kl=args.target_kl,
-        seed=args.seed,
-        init_kl_coef=args.init_kl_coef,
-        adap_kl_ctrl=args.adap_kl_ctrl,
-        project_kwargs={"logging_dir": output_dir},
+        gradient_checkpointing=args.gradient_checkpointing,
+        learning_rate=args.learning_rate,
+        evaluation_strategy="steps",
+        eval_steps=args.eval_steps,
+        output_dir=args.output_dir,
+        report_to=args.report_to,
+        lr_scheduler_type=args.lr_scheduler_type,
+        warmup_steps=args.warmup_steps,
+        optim=args.optimizer_type,
+        bf16=args.bf16,
+        fp16=args.fp16,
+        remove_unused_columns=False,
+        run_name=f"dpo_{args.model_type}",
     )
-    # Set seed before initializing value head for deterministic eval
-    set_seed(config.seed)
 
-    # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
-    trainer = PPOTrainer(
-        config,
+    # Initialize DPO trainer
+    trainer = DPOTrainer(
         model,
-        ref_model=None,
+        model_ref,
+        args=training_args,
+        beta=args.beta,
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         tokenizer=tokenizer,
-        dataset=train_dataset,
-        data_collator=collator,
+        peft_config=peft_config,
+        max_prompt_length=args.max_source_length,
+        max_length=full_max_length,
     )
-
-    # These arguments are passed to the `generate` function of the PPOTrainer
-    generation_kwargs = {
-        "max_new_tokens": max_target_length,
-        "temperature": 1.0,
-        "repetition_penalty": 1.0,
-        "top_p": 1.0,
-        "do_sample": True,
-    }
-
-    def save_model(save_dir):
-        trainer.accelerator.unwrap_model(trainer.model).save_pretrained(save_dir)
-        trainer.tokenizer.save_pretrained(save_dir)
 
     # Training
     if args.do_train:
         logger.info("*** Train ***")
-        total_steps = config.total_ppo_epochs
-        for step, batch in tqdm(enumerate(trainer.dataloader)):
-            if step >= total_steps:
-                break
-            question_tensors = batch["input_ids"]
-            question_tensors = [torch.LongTensor(i).to(device).squeeze(0) for i in question_tensors]
-            responses = []
-            response_tensors = []
-            for q_tensor in question_tensors:
-                response_tensor = trainer.generate(
-                    q_tensor,
-                    return_prompt=False,
-                    **generation_kwargs,
-                )
-                r = tokenizer.batch_decode(response_tensor, skip_special_tokens=True)[0]
-                responses.append(r)
-                response_tensors.append(response_tensor.squeeze(0))
-            batch["response"] = responses
+        train_result = trainer.train()
+        metrics = train_result.metrics
+        metrics["train_samples"] = max_train_samples
+        logger.debug(f"Training metrics: {metrics}")
+        trainer.log_metrics("train", metrics)
+        trainer.save_metrics("train", metrics)
+        trainer.save_state()
+        logger.info(f"Saving model checkpoint to {args.output_dir}")
+        trainer.save_model(args.output_dir)
+        tokenizer.save_pretrained(args.output_dir)
+        trainer.model.save_pretrained(args.output_dir)
 
-            # Compute reward score
-            score_outputs = [
-                get_reward_model_output(reward_model, reward_tokenizer, q, r, device) for q, r in
-                zip(batch["query"], batch["response"])
-            ]
-            rewards = calculate_rewards(score_outputs, args.reward_baseline)
-
-            # Run PPO step
-            try:
-                stats = trainer.step(question_tensors, response_tensors, rewards)
-                trainer.log_stats(stats, batch, rewards)
-                logger.debug(f"Step {step}/{total_steps}: reward score:{score_outputs}")
-            except ValueError as e:
-                logger.warning(f"Failed to log stats for step {step}, because of {e}")
-
-            if step and step % args.save_steps == 0:
-                save_dir = os.path.join(output_dir, f"checkpoint-{step}")
-                save_model(save_dir)
-        # Save final model
-        save_model(output_dir)
+    # Evaluation
+    if args.do_eval:
+        logger.info("*** Evaluate ***")
+        metrics = trainer.evaluate()
+        metrics["eval_samples"] = max_eval_samples
+        logger.debug(f"Eval metrics: {metrics}")
+        trainer.log_metrics("eval", metrics)
+        trainer.save_metrics("eval", metrics)
 
 
 if __name__ == "__main__":

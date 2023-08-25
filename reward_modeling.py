@@ -154,7 +154,7 @@ class DataTrainingArguments:
         },
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
+        default=4,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
 
@@ -350,10 +350,10 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, PeftArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-    logger.warning(f"Model args: {model_args}")
-    logger.warning(f"Data args: {data_args}")
-    logger.warning(f"Training args: {training_args}")
-    logger.warning(
+    logger.info(f"Model args: {model_args}")
+    logger.info(f"Data args: {data_args}")
+    logger.info(f"Training args: {training_args}")
+    logger.info(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
