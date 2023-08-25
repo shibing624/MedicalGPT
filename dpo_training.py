@@ -145,7 +145,7 @@ class ScriptArguments:
     lr_scheduler_type: Optional[str] = field(default="cosine", metadata={"help": "The lr scheduler type"})
     warmup_steps: Optional[int] = field(default=100, metadata={"help": "The number of warmup steps"})
     weight_decay: Optional[float] = field(default=0.05, metadata={"help": "The weight decay"})
-    optimizer_type: Optional[str] = field(default="paged_adamw_32bit", metadata={"help": "The optimizer type"})
+    optim: Optional[str] = field(default="adamw_hf", metadata={"help": "The optimizer type"})
     fp16: Optional[bool] = field(default=True, metadata={"help": "Whether to use fp16"})
     bf16: Optional[bool] = field(default=False, metadata={"help": "Whether to use bf16"})
     gradient_checkpointing: Optional[bool] = field(
@@ -432,7 +432,7 @@ def main():
         report_to=args.report_to,
         lr_scheduler_type=args.lr_scheduler_type,
         warmup_steps=args.warmup_steps,
-        optim=args.optimizer_type,
+        optim=args.optim,
         bf16=args.bf16,
         fp16=args.fp16,
         remove_unused_columns=args.remove_unused_columns,
