@@ -328,8 +328,8 @@ def main():
             desc="Running tokenizer on dataset",
         )
         train_dataset = tokenized_dataset.filter(
-            lambda x: 0 < len(x['prompt']) + len(x['chosen']) <= full_max_length
-                      and 0 < len(x['prompt']) + len(x['rejected']) <= full_max_length
+            lambda x: 0 < len(x['prompt'] + x['chosen']) <= full_max_length
+                      and 0 < len(x['prompt'] + x['rejected']) <= full_max_length
         )
         logger.debug(f"Num train_samples: {len(train_dataset)}")
         logger.debug("First train example:")
@@ -346,7 +346,7 @@ def main():
             max_eval_samples = min(len(eval_dataset), args.max_eval_samples)
             eval_dataset = eval_dataset.select(range(max_eval_samples))
         logger.debug(f"Example eval_dataset[0]: {eval_dataset[0]}")
-        tokenized_dataset = eval_dataset.map(
+        eval_dataset = eval_dataset.map(
             return_prompt_and_responses,
             batched=True,
             num_proc=args.preprocessing_num_workers,
@@ -354,15 +354,15 @@ def main():
             load_from_cache_file=not args.overwrite_cache,
             desc="Running tokenizer on dataset",
         )
-        eval_dataset = tokenized_dataset.filter(
-            lambda x: 0 < len(x['input_ids_rejected']) <= full_max_length and 0 < len(
-                x['input_ids_chosen']) <= full_max_length
+        eval_dataset = eval_dataset.filter(
+            lambda x: 0 < len(x['prompt'] + x['chosen']) <= full_max_length
+                      and 0 < len(x['prompt'] + x['rejected']) <= full_max_length
         )
         logger.debug(f"Num eval_samples: {len(eval_dataset)}")
         logger.debug("First eval example:")
         logger.debug(eval_dataset[0]['prompt'])
 
-    logger.info("Load model")
+    logger.info("Loading model")
     torch_dtype = (
         args.torch_dtype
         if args.torch_dtype in ["auto", None]
