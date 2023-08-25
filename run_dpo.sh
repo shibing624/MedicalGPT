@@ -13,12 +13,10 @@ CUDA_VISIBLE_DEVICES=0 python dpo_training.py \
     --max_steps 1000 \
     --eval_steps 50 \
     --save_steps 50 \
-    --save_strategy steps \
+    --eval_strategy steps \
     --max_source_length 256 \
     --max_target_length 256 \
     --output_dir outputs-dpo-v1 \
-    --overwrite_output_dir \
-    --ddp_timeout 30000 \
     --target_modules all \
     --lora_rank 8 \
     --lora_alpha 16 \
@@ -27,6 +25,5 @@ CUDA_VISIBLE_DEVICES=0 python dpo_training.py \
     --fp16 True \
     --device_map auto \
     --report_to tensorboard \
-    --ddp_find_unused_parameters False \
     --remove_unused_columns False \
     --gradient_checkpointing True
