@@ -23,7 +23,7 @@ CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --save_total_limit 3 \
     --max_source_length 256 \
     --max_target_length 256 \
-    --output_dir outputs-rm-v1 \
+    --output_dir outputs-rm-bloom-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \

@@ -24,7 +24,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --save_total_limit 3 \
     --gradient_accumulation_steps 1 \
     --preprocessing_num_workers 4 \
-    --output_dir outputs-sft-v1 \
+    --output_dir outputs-sft-bloom-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
@@ -36,4 +36,5 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --device_map auto \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
-    --gradient_checkpointing True
+    --gradient_checkpointing True \
+    --cache_dir ./cache
