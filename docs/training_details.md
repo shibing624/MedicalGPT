@@ -1,7 +1,7 @@
 # Training Detail
 
 
-### Stage 1: Continue Pretraining
+### Stage 1: PT(Continue PreTraining)
 第一阶段：PT(Continue PreTraining)增量预训练
 
 使用百科类文档类数据集，用来在领域数据集上增量预训练或二次预训练，期望能把领域知识注入给模型，以医疗领域为例，希望增量预训练，能让模型理解感冒的症状、病因、治疗药品、治疗方法、药品疗效等知识，便于后续的SFT监督微调能激活这些内在知识。
@@ -25,7 +25,7 @@ sh run_pt.sh
 - 如果你的显存不足，可以改小batch_size=1, block_size=512（影响训练的上下文最大长度）;
 - 如果你的显存更大，可以改大block_size=2048, 此为llama原始预训练长度，不能更大啦；调大batch_size。
 
-### Stage 2: Supervised FineTuning
+### Stage 2: SFT(Supervised Fine-tuning)
 第二阶段：SFT(Supervised Fine-tuning)有监督微调
 
 基于llama-7b-pt模型，使用医疗问答类数据进行有监督微调，得到llama-7b-sft模型
@@ -39,8 +39,9 @@ sh run_sft.sh
 
 [训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E7%BB%86%E8%8A%82%E8%AF%B4%E6%98%8E)
 
-### Stage 3: Reward Modeling
-第三阶段：RM(Reward Model)奖励模型建模
+### Stage 3: RLHF(Reinforcement Learning from Human Feedback)
+#### Reward Modeling
+RM(Reward Model)奖励模型建模
 
 RM(Reward Model)奖励模型，原则上，我们可以直接用人类标注来对模型做 RLHF 微调。
 
@@ -61,8 +62,8 @@ sh run_rm.sh
 ```
 [训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E7%BB%86%E8%8A%82%E8%AF%B4%E6%98%8E)
 
-### Stage 4: Reinforcement Learning
-第四阶段：RL(Reinforcement Learning)基于人类反馈的强化学习(RLHF)
+#### Reinforcement Learning
+RL(Reinforcement Learning)强化学习
 
 RL(Reinforcement Learning)模型的目的是最大化奖励模型的输出，基于上面步骤，我们有了微调的语言模型(llama-7b-sft)和奖励模型(llama-7b-reward)，
 可以开始执行 RL 循环了。
@@ -86,7 +87,9 @@ cd scripts
 sh run_rl.sh
 ```
 
-### Stage 5: DPO(Direct Preference Optimization)直接偏好优化
+### Stage 3: DPO(Direct Preference Optimization)
+DPO(Direct Preference Optimization)直接偏好优化
+
 DPO方法可以通过直接优化语言模型来实现对其行为的精确控制，而无需使用复杂的强化学习。
 
 DPO 将奖励函数和最优策略之间的映射联系起来，从而把约束奖励最大化问题转化为一个单阶段的策略训练问题。
@@ -95,3 +98,7 @@ DPO 将奖励函数和最优策略之间的映射联系起来，从而把约束�
 实验结果表明，DPO 算法可以与现有RLHF方法一样有效地从人类偏好中学习，甚至在某些任务中表现更好，比如情感调节、摘要和单轮对话。
 
 PS: 使用DPO训练LLaMA2-7B在fp16，batch_size为2时，需要70GB显存。
+
+```shell
+sh run_dpo.sh
+```
