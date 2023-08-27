@@ -10,10 +10,9 @@ CUDA_VISIBLE_DEVICES=0,1 python dpo_training.py \
     --use_peft True \
     --max_train_samples 1000 \
     --max_eval_samples 10 \
-    --max_steps 500 \
-    --eval_steps 50 \
+    --max_steps 100 \
+    --eval_steps 20 \
     --save_steps 50 \
-    --eval_strategy steps \
     --max_source_length 128 \
     --max_target_length 128 \
     --output_dir outputs-dpo-bloom-v1 \
