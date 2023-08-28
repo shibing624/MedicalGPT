@@ -143,6 +143,7 @@ def main():
         return [], []
 
     prompt_template = get_conv_template(args.template_name)
+    stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
     history = []
 
     def predict(
@@ -159,7 +160,6 @@ def main():
         history.append([now_input, ''])
 
         prompt = prompt_template.get_prompt(messages=history)
-        stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
         response = ""
 
         for new_text in stream_generate_answer(

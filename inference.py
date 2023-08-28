@@ -59,7 +59,7 @@ def stream_generate_answer(
     )
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
-    stop_str = tokenizer.eos_token if tokenizer.eos_token else stop_str
+
     generated_text = ""
     for new_text in streamer:
         stop = False
@@ -152,6 +152,7 @@ def main():
 
     # Chat
     prompt_template = get_conv_template(args.template_name)
+    stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
 
     if args.interactive:
         print("Welcome to the CLI application, use `clear` to remove the history, use `exit` to exit the application.")
@@ -188,7 +189,7 @@ def main():
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty,
-                stop_str=prompt_template.stop_str,
+                stop_str=stop_str,
             )
             if history:
                 history[-1][-1] = response.strip()
@@ -208,7 +209,7 @@ def main():
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty,
-                stop_str=prompt_template.stop_str,
+                stop_str=stop_str,
             )
             response = response.strip()
             print(f"======={index}=======")
