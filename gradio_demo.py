@@ -47,9 +47,9 @@ def stream_generate_answer(
         temperature=0.7,
         top_p=0.8,
         repetition_penalty=1.0,
-        context_len=2048
+        context_len=2048,
 ):
-    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
+    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=False)
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
     input_ids = input_ids[-max_src_len:]
@@ -159,7 +159,9 @@ def main():
         history.append([now_input, ''])
 
         prompt = prompt_template.get_prompt(messages=history)
+        stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
         response = ""
+
         for new_text in stream_generate_answer(
                 model,
                 tokenizer,
@@ -169,10 +171,17 @@ def main():
                 temperature=temperature,
                 top_p=top_p,
         ):
+            stop = False
+            pos = new_text.find(stop_str)
+            if pos != -1:
+                new_text = new_text[:pos]
+                stop = True
             response += new_text
             new_history = history + [(now_input, response)]
             chatbot[-1] = (now_input, response)
             yield chatbot, new_history
+            if stop:
+                break
 
     with gr.Blocks() as demo:
         gr.HTML("""<h1 align="center">MedicalGPT</h1>""")

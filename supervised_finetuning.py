@@ -214,6 +214,8 @@ class Conversation:
     prompt: str
     # Separator
     sep: str
+    # Stop token, default is tokenizer.eos_token
+    stop_str: Optional[str] = "</s>"
 
     def get_prompt(
             self,
@@ -305,7 +307,7 @@ register_conv_template(
         name="baichuan-chat",
         system_prompt="",
         messages=[],
-        roles=(" <reserved_102> ", " <reserved_103> "),
+        roles=("<reserved_102>", "<reserved_103>"),
         prompt=" <reserved_102> {query} <reserved_103> ",
         sep="</s>",
     )
@@ -416,6 +418,7 @@ register_conv_template(
         roles=("<|User|>", "<|Bot|>"),
         prompt="<|User|>:{query}<eoh>\n<|Bot|>:",
         sep="<eoa>\n",
+        stop_str="<eoa>",
     )
 )
 
@@ -428,6 +431,7 @@ register_conv_template(
         roles=("<|user|>", "<|assistant|>"),
         prompt="<|user|>\n{query}<|end|>\n<|assistant|>\n",
         sep="<|end|>\n",
+        stop_str="<|end|>",
     )
 )
 
@@ -492,6 +496,7 @@ register_conv_template(
         roles=("user", "assistant"),
         prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
         sep="<|im_end|>\n",
+        stop_str="<|im_end|>",
     )
 )
 

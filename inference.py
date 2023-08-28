@@ -43,9 +43,10 @@ def stream_generate_answer(
         max_new_tokens=512,
         temperature=0.7,
         repetition_penalty=1.0,
-        context_len=2048
+        context_len=2048,
+        stop_str="</s>",
 ):
-    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
+    streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=False)
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
     input_ids = input_ids[-max_src_len:]
@@ -58,7 +59,7 @@ def stream_generate_answer(
     )
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
-    stop_str = tokenizer.eos_token or "</s>"
+    stop_str = tokenizer.eos_token if tokenizer.eos_token else stop_str
     generated_text = ""
     for new_text in streamer:
         stop = False
@@ -186,7 +187,8 @@ def main():
                 do_print=True,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
-                repetition_penalty=args.repetition_penalty
+                repetition_penalty=args.repetition_penalty,
+                stop_str=prompt_template.stop_str,
             )
             if history:
                 history[-1][-1] = response.strip()
@@ -205,7 +207,8 @@ def main():
                 do_print=False,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
-                repetition_penalty=args.repetition_penalty
+                repetition_penalty=args.repetition_penalty,
+                stop_str=prompt_template.stop_str,
             )
             response = response.strip()
             print(f"======={index}=======")
