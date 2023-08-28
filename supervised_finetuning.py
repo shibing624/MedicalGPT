@@ -599,10 +599,14 @@ def main():
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = get_conv_template(data_args.template_name)
     if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = 0  # set as the <unk> token
+        if tokenizer.unk_token_id is not None:
+            tokenizer.pad_token = tokenizer.unk_token
+        else:
+            tokenizer.pad_token = tokenizer.eos_token
+        logger.info("Add pad token: {}".format(tokenizer.pad_token))
     if tokenizer.eos_token_id is None:
         tokenizer.eos_token = prompt_template.stop_str  # eos token is required for SFT
-
+        logger.info("Add eos token: {}".format(tokenizer.eos_token))
     logger.debug(f"Tokenizer: {tokenizer}")
     IGNORE_INDEX = LabelSmoother.ignore_index if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
 
