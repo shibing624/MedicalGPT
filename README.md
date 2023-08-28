@@ -30,7 +30,7 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - DPO方法来自论文[Direct Preference Optimization:Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
 
 ## 🔥 News
-[2023/08/28] v1.5版本: 新增[DPO(直接偏好优化)](https://arxiv.org/pdf/2305.18290.pdf)方法，DPO通过直接优化语言模型来实现对其行为的精确控制，而无需使用复杂的强化学习，也可以有效学习到人类偏好，DPO相较于RLHF更容易实现且易于训练，效果更好。详见[Release-v1.5](https://github.com/shibing624/MedicalGPT/releases/tag/1.5.0)
+[2023/08/28] v1.5版本: 新增[DPO(直接偏好优化)](https://arxiv.org/pdf/2305.18290.pdf)方法，DPO通过直接优化语言模型来实现对其行为的精确控制，可以有效学习到人类偏好。详见[Release-v1.5](https://github.com/shibing624/MedicalGPT/releases/tag/1.5.0)
 
 [2023/08/08] v1.4版本: 发布基于ShareGPT4数据集微调的中英文Vicuna-13B模型[shibing624/vicuna-baichuan-13b-chat](https://huggingface.co/shibing624/vicuna-baichuan-13b-chat)，和对应的LoRA模型[shibing624/vicuna-baichuan-13b-chat-lora](https://huggingface.co/shibing624/vicuna-baichuan-13b-chat-lora)，详见[Release-v1.4](https://github.com/shibing624/MedicalGPT/releases/tag/1.4.0)
 
@@ -125,6 +125,20 @@ Training Stage:
 - [FAQ](https://github.com/shibing624/MedicalGPT/wiki/FAQ)
 
 #### Supported Models
+
+| 模型名                                                   | 模型大小                     | Template      |
+| ------------------------------------------------------- | --------------------------- |---------------|
+| [LLaMA](https://github.com/facebookresearch/llama)      | 7B/13B/33B/65B              | -             |
+| [LLaMA-2](https://huggingface.co/meta-llama)            | 7B/13B/70B                  | llama2        |
+| [BLOOM](https://huggingface.co/bigscience/bloom)        | 560M/1.1B/1.7B/3B/7.1B/176B | -             |
+| [BLOOMZ](https://huggingface.co/bigscience/bloomz)      | 560M/1.1B/1.7B/3B/7.1B/176B | -             |
+| [Baichuan](https://github.com/baichuan-inc/baichuan-13B) | 7B/13B                      | baichuan-chat |
+| [InternLM](https://github.com/InternLM/InternLM)        | 7B                          | intern        |
+| [Qwen](https://github.com/QwenLM/Qwen-7B)               | 7B                          | chatml        |
+| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)       | 13B                         | -             |
+| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)         | 6B                          | chatglm       |
+| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)        | 6B                          | chatglm2      |
+
 The following models are tested:
 
 bloom:
@@ -143,6 +157,7 @@ llama:
 llama2:
 - [daryl149/llama-2-7b-chat-hf](https://huggingface.co/daryl149/llama-2-7b-chat-hf)
 - [meta-llama/Llama-2-7b-chat-hf](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf)
+- [ziqingyang/chinese-alpaca-2-7b](https://huggingface.co/ziqingyang/chinese-alpaca-2-7b)
 
 chatglm:
 - [THUDM/chatglm-6b](https://huggingface.co/THUDM/chatglm-6b)
@@ -152,6 +167,12 @@ baichuan:
 - [baichuan-inc/baichuan-7B](https://huggingface.co/baichuan-inc/baichuan-7B)
 - [baichuan-inc/Baichuan-13B-Base](https://huggingface.co/baichuan-inc/Baichuan-13B-Base)
 - [baichuan-inc/Baichuan-13B-Chat](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat)
+
+xverse:
+- [xverse/XVERSE-13B-Chat](https://huggingface.co/xverse/XVERSE-13B-Chat)
+
+Qwen:
+- [Qwen/Qwen-7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat)
 
 ## 💻 Inference 
 训练完成后，现在我们加载训练好的模型，验证模型生成文本的效果。
@@ -230,7 +251,7 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 
 #### Reward Model datasets
 - 原版的oasst1数据集：[OpenAssistant/oasst1](https://huggingface.co/datasets/OpenAssistant/oasst1)
-- 2万条多语言oasst1的reward数据集：[tasksource/oasst1_pairwise_rlhf_reward](https://huggingface.co/datasets/tasksource/oasst1_pairwise_rlhf_reward)
+- 2万条多语言oasst1的reward数据集：[tasksource/oasst1_pairwise_rlhf_reward](https://huggingface.co/datasets/tasksource/oasst1_pairwise_rlhf_reward)[本项目支持格式]
 - 11万条英文hh-rlhf的reward数据集：[Dahoas/full-hh-rlhf](https://huggingface.co/datasets/Dahoas/full-hh-rlhf)
 - 9万条英文reward数据集(来自Anthropic's Helpful Harmless dataset)：[Dahoas/static-hh](https://huggingface.co/datasets/Dahoas/static-hh)
 - 7万条英文reward数据集（来源同上）：[Dahoas/rm-static](https://huggingface.co/datasets/Dahoas/rm-static)
