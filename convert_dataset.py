@@ -24,7 +24,7 @@ if __name__ == "__main__":
         convs = []
         for instruction, inp, output in zip(examples['instruction'], examples['input'], examples['output']):
             if len(inp.strip()) > 1:
-                instruction = instruction + '\nInput:\n' + inp
+                instruction = instruction + '\n\n' + inp
             q = instruction
             a = output
             convs.append([
