@@ -479,7 +479,7 @@ register_conv_template(
         system_prompt="",
         messages=[],
         roles=("Human", "Assistant"),
-        prompt="Human: {{query}}\n\nAssistant: ",
+        prompt="Human: {query}\n\nAssistant: ",
         sep="</s>",
     )
 )
@@ -597,8 +597,11 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    prompt_template = get_conv_template(data_args.template_name)
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 0  # set as the <unk> token
+    if tokenizer.eos_token_id is None:
+        tokenizer.eos_token = prompt_template.stop_str  # eos token is required for SFT
 
     logger.debug(f"Tokenizer: {tokenizer}")
     IGNORE_INDEX = LabelSmoother.ignore_index if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
@@ -662,7 +665,6 @@ def main():
     max_source_length = data_args.max_source_length
     max_target_length = data_args.max_target_length
     max_length = max_source_length + max_target_length
-    prompt_template = get_conv_template(data_args.template_name)
 
     def preprocess_function(examples):
         """
