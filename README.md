@@ -278,6 +278,8 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/wechat.jpeg" width="200" />
 
+- WeChat group
+<img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/wechat_group.jpg" width="200" />
 ## ⚠️ 局限性、使用限制与免责声明
 
 基于当前数据和基础模型训练得到的SFT模型，在效果上仍存在以下问题：
