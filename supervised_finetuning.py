@@ -698,7 +698,7 @@ def main():
                         break
                     if data_role == roles[j % 2]:
                         messages.append(sentence["value"])
-                if len(messages) < 2 or len(messages) % 2 != 0:
+                if len(messages) % 2 != 0:
                     continue
                 # Convert the list to pairs of elements
                 history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
