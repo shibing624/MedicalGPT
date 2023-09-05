@@ -269,9 +269,15 @@ def main():
     print_trainable_parameters(model)
     # Load reward model
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    reward_config = config_class.from_pretrained(
+        args.reward_model_name_or_path,
+        torch_dtype=torch_dtype,
+        trust_remote_code=args.trust_remote_code,
+        cache_dir=args.cache_dir
+    )
     reward_model = AutoModelForSequenceClassification.from_pretrained(
         args.reward_model_name_or_path,
-        config=config,
+        config=reward_config,
         load_in_8bit=args.load_in_8bit,
         trust_remote_code=args.trust_remote_code,
     )
