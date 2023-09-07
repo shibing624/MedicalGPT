@@ -518,15 +518,27 @@ class SavePeftModelTrainer(Trainer):
         self.model.save_pretrained(output_dir)
 
 
-def save_model(output_dir, model, tokenizer, args):
+def save_model(model, tokenizer, args):
     """Save the model and the tokenizer."""
+    output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
     # Take care of distributed/parallel training
     model_to_save = model.module if hasattr(model, "module") else model
     model_to_save.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
-    torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+
+
+def save_model_zero3(model, tokenizer, args, trainer):
+    """Save the model for deepspeed zero3.
+    refer https://github.com/lm-sys/FastChat/blob/main/fastchat/train/train_lora.py#L209
+    """
+    output_dir = args.output_dir
+    os.makedirs(output_dir, exist_ok=True)
+    state_dict_zero3 = trainer.model_wrapped._zero3_consolidated_16bit_state_dict()
+    model_to_save = model.module if hasattr(model, "module") else model
+    model_to_save.save_pretrained(args.output_dir, state_dict=state_dict_zero3)
+    tokenizer.save_pretrained(output_dir)
 
 
 def print_trainable_parameters(model):
@@ -911,7 +923,10 @@ def main():
         if trainer.is_world_process_zero():
             logger.debug(f"Training metrics: {metrics}")
             logger.info(f"Saving model checkpoint to {training_args.output_dir}")
-            save_model(training_args.output_dir, model, tokenizer, training_args)
+            if is_deepspeed_zero3_enabled():
+                save_model_zero3(model, tokenizer, training_args, trainer)
+            else:
+                save_model(model, tokenizer, training_args)
 
     # Evaluation
     if training_args.do_eval:
