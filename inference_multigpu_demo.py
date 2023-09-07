@@ -154,29 +154,28 @@ def main():
         responses = []
         inputs = []
         for texts in data_loader:
-            logger.debug(f'local_rank: {local_rank}, inputs size:{len(texts)}, top5: {texts[:5]}')
-            texts = [prompt_template.get_prompt(messages=[[s, '']]) for s in texts]
-            inputs_tokens = tokenizer(texts, return_tensors="pt", padding=True, truncation=True)
+            inputs.extend(texts)
+            prompted_texts = [prompt_template.get_prompt(messages=[[s, '']]) for s in texts]
+            logger.debug(f'local_rank: {local_rank}, inputs size:{len(prompted_texts)}, top3: {prompted_texts[:3]}')
+            inputs_tokens = tokenizer(prompted_texts, return_tensors="pt", padding=True, truncation=True)
             input_ids = inputs_tokens['input_ids'].to(local_rank)
             outputs = model.generate(input_ids=input_ids, **generation_kwargs)
             prompt_len = len(input_ids[0])
             outputs = [i[prompt_len:] for i in outputs]
             generated_outputs = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-            responses.extend(generated_outputs)
             logger.debug(
-                f'local_rank: {local_rank}, outputs size:{len(generated_outputs)}, top5: {generated_outputs[:5]}'
+                f'local_rank: {local_rank}, outputs size:{len(generated_outputs)}, top3: {generated_outputs[:3]}'
             )
-            inputs.extend(texts)
-
-        all_responses = [None] * world_size
+            responses.extend(generated_outputs)
         all_inputs = [None] * world_size
-        dist.all_gather_object(all_responses, responses)
+        all_responses = [None] * world_size
         dist.all_gather_object(all_inputs, inputs)
+        dist.all_gather_object(all_responses, responses)
 
         # Write responses only on the main process
         if local_rank <= 0:
-            all_responses_flat = [response for process_responses in all_responses for response in process_responses]
             all_inputs_flat = [inp for process_inputs in all_inputs for inp in process_inputs]
+            all_responses_flat = [response for process_responses in all_responses for response in process_responses]
             logger.debug(f"all_responses size:{len(all_responses_flat)}, top5: {all_responses_flat[:5]}")
             results = []
             for example, response in zip(all_inputs_flat, all_responses_flat):
