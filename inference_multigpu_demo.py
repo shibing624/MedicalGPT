@@ -14,6 +14,7 @@ import torch
 import torch.distributed as dist
 from loguru import logger
 from peft import PeftModel
+from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from tqdm import tqdm
 from transformers import (
@@ -71,7 +72,7 @@ def main():
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     logger.info(f"local_rank: {local_rank}, world_size: {world_size}")
     torch.cuda.set_device(local_rank)
-    dist.init_process_group(backend='nccl', init_method='env://')
+    dist.init_process_group(backend='nccl')
 
     if not torch.cuda.is_available():
         raise ValueError("No GPU available, this script is only for GPU inference.")
@@ -109,8 +110,8 @@ def main():
     else:
         model = base_model
     model.eval()
-    # Use DataParallel for multi-GPU inference
-    model = torch.nn.DataParallel(model, device_ids=[local_rank])
+    # Use multi-GPU inference
+    model = DistributedDataParallel(model, device_ids=[local_rank])
     model = model.module
     logger.info(tokenizer)
     # test data
@@ -186,7 +187,10 @@ def main():
                     f.write('\n')
                     count += 1
 
-    logger.info(f'save to {args.output_file}, total count: {count}')
+    if local_rank <= 0:
+        logger.info(f'save to {args.output_file}, total count: {count}')
+    dist.barrier()
+    dist.destroy_process_group()
 
 
 if __name__ == '__main__':
