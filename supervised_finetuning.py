@@ -23,7 +23,6 @@ from dataclasses import dataclass, field
 from glob import glob
 from typing import List, Optional, Dict, Sequence
 
-import numpy as np
 import torch
 from datasets import load_dataset
 from loguru import logger
@@ -134,7 +133,6 @@ class DataTrainingArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The train jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."})
-    test_file_dir: Optional[str] = field(default=None, metadata={"help": "The test file folder."})
     template_name: Optional[str] = field(default="vicuna", metadata={"help": "The prompt template name."})
     max_train_samples: Optional[int] = field(
         default=None,
@@ -150,15 +148,6 @@ class DataTrainingArguments:
         metadata={
             "help": (
                 "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
-                "value if set."
-            )
-        },
-    )
-    max_predict_samples: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": (
-                "For debugging purposes or quicker training, truncate the number of prediction examples to this "
                 "value if set."
             )
         },
@@ -641,8 +630,6 @@ def main():
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
             )
-        if "test" not in raw_datasets.keys():
-            raw_datasets["test"] = raw_datasets["validation"]
     else:
         # Loading a dataset from local files.
         data_files = {}
@@ -656,11 +643,6 @@ def main():
                 f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"eval files: {eval_data_files}")
             data_files["validation"] = eval_data_files
-        if data_args.test_file_dir is not None and os.path.exists(data_args.test_file_dir):
-            test_data_files = glob(f'{data_args.test_file_dir}/**/*.json', recursive=True) + glob(
-                f'{data_args.test_file_dir}/**/*.jsonl', recursive=True)
-            logger.info(f"test files: {test_data_files}")
-            data_files["test"] = test_data_files
         raw_datasets = load_dataset(
             'json',
             data_files=data_files,
@@ -680,8 +662,6 @@ def main():
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
             )
-        if "test" not in raw_datasets.keys():
-            raw_datasets["test"] = raw_datasets["validation"]
     logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets
@@ -807,31 +787,6 @@ def main():
             logger.debug(f"Num eval_samples: {len(eval_dataset)}")
             logger.debug("Tokenized eval example:")
             logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
-
-    predict_dataset = None
-    max_predict_samples = 0
-    if training_args.do_predict:
-        with training_args.main_process_first(desc="Test dataset tokenization"):
-            if "test" not in raw_datasets:
-                raise ValueError("--do_predict requires a validation dataset")
-            predict_dataset = raw_datasets["test"]
-            max_predict_samples = len(predict_dataset)
-            if data_args.max_predict_samples is not None and data_args.max_predict_samples > 0:
-                max_predict_samples = min(len(predict_dataset), data_args.max_predict_samples)
-                predict_dataset = predict_dataset.select(range(max_predict_samples))
-            logger.debug(f"Example predict_dataset[0]: {predict_dataset[0]}")
-            predict_dataset = predict_dataset.map(
-                preprocess_function,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                remove_columns=predict_dataset.column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on prediction dataset",
-            )
-            predict_dataset = predict_dataset.filter(filter_empty_labels, num_proc=data_args.preprocessing_num_workers)
-            logger.debug(f"Num predict_samples: {len(predict_dataset)}")
-            logger.debug("Tokenized predict example:")
-            logger.debug(tokenizer.decode(predict_dataset[0]['input_ids']))
 
     # Load model
     if model_args.model_name_or_path:
@@ -974,28 +929,6 @@ def main():
         trainer.save_metrics("eval", metrics)
         if trainer.is_world_process_zero():
             logger.debug(f"Eval metrics: {metrics}")
-
-    # Predict
-    if training_args.do_predict:
-        logger.info("*** Predict ***")
-
-        predict_results = trainer.predict(predict_dataset, metric_key_prefix="predict")
-        metrics = predict_results.metrics
-        metrics["predict_samples"] = max_predict_samples
-
-        trainer.log_metrics("predict", metrics)
-        trainer.save_metrics("predict", metrics)
-
-        if trainer.is_world_process_zero():
-            predictions = predict_results.predictions
-            predictions = np.where(predictions != IGNORE_INDEX, predictions, tokenizer.pad_token_id)
-            predictions = tokenizer.batch_decode(
-                predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
-            )
-            predictions = [pred.strip() for pred in predictions]
-            output_prediction_file = os.path.join(training_args.output_dir, "generated_predictions.txt")
-            with open(output_prediction_file, "w", encoding="utf-8") as writer:
-                writer.write("\n".join(predictions))
 
 
 if __name__ == "__main__":
