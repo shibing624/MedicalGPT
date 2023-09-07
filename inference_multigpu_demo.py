@@ -158,7 +158,7 @@ def main():
             inputs.extend(texts)
             prompted_texts = [prompt_template.get_prompt(messages=[[s, '']]) for s in texts]
             logger.debug(f'local_rank: {local_rank}, inputs size:{len(prompted_texts)}, top3: {prompted_texts[:3]}')
-            inputs_tokens = tokenizer(prompted_texts, return_tensors="pt", padding=True, truncation=True)
+            inputs_tokens = tokenizer(prompted_texts, return_tensors="pt", padding=True)
             input_ids = inputs_tokens['input_ids'].to(local_rank)
             outputs = model.generate(input_ids=input_ids, **generation_kwargs)
             prompt_len = len(input_ids[0])
