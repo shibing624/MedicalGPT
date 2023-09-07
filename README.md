@@ -201,6 +201,12 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 - `--only_cpu`：仅使用CPU进行推理
 - `--gpus {gpu_ids}`：指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
 
+#### 多卡推理
+多卡数据并行，batch推理
+```shell
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py --model_type baichuan --base_model shibing624/vicuna-baichuan-13b-chat
+```
+
 
 #### Inference Examples
 [shibing624/vicuna-baichuan-13b-chat](https://huggingface.co/shibing624/vicuna-baichuan-13b-chat) inference examples:

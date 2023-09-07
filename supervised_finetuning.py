@@ -13,9 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Fine-tuning the library models for causal language modeling (GPT, GPT-2, CTRL, ...) on a text file or a dataset.
+Fine-tuning the library models for causal language modeling (GPT, LLaMA, Bloom, ...) on a json file or a dataset.
 
-part of this code is adapted from https://github.com/shibing624/textgen
+part of code is modified from https://github.com/shibing624/textgen
 """
 import math
 import os
@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from glob import glob
 from typing import List, Optional, Dict, Sequence
 
+import numpy as np
 import torch
 from datasets import load_dataset
 from loguru import logger
@@ -133,6 +134,7 @@ class DataTrainingArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The train jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."})
+    test_file_dir: Optional[str] = field(default=None, metadata={"help": "The test file folder."})
     template_name: Optional[str] = field(default="vicuna", metadata={"help": "The prompt template name."})
     max_train_samples: Optional[int] = field(
         default=None,
@@ -148,6 +150,15 @@ class DataTrainingArguments:
         metadata={
             "help": (
                 "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
+                "value if set."
+            )
+        },
+    )
+    max_predict_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of prediction examples to this "
                 "value if set."
             )
         },
@@ -514,9 +525,8 @@ class SavePeftModelTrainer(Trainer):
     def save_model(self, output_dir=None, _internal_call=False):
         """Save the LoRA model."""
         os.makedirs(output_dir, exist_ok=True)
-        if self.args.local_rank in [-1, 0]:
-            torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
-            self.model.save_pretrained(output_dir)
+        torch.save(self.args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+        self.model.save_pretrained(output_dir)
 
 
 def save_model(output_dir, model, tokenizer, args):
@@ -525,10 +535,9 @@ def save_model(output_dir, model, tokenizer, args):
 
     # Take care of distributed/parallel training
     model_to_save = model.module if hasattr(model, "module") else model
-    if args.local_rank in [-1, 0]:
-        model_to_save.save_pretrained(output_dir)
-        tokenizer.save_pretrained(output_dir)
-        torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+    model_to_save.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
+    torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
 
 
 def print_trainable_parameters(model):
@@ -632,6 +641,8 @@ def main():
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
             )
+        if "test" not in raw_datasets.keys():
+            raw_datasets["test"] = raw_datasets["validation"]
     else:
         # Loading a dataset from local files.
         data_files = {}
@@ -645,6 +656,11 @@ def main():
                 f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"eval files: {eval_data_files}")
             data_files["validation"] = eval_data_files
+        if data_args.test_file_dir is not None and os.path.exists(data_args.test_file_dir):
+            test_data_files = glob(f'{data_args.test_file_dir}/**/*.json', recursive=True) + glob(
+                f'{data_args.test_file_dir}/**/*.jsonl', recursive=True)
+            logger.info(f"test files: {test_data_files}")
+            data_files["test"] = test_data_files
         raw_datasets = load_dataset(
             'json',
             data_files=data_files,
@@ -664,6 +680,8 @@ def main():
                 split=f"train[{data_args.validation_split_percentage}%:]",
                 cache_dir=model_args.cache_dir,
             )
+        if "test" not in raw_datasets.keys():
+            raw_datasets["test"] = raw_datasets["validation"]
     logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets
@@ -755,7 +773,7 @@ def main():
                 num_proc=data_args.preprocessing_num_workers,
                 remove_columns=train_dataset.column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on dataset",
+                desc="Running tokenizer on train dataset",
             )
             train_dataset = train_dataset.filter(filter_empty_labels, num_proc=data_args.preprocessing_num_workers)
             logger.debug(f"Num train_samples: {len(train_dataset)}")
@@ -783,12 +801,37 @@ def main():
                 num_proc=data_args.preprocessing_num_workers,
                 remove_columns=eval_dataset.column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on dataset",
+                desc="Running tokenizer on validation dataset",
             )
             eval_dataset = eval_dataset.filter(filter_empty_labels, num_proc=data_args.preprocessing_num_workers)
             logger.debug(f"Num eval_samples: {len(eval_dataset)}")
             logger.debug("Tokenized eval example:")
             logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
+
+    predict_dataset = None
+    max_predict_samples = 0
+    if training_args.do_predict:
+        with training_args.main_process_first(desc="Test dataset tokenization"):
+            if "test" not in raw_datasets:
+                raise ValueError("--do_predict requires a validation dataset")
+            predict_dataset = raw_datasets["test"]
+            max_predict_samples = len(predict_dataset)
+            if data_args.max_predict_samples is not None and data_args.max_predict_samples > 0:
+                max_predict_samples = min(len(predict_dataset), data_args.max_predict_samples)
+                predict_dataset = predict_dataset.select(range(max_predict_samples))
+            logger.debug(f"Example predict_dataset[0]: {predict_dataset[0]}")
+            predict_dataset = predict_dataset.map(
+                preprocess_function,
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                remove_columns=predict_dataset.column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on prediction dataset",
+            )
+            predict_dataset = predict_dataset.filter(filter_empty_labels, num_proc=data_args.preprocessing_num_workers)
+            logger.debug(f"Num predict_samples: {len(predict_dataset)}")
+            logger.debug("Tokenized predict example:")
+            logger.debug(tokenizer.decode(predict_dataset[0]['input_ids']))
 
     # Load model
     if model_args.model_name_or_path:
@@ -858,7 +901,6 @@ def main():
         logger.info("Fine-tuning method: Full parameters training")
         model = model.float()
         print_trainable_parameters(model)
-    logger.debug(f"Model: {model}")
 
     # Initialize our Trainer
     if training_args.gradient_checkpointing:
@@ -872,7 +914,12 @@ def main():
         model.is_parallelizable = True
         model.model_parallel = True
 
-    data_collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, label_pad_token_id=IGNORE_INDEX)
+    data_collator = DataCollatorForSeq2Seq(
+        tokenizer=tokenizer,
+        model=model,
+        label_pad_token_id=IGNORE_INDEX,
+        pad_to_multiple_of=8 if training_args.fp16 else None,
+    )
     # Initialize our Trainer
     trainer = SavePeftModelTrainer(
         model=model,
@@ -886,12 +933,14 @@ def main():
     # Training
     if training_args.do_train:
         logger.info("*** Train ***")
-        sample = next(iter(trainer.get_train_dataloader()))
-        logger.debug(f"Train dataloader example: {sample}")
-        logger.debug(f"Detail input_ids: {list(sample['input_ids'])[:3]}, \nlabels: {list(sample['labels'])[:3]}")
-        logger.debug(f"Decode input_ids[0]: {tokenizer.decode(sample['input_ids'][0])}")
-        replaced_labels = [label if label != IGNORE_INDEX else tokenizer.pad_token_id for label in sample['labels'][0]]
-        logger.debug(f"Decode labels[0]: {tokenizer.decode(replaced_labels)}")
+        if trainer.is_world_process_zero():
+            sample = next(iter(trainer.get_train_dataloader()))
+            logger.debug(f"Train dataloader example: {sample}")
+            logger.debug(f"Detail input_ids: {list(sample['input_ids'])[:3]}, \nlabels: {list(sample['labels'])[:3]}")
+            logger.debug(f"Decode input_ids[0]: {tokenizer.decode(sample['input_ids'][0])}")
+            replaced_labels = [label if label != IGNORE_INDEX else tokenizer.pad_token_id for label in
+                               sample['labels'][0]]
+            logger.debug(f"Decode labels[0]: {tokenizer.decode(replaced_labels)}")
         checkpoint = None
         if training_args.resume_from_checkpoint is not None:
             checkpoint = training_args.resume_from_checkpoint
@@ -899,18 +948,20 @@ def main():
 
         metrics = train_result.metrics
         metrics["train_samples"] = max_train_samples
-        logger.debug(f"Training metrics: {metrics}")
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         model.config.use_cache = True  # enable cache after training
         trainer.save_state()
-        logger.info(f"Saving model checkpoint to {training_args.output_dir}")
-        save_model(training_args.output_dir, model, tokenizer, training_args)
+
+        if trainer.is_world_process_zero():
+            logger.debug(f"Training metrics: {metrics}")
+            logger.info(f"Saving model checkpoint to {training_args.output_dir}")
+            save_model(training_args.output_dir, model, tokenizer, training_args)
 
     # Evaluation
-    if training_args.do_eval and trainer.is_world_process_zero():
+    if training_args.do_eval:
         logger.info("*** Evaluate ***")
-        metrics = trainer.evaluate()
+        metrics = trainer.evaluate(metric_key_prefix="eval")
 
         metrics["eval_samples"] = max_eval_samples
         try:
@@ -918,9 +969,33 @@ def main():
         except OverflowError:
             perplexity = float("inf")
         metrics["perplexity"] = perplexity
-        logger.debug(f"Eval metrics: {metrics}")
+
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
+        if trainer.is_world_process_zero():
+            logger.debug(f"Eval metrics: {metrics}")
+
+    # Predict
+    if training_args.do_predict:
+        logger.info("*** Predict ***")
+
+        predict_results = trainer.predict(predict_dataset, metric_key_prefix="predict")
+        metrics = predict_results.metrics
+        metrics["predict_samples"] = max_predict_samples
+
+        trainer.log_metrics("predict", metrics)
+        trainer.save_metrics("predict", metrics)
+
+        if trainer.is_world_process_zero():
+            predictions = predict_results.predictions
+            predictions = np.where(predictions != IGNORE_INDEX, predictions, tokenizer.pad_token_id)
+            predictions = tokenizer.batch_decode(
+                predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
+            )
+            predictions = [pred.strip() for pred in predictions]
+            output_prediction_file = os.path.join(training_args.output_dir, "generated_predictions.txt")
+            with open(output_prediction_file, "w", encoding="utf-8") as writer:
+                writer.write("\n".join(predictions))
 
 
 if __name__ == "__main__":
