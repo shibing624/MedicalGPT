@@ -138,7 +138,7 @@ def main():
         repetition_penalty=args.repetition_penalty,
     )
     stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
-    if os.path.exists(args.output_file):
+    if local_rank <= 0 and os.path.exists(args.output_file):
         os.remove(args.output_file)
     count = 0
     for batch in tqdm(
