@@ -482,7 +482,7 @@ def main():
         trainer.model.save_pretrained(args.output_dir)
 
     # Evaluation
-    if args.do_eval and trainer.is_world_process_zero():
+    if args.do_eval:
         logger.info("*** Evaluate ***")
         metrics = trainer.evaluate()
         metrics["eval_samples"] = max_eval_samples

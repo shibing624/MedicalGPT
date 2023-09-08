@@ -624,7 +624,7 @@ def main():
         save_model(training_args.output_dir, model, tokenizer, training_args)
 
     # Evaluation
-    if training_args.do_eval and trainer.is_world_process_zero():
+    if training_args.do_eval:
         logger.info("*** Evaluate ***")
         metrics = trainer.evaluate()
 
