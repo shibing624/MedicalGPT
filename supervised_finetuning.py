@@ -451,7 +451,7 @@ register_conv_template(
                       "If you don't know the answer to a question, please don't share false information.\n<</SYS>>\n\n",
         messages=[],
         roles=("[INST]", "[/INST]"),
-        prompt=" [INST] {query} [/INST] ",
+        prompt="[INST] {query} [/INST] ",
         sep="</s>",
     )
 )
@@ -463,13 +463,14 @@ Supports: https://huggingface.co/ziqingyang/chinese-alpaca-2-7b
 register_conv_template(
     Conversation(
         name="llama2-zh",
-        system_prompt="<<SYS>>\nYou are a helpful assistant. 你是一个乐于助人的助手。\n<</SYS>>\n\n",
+        system_prompt="[INST] <<SYS>>\nYou are a helpful assistant. 你是一个乐于助人的助手。\n<</SYS>>\n\n [/INST]",
         messages=[],
         roles=("[INST]", "[/INST]"),
-        prompt=" [INST] {query} [/INST] ",
+        prompt="[INST] {query} [/INST] ",
         sep="</s>",
     )
 )
+
 """XVERSE template
 Supports: https://huggingface.co/xverse/XVERSE-13B-Chat
 """
