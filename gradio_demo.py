@@ -79,7 +79,11 @@ def main():
     parser.add_argument('--gpus', default="0", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
+    parser.add_argument('--share', default=True, help='Share gradio')
+    parser.add_argument('--port', default=8081, type=int, help='Port of gradio demo')
     args = parser.parse_args()
+    print(args)
+
     if args.only_cpu is True:
         args.gpus = ""
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
@@ -95,6 +99,38 @@ def main():
         return y
 
     gr.Chatbot.postprocess = postprocess
+
+    def parse_text(text):
+        """copy from https://github.com/GaiZhenbiao/ChuanhuChatGPT/"""
+        lines = text.split("\n")
+        lines = [line for line in lines if line != ""]
+        count = 0
+        for i, line in enumerate(lines):
+            if "```" in line:
+                count += 1
+                items = line.split('`')
+                if count % 2 == 1:
+                    lines[i] = f'<pre><code class="language-{items[-1]}">'
+                else:
+                    lines[i] = f'<br></code></pre>'
+            else:
+                if i > 0:
+                    if count % 2 == 1:
+                        line = line.replace("`", "\`")
+                        line = line.replace("<", "&lt;")
+                        line = line.replace(">", "&gt;")
+                        line = line.replace(" ", "&nbsp;")
+                        line = line.replace("*", "&ast;")
+                        line = line.replace("_", "&lowbar;")
+                        line = line.replace("-", "&#45;")
+                        line = line.replace(".", "&#46;")
+                        line = line.replace("!", "&#33;")
+                        line = line.replace("(", "&#40;")
+                        line = line.replace(")", "&#41;")
+                        line = line.replace("$", "&#36;")
+                    lines[i] = "<br>" + line
+        text = "".join(lines)
+        return text
 
     load_type = torch.float16
     if torch.cuda.is_available():
@@ -146,15 +182,14 @@ def main():
         return [], []
 
     def predict(
-            input,
+            now_input,
             chatbot,
             history,
             max_new_tokens,
             temperature,
             top_p
     ):
-        now_input = input
-        chatbot.append((input, ""))
+        chatbot.append((parse_text(now_input), ""))
         history = history or []
         history.append([now_input, ''])
 
@@ -176,9 +211,8 @@ def main():
                 new_text = new_text[:pos]
                 stop = True
             response += new_text
-            if history:
-                history[-1][1] += response
-            chatbot[-1] = (now_input, response)
+            history[-1][-1] = response
+            chatbot[-1] = (parse_text(now_input), parse_text(response))
             yield chatbot, history
             if stop:
                 break
@@ -208,7 +242,7 @@ def main():
                         show_progress=True)
         submitBtn.click(reset_user_input, [], [user_input])
         emptyBtn.click(reset_state, outputs=[chatbot, history], show_progress=True)
-    demo.queue().launch(share=False, inbrowser=True, server_name='0.0.0.0', server_port=8081)
+    demo.queue().launch(share=args.share, inbrowser=True, server_name='0.0.0.0', server_port=args.port)
 
 
 if __name__ == '__main__':
