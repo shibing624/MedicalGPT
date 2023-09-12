@@ -170,7 +170,6 @@ def main():
     if device == torch.device('cpu'):
         model.float()
     model.eval()
-    history = []
     prompt_template = get_conv_template(args.template_name)
     stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
 
@@ -178,7 +177,6 @@ def main():
         return gr.update(value='')
 
     def reset_state():
-        history = []
         return [], []
 
     def predict(
