@@ -177,16 +177,17 @@ def main():
                 new_text = new_text[:pos]
                 stop = True
             response += new_text
-            new_history = history + [(now_input, response)]
+            if history:
+                history[-1][1] += response
             chatbot[-1] = (now_input, response)
-            yield chatbot, new_history
+            yield chatbot, history
             if stop:
                 break
 
     with gr.Blocks() as demo:
         gr.HTML("""<h1 align="center">MedicalGPT</h1>""")
         gr.Markdown(
-            "> 为了促进医疗行业大模型的开放研究，本项目开源了MedicalGPT医疗大模型")
+            "> 为了促进医疗行业大模型的开放研究，本项目开源了[MedicalGPT](https://github.com/shibing624/MedicalGPT)医疗大模型")
         chatbot = gr.Chatbot()
         with gr.Row():
             with gr.Column(scale=4):
@@ -208,7 +209,7 @@ def main():
                         show_progress=True)
         submitBtn.click(reset_user_input, [], [user_input])
         emptyBtn.click(reset_state, outputs=[chatbot, history], show_progress=True)
-    demo.queue().launch(share=False, inbrowser=True, server_name='0.0.0.0', server_port=8082)
+    demo.queue().launch(share=False, inbrowser=True, server_name='0.0.0.0', server_port=8081)
 
 
 if __name__ == '__main__':
