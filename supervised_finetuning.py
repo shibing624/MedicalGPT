@@ -823,6 +823,7 @@ def main():
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             config=config,
+            torch_dtype=torch_dtype,
             load_in_8bit=model_args.load_in_8bit,
             low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
             device_map=model_args.device_map,

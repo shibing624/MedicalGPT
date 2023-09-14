@@ -577,6 +577,7 @@ def main():
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             config=config,
+            torch_dtype=torch_dtype,
             load_in_8bit=model_args.load_in_8bit,
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,

@@ -386,6 +386,7 @@ def main():
     model = model_class.from_pretrained(
         args.model_name_or_path,
         config=config,
+        torch_dtype=torch_dtype,
         low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,
@@ -399,6 +400,7 @@ def main():
     model_ref = model_class.from_pretrained(
         args.model_name_or_path,
         config=config,
+        torch_dtype=torch_dtype,
         low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,

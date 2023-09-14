@@ -261,6 +261,7 @@ def main():
     model = AutoModelForCausalLMWithValueHead.from_pretrained(
         args.model_name_or_path,
         config=config,
+        torch_dtype=torch_dtype,
         load_in_8bit=args.load_in_8bit,
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,
