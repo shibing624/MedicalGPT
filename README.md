@@ -280,12 +280,9 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py 
 - Issue(建议)
   ：[![GitHub issues](https://img.shields.io/github/issues/shibing624/MedicalGPT.svg)](https://github.com/shibing624/MedicalGPT/issues)
 - 邮件我：xuming: xuming624@qq.com
-- 微信我： 加我*微信号：xuming624, 备注：姓名-公司名-NLP* 进NLP交流群。
+- 微信我： 加我*微信号：xuming624, 备注：姓名-公司名-NLP* 进NLP交流群（群已满，加我拉你进群）。
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/wechat.jpeg" width="200" />
-
-- WeChat group
-<img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/wechat_group.jpg" width="200" />
 
 
 ## ⚠️ 局限性、使用限制与免责声明
