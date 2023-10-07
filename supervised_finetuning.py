@@ -298,7 +298,7 @@ register_conv_template(
     )
 )
 
-"""Baichuan-13B-Chat template
+"""Baichuan-Chat template
 source: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/f5f47be2adbbdceb784f334d6fa1ca2c73e65097/modeling_baichuan.py#L507
 Support: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
 """
@@ -309,6 +309,21 @@ register_conv_template(
         messages=[],
         roles=("<reserved_102>", "<reserved_103>"),
         prompt=" <reserved_102> {query} <reserved_103> ",
+        sep="</s>",
+    )
+)
+
+"""Baichuan2-Chat template
+Support: https://huggingface.co/baichuan-inc/Baichuan2-7B-Chat
+         https://huggingface.co/baichuan-inc/Baichuan2-13B-Chat
+"""
+register_conv_template(
+    Conversation(
+        name="baichuan2-chat",
+        system_prompt="",
+        messages=[],
+        roles=("<reserved_106>", "<reserved_107>"),
+        prompt=" <reserved_106> {query} <reserved_107> ",
         sep="</s>",
     )
 )
@@ -613,10 +628,7 @@ def main():
         tokenizer.eos_token = prompt_template.stop_str  # eos token is required for SFT
         logger.info("Add eos token: {}".format(tokenizer.eos_token))
     if tokenizer.pad_token_id is None:
-        if tokenizer.unk_token_id is not None:
-            tokenizer.pad_token = tokenizer.unk_token
-        else:
-            tokenizer.pad_token = tokenizer.eos_token
+        tokenizer.pad_token = tokenizer.eos_token
         logger.info("Add pad token: {}".format(tokenizer.pad_token))
 
     logger.debug(f"Tokenizer: {tokenizer}")
