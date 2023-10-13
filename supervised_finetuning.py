@@ -193,6 +193,7 @@ class PeftArguments(TrainingArguments):
 
 class CastOutputToFloat(torch.nn.Module):
     """Cast the output of the model to float"""
+
     def __init__(self, ori_linear: torch.nn.Linear) -> None:
         super().__init__()
         self.in_features = ori_linear.in_features
@@ -861,8 +862,6 @@ def main():
                 bnb_4bit_compute_dtype=torch_dtype,
             ) if training_args.qlora else None,
         )
-        if hasattr(model, 'lm_head'):
-            model.lm_head = CastOutputToFloat(model.lm_head)
     else:
         raise ValueError(f"Error, model_name_or_path is None, SFT must be loaded from a pre-trained model")
 
