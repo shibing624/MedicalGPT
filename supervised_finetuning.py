@@ -313,13 +313,13 @@ register_conv_template(
     )
 )
 
-"""Baichuan-Chat template
+"""Baichuan template
 source: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/f5f47be2adbbdceb784f334d6fa1ca2c73e65097/modeling_baichuan.py#L507
 Support: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
 """
 register_conv_template(
     Conversation(
-        name="baichuan-chat",
+        name="baichuan",
         system_prompt="",
         messages=[],
         roles=("<reserved_102>", "<reserved_103>"),
@@ -328,13 +328,13 @@ register_conv_template(
     )
 )
 
-"""Baichuan2-Chat template
+"""Baichuan2 template
 Support: https://huggingface.co/baichuan-inc/Baichuan2-7B-Chat
          https://huggingface.co/baichuan-inc/Baichuan2-13B-Chat
 """
 register_conv_template(
     Conversation(
-        name="baichuan2-chat",
+        name="baichuan2",
         system_prompt="",
         messages=[],
         roles=("<reserved_106>", "<reserved_107>"),
