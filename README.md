@@ -133,7 +133,7 @@ Training Stage:
 | [LLaMA](https://github.com/facebookresearch/llama)      | 7B/13B/33B/65B              | alpaca        |
 | [LLaMA-2](https://huggingface.co/meta-llama)            | 7B/13B/70B                  | llama2        |
 | [Baichuan](https://github.com/baichuan-inc/baichuan-13B) | 7B/13B                      | baichuan-chat |
-| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)   | 7B/13B                      | baichuan-chat |
+| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)   | 7B/13B                      | baichuan2-chat |
 | [InternLM](https://github.com/InternLM/InternLM)        | 7B                          | intern        |
 | [Qwen](https://github.com/QwenLM/Qwen-7B)               | 7B                          | chatml        |
 | [XVERSE](https://github.com/xverse-ai/XVERSE-13B)       | 13B                         | xverse        |
