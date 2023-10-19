@@ -172,7 +172,6 @@ stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_
 
 
 def predict(sentence):
-    print("Start inference.")
     history = [[sentence, '']]
     prompt = prompt_template.get_prompt(messages=history)
     response = stream_generate_answer(
