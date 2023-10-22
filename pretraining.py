@@ -44,7 +44,9 @@ from transformers import (
     TrainingArguments,
     is_torch_tpu_available,
     set_seed,
+    BitsAndBytesConfig,
 )
+from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.utils.versions import require_version
 
@@ -197,6 +199,7 @@ class PeftArguments(TrainingArguments):
     lora_alpha: Optional[float] = field(default=32.0)
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
+    qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
 
 
 def accuracy(predictions, references, normalize=True, sample_weight=None):
@@ -298,15 +301,27 @@ class SavePeftModelTrainer(Trainer):
         self.model.save_pretrained(output_dir)
 
 
-def save_model(output_dir, model, tokenizer, args):
+def save_model(model, tokenizer, args):
     """Save the model and the tokenizer."""
+    output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
     # Take care of distributed/parallel training
     model_to_save = model.module if hasattr(model, "module") else model
     model_to_save.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
-    torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
+
+
+def save_model_zero3(model, tokenizer, args, trainer):
+    """Save the model for deepspeed zero3.
+    refer https://github.com/lm-sys/FastChat/blob/main/fastchat/train/train_lora.py#L209
+    """
+    output_dir = args.output_dir
+    os.makedirs(output_dir, exist_ok=True)
+    state_dict_zero3 = trainer.model_wrapped._zero3_consolidated_16bit_state_dict()
+    model_to_save = model.module if hasattr(model, "module") else model
+    model_to_save.save_pretrained(args.output_dir, state_dict=state_dict_zero3)
+    tokenizer.save_pretrained(output_dir)
 
 
 def print_trainable_parameters(model):
@@ -566,8 +581,9 @@ def main():
         world_size = int(os.environ.get("WORLD_SIZE", 1))
         ddp = world_size != 1
         if ddp:
-            model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
-
+            model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", 0))}
+        if training_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
+            logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
         config = config_class.from_pretrained(
             model_args.model_name_or_path,
             torch_dtype=torch_dtype,
@@ -579,13 +595,21 @@ def main():
             config=config,
             torch_dtype=torch_dtype,
             load_in_8bit=model_args.load_in_8bit,
+            low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch_dtype,
+            ) if training_args.qlora else None,
         )
     else:
         raise ValueError(f"Error, model_name_or_path is None, Continue PT must be loaded from a pre-trained model")
 
     if training_args.use_peft:
+        logger.info("Fine-tuning method: LoRA(PEFT)")
         if training_args.peft_path is not None:
             logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
             model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
@@ -597,6 +621,8 @@ def main():
             modules_to_save = training_args.modules_to_save
             if modules_to_save is not None:
                 modules_to_save = modules_to_save.split(',')
+                # Resize the embedding layer to match the new tokenizer
+                model.resize_token_embeddings(len(tokenizer))
             logger.info(f"Peft target_modules: {target_modules}")
             logger.info(f"Peft lora_rank: {training_args.lora_rank}")
             peft_config = LoraConfig(
@@ -612,7 +638,7 @@ def main():
             model = prepare_model_for_int8_training(model)
         model.print_trainable_parameters()
     else:
-        logger.info("Full parameters training")
+        logger.info("Fine-tuning method: Full parameters training")
         model = model.float()
         print_trainable_parameters(model)
 
@@ -655,9 +681,16 @@ def main():
         logger.debug(f"Training metrics: {metrics}")
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
+        model.config.use_cache = True  # enable cache after training
         trainer.save_state()
-        logger.info(f"Saving model checkpoint to {training_args.output_dir}")
-        save_model(training_args.output_dir, model, tokenizer, training_args)
+
+        if trainer.is_world_process_zero():
+            logger.debug(f"Training metrics: {metrics}")
+            logger.info(f"Saving model checkpoint to {training_args.output_dir}")
+            if is_deepspeed_zero3_enabled():
+                save_model_zero3(model, tokenizer, training_args, trainer)
+            else:
+                save_model(model, tokenizer, training_args)
 
     # Evaluation
     if training_args.do_eval:
@@ -670,9 +703,11 @@ def main():
         except OverflowError:
             perplexity = float("inf")
         metrics["perplexity"] = perplexity
-        logger.debug(f"Eval metrics: {metrics}")
+
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
+        if trainer.is_world_process_zero():
+            logger.debug(f"Eval metrics: {metrics}")
 
 
 if __name__ == "__main__":
