@@ -28,7 +28,7 @@ import numpy as np
 import torch
 from datasets import load_dataset
 from loguru import logger
-from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
+from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_kbit_training
 from sklearn.metrics import accuracy_score
 from transformers import (
     AutoConfig,
@@ -85,7 +85,6 @@ class ModelArguments:
             )
         },
     )
-    load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
     cache_dir: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
@@ -200,6 +199,7 @@ class PeftArguments(TrainingArguments):
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
     qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
+    load_in_kbits: Optional[int] = field(default=16, metadata={"help": "Kbits to train the model, value is 4, 8, 16"})
 
 
 def accuracy(predictions, references, normalize=True, sample_weight=None):
@@ -584,22 +584,37 @@ def main():
             model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", 0))}
         if training_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
+
         config = config_class.from_pretrained(
             model_args.model_name_or_path,
             torch_dtype=torch_dtype,
             trust_remote_code=model_args.trust_remote_code,
             cache_dir=model_args.cache_dir
         )
+        if training_args.load_in_kbits in [4, 8]:
+            load_in_4bit = training_args.load_in_kbits == 4
+            load_in_8bit = training_args.load_in_kbits == 8
+            if training_args.modules_to_save is not None:
+                load_in_8bit_skip_modules = training_args.modules_to_save.split(',')
+            else:
+                load_in_8bit_skip_modules = None
+        else:
+            load_in_4bit = False
+            load_in_8bit = False
+            load_in_8bit_skip_modules = None
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             config=config,
             torch_dtype=torch_dtype,
-            load_in_8bit=model_args.load_in_8bit,
+            load_in_4bit=load_in_4bit,
+            load_in_8bit=load_in_8bit,
             low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
             device_map=model_args.device_map,
             trust_remote_code=model_args.trust_remote_code,
             quantization_config=BitsAndBytesConfig(
-                load_in_4bit=True,
+                load_in_4bit=load_in_4bit,
+                load_in_8bit=load_in_8bit,
+                load_in_8bit_skip_modules=load_in_8bit_skip_modules,
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
                 bnb_4bit_compute_dtype=torch_dtype,
@@ -615,9 +630,11 @@ def main():
             model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
         else:
             logger.info("Init new peft model")
+            if training_args.load_in_kbits in [4, 8]:
+                model = prepare_model_for_kbit_training(model, training_args.gradient_checkpointing)
             target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
             if target_modules and 'all' in target_modules:
-                target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
+                target_modules = find_all_linear_names(model, int4=load_in_4bit, int8=load_in_8bit)
             modules_to_save = training_args.modules_to_save
             if modules_to_save is not None:
                 modules_to_save = modules_to_save.split(',')
@@ -634,8 +651,6 @@ def main():
                 lora_dropout=training_args.lora_dropout,
                 modules_to_save=modules_to_save)
             model = get_peft_model(model, peft_config)
-        if model_args.load_in_8bit:
-            model = prepare_model_for_int8_training(model)
         model.print_trainable_parameters()
     else:
         logger.info("Fine-tuning method: Full parameters training")
