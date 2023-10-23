@@ -46,9 +46,13 @@ from transformers import (
     set_seed,
     BitsAndBytesConfig,
 )
-from transformers.deepspeed import is_deepspeed_zero3_enabled
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.utils.versions import require_version
+
+try:
+    from transformers.integrations import is_deepspeed_zero3_enabled
+except ImportError:  # https://github.com/huggingface/transformers/releases/tag/v4.33.1
+    from transformers.deepspeed import is_deepspeed_zero3_enabled
 
 MODEL_CLASSES = {
     "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
@@ -199,7 +203,11 @@ class PeftArguments(TrainingArguments):
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
     qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
-    load_in_kbits: Optional[int] = field(default=16, metadata={"help": "Kbits to train the model, value is 4, 8, 16"})
+    load_in_kbits: Optional[int] = field(default=None, metadata={"help": "Kbits to train the model, value is 4, 8"})
+
+    def __post_init__(self):
+        if self.load_in_kbits is not None:
+            assert self.load_in_kbits in [4, 8], "We only accept 4-bit or 8-bit quantization"
 
 
 def accuracy(predictions, references, normalize=True, sample_weight=None):
@@ -353,6 +361,8 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
         if isinstance(module, cls):
             # last layer is not add to lora_module_names
             if 'lm_head' in name:
+                continue
+            if 'output_layer' in name:
                 continue
             names = name.split('.')
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])

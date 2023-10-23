@@ -21,9 +21,10 @@ import math
 import os
 from dataclasses import dataclass, field
 from glob import glob
-from typing import List, Optional, Dict, Sequence
+from typing import Literal, Optional, Tuple, List, Dict, Sequence
 
 import torch
+import torch.nn as nn
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_kbit_training
@@ -43,9 +44,21 @@ from transformers import (
     BitsAndBytesConfig,
     DataCollatorForSeq2Seq,
 )
-from transformers.deepspeed import is_deepspeed_zero3_enabled
+from transformers.models.llama import modeling_llama
+from transformers.models.llama.modeling_llama import LlamaAttention, apply_rotary_pos_emb, repeat_kv
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.trainer_pt_utils import LabelSmoother
+
+try:
+    from transformers.integrations import is_deepspeed_zero3_enabled
+except ImportError:  # https://github.com/huggingface/transformers/releases/tag/v4.33.1
+    from transformers.deepspeed import is_deepspeed_zero3_enabled
+
+try:
+    from flash_attn import flash_attn_func, flash_attn_varlen_func  # type: ignore
+    from flash_attn.bert_padding import pad_input, unpad_input  # type: ignore
+except ImportError:
+    print("FlashAttention-2 is not installed, ignore this if you are not using FlashAttention.")
 
 MODEL_CLASSES = {
     "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
@@ -108,6 +121,18 @@ class ModelArguments:
         default=True,
         metadata={"help": "Whether to trust remote code when loading a model from a remote checkpoint."},
     )
+    rope_scaling: Optional[Literal["linear", "dynamic"]] = field(
+        default=None,
+        metadata={"help": "Adopt scaled rotary positional embeddings."}
+    )
+    flash_attn: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Enable FlashAttention-2 for faster training."}
+    )
+    shift_attn: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Enable shift short attention (S^2-Attn) proposed by LongLoRA."}
+    )
 
     def __post_init__(self):
         if self.model_type is None:
@@ -151,8 +176,6 @@ class DataTrainingArguments:
             )
         },
     )
-    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
-    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     ignore_pad_token_for_loss: bool = field(
         default=True,
         metadata={"help": "If only pad tokens should be ignored. This assumes that `config.pad_token_id` is defined."},
@@ -174,8 +197,6 @@ class DataTrainingArguments:
     def __post_init__(self):
         if self.max_train_samples is not None and 0 < self.max_train_samples <= 1000:
             logger.warning("You may set max_train_samples = -1 to run all samples in production.")
-        if self.max_source_length < 30:
-            raise ValueError("You must specify a valid max_source_length >= 30 to run training.")
 
 
 @dataclass
@@ -188,7 +209,17 @@ class PeftArguments(TrainingArguments):
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None, metadata={"help": "The path to the peft model"})
     qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
-    load_in_kbits: Optional[int] = field(default=16, metadata={"help": "Kbits to train the model, value is 4, 8, 16"})
+    load_in_kbits: Optional[int] = field(default=None, metadata={"help": "Kbits to train the model, value is 4, 8"})
+    model_max_length: int = field(
+        default=512,
+        metadata={"help": "Maximum sequence length. suggest value is 8192 * 4, 8192 * 2, 8192, 4096, 2048, 1024, 512"}
+    )
+
+    def __post_init__(self):
+        if self.load_in_kbits is not None:
+            assert self.load_in_kbits in [4, 8], "We only accept 4-bit or 8-bit quantization"
+        if self.model_max_length < 60:
+            raise ValueError("You must specify a valid model_max_length >= 60 to run training")
 
 
 class CastOutputToFloat(torch.nn.Module):
@@ -211,6 +242,215 @@ class CastOutputToFloat(torch.nn.Module):
         return 'in_features={}, out_features={}, bias={}'.format(
             self.in_features, self.out_features, self.bias is not None
         )
+
+
+# Copied from: https://github.com/hiyouga/LLaMA-Factory/blob/main/src/llmtuner/extras/patches/llama_patch.py
+class LlamaShiftShortAttention(LlamaAttention):
+
+    def forward(
+            self,
+            hidden_states: torch.Tensor,
+            attention_mask: Optional[torch.Tensor] = None,
+            position_ids: Optional[torch.LongTensor] = None,
+            past_key_value: Optional[Tuple[torch.Tensor]] = None,
+            output_attentions: bool = False,
+            use_cache: bool = False,
+            **kwargs
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        bsz, q_len, _ = hidden_states.size()
+
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+
+        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+
+        kv_seq_len = key_states.shape[-2]
+        if past_key_value is not None:
+            kv_seq_len += past_key_value[0].shape[-2]
+
+        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+
+        if past_key_value is not None:  # reuse k, v, self_attention
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+
+        past_key_value = (key_states, value_states) if use_cache else None
+
+        if getattr(self, "num_key_value_groups"):
+            key_states = repeat_kv(key_states, self.num_key_value_groups)
+            value_states = repeat_kv(value_states, self.num_key_value_groups)
+
+        if getattr(self.config, "group_size_ratio", None) and self.training:  # shift
+            groupsz = int(q_len * getattr(self.config, "group_size_ratio"))
+            assert q_len % groupsz == 0, "q_len {} should be divisible by group size {}.".format(q_len, groupsz)
+            num_groups = q_len // groupsz
+
+            def shift(state: torch.Tensor) -> torch.Tensor:
+                state = state.transpose(1, 2)  # output: (bsz, seq_len, n_heads, head_dim)
+                state = torch.cat((
+                    state[:, :, :self.num_heads // 2], state[:, :, self.num_heads // 2:].roll(-groupsz // 2, dims=1)
+                ), dim=2)
+                return state.reshape(bsz * num_groups, groupsz, self.num_heads, self.head_dim).transpose(1, 2)
+
+            query_states, key_states, value_states = shift(query_states), shift(key_states), shift(value_states)
+            if attention_mask is not None:
+                attention_mask = attention_mask[:, :, :groupsz, :groupsz].repeat(num_groups, 1, 1, 1)
+
+        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
+
+        if attention_mask is not None:
+            attn_weights = attn_weights + attention_mask
+
+        # upcast attention to fp32
+        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
+        attn_output = torch.matmul(attn_weights, value_states)  # (bsz, :, seq_len, :) or (bsz*n_group, :, groupsz, :)
+        attn_output = attn_output.transpose(1, 2).contiguous()
+
+        if getattr(self.config, "group_size_ratio", None) and self.training:  # shift back
+            groupsz = int(q_len * getattr(self.config, "group_size_ratio"))
+            attn_output.reshape(bsz, q_len, self.num_heads, self.head_dim)
+            attn_output = torch.cat((
+                attn_output[:, :, :self.num_heads // 2],
+                attn_output[:, :, self.num_heads // 2:].roll(groupsz // 2, dims=1)
+            ))
+
+        attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+        attn_output = self.o_proj(attn_output)
+
+        if not output_attentions:
+            attn_weights = None
+
+        return attn_output, attn_weights, past_key_value
+
+
+class LlamaFlashAttention2(LlamaAttention):
+
+    def forward(
+            self,
+            hidden_states: torch.Tensor,
+            attention_mask: Optional[torch.Tensor] = None,
+            position_ids: Optional[torch.LongTensor] = None,
+            past_key_value: Optional[Tuple[torch.Tensor]] = None,
+            output_attentions: bool = False,
+            use_cache: bool = False,
+            **kwargs
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        # LlamaFlashAttention2 attention does not support output_attentions
+        output_attentions = False
+
+        bsz, q_len, _ = hidden_states.size()
+
+        query_states = self.q_proj(hidden_states)
+        key_states = self.k_proj(hidden_states)
+        value_states = self.v_proj(hidden_states)
+
+        # FlashAttention requires the input to have the shape (bsz, seq_len, n_heads, head_dim)
+        query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
+        key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+        value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
+
+        kv_seq_len = key_states.shape[-2]
+        if past_key_value is not None:
+            kv_seq_len += past_key_value[0].shape[-2]
+
+        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+
+        if past_key_value is not None:  # reuse k, v, self_attention
+            key_states = torch.cat([past_key_value[0], key_states], dim=2)
+            value_states = torch.cat([past_key_value[1], value_states], dim=2)
+
+        past_key_value = (key_states, value_states) if use_cache else None
+
+        # cast to half precision
+        input_dtype = query_states.dtype
+        if input_dtype == torch.float32:
+            logger.warning("The input hidden states seems to be silently casted in float32.")
+            query_states = query_states.to(self.config.torch_dtype)
+            key_states = key_states.to(self.config.torch_dtype)
+            value_states = value_states.to(self.config.torch_dtype)
+
+        if getattr(self, "num_key_value_groups", None):
+            key_states = repeat_kv(key_states, self.num_key_value_groups)
+            value_states = repeat_kv(value_states, self.num_key_value_groups)
+
+        query_states = query_states.transpose(1, 2)  # (bsz, seq_len, n_heads, head_dim)
+        key_states = key_states.transpose(1, 2)  # (bsz, seq_len, n_heads, head_dim)
+        value_states = value_states.transpose(1, 2)  # (bsz, seq_len, n_heads, head_dim)
+
+        if getattr(self.config, "group_size_ratio", None) and self.training:  # shift
+            groupsz = int(q_len * getattr(self.config, "group_size_ratio"))
+            assert q_len % groupsz == 0, "q_len {} should be divisible by group size {}.".format(q_len, groupsz)
+            num_groups = q_len // groupsz
+
+            def shift(state: torch.Tensor) -> torch.Tensor:
+                state = torch.cat((
+                    state[:, :, :self.num_heads // 2], state[:, :, self.num_heads // 2:].roll(-groupsz // 2, dims=1)
+                ), dim=2)
+                return state.reshape(bsz * num_groups, groupsz, self.num_heads, self.head_dim)
+
+            query_states, key_states, value_states = shift(query_states), shift(key_states), shift(value_states)
+            if attention_mask is not None:
+                attention_mask = attention_mask.reshape(bsz * num_groups, groupsz)
+
+        if attention_mask is not None:
+            logger.warning("Padded sequences are less efficient in FlashAttention.")
+            # -q_len: assumes left padding when q_len != kv_len
+            unpadded_q, indices_q, cu_seqlens_q, max_seqlen_q = unpad_input(query_states, attention_mask[:, -q_len:])
+            unpadded_k, _, cu_seqlens_k, max_seqlen_k = unpad_input(key_states, attention_mask)
+            unpadded_v, _, _, _ = unpad_input(value_states, attention_mask)
+            attn_output_unpad = flash_attn_varlen_func(
+                unpadded_q,
+                unpadded_k,
+                unpadded_v,
+                cu_seqlens_q=cu_seqlens_q,
+                cu_seqlens_k=cu_seqlens_k,
+                max_seqlen_q=max_seqlen_q,
+                max_seqlen_k=max_seqlen_k,
+                dropout_p=0.0,
+                softmax_scale=None,
+                causal=True,
+            )
+            attn_output = pad_input(attn_output_unpad, indices_q, bsz, q_len)
+        else:
+            attn_output = flash_attn_func(
+                query_states, key_states, value_states, 0.0, softmax_scale=None, causal=True
+            )
+
+        if getattr(self.config, "group_size_ratio", None) and self.training:  # shift back
+            groupsz = int(q_len * getattr(self.config, "group_size_ratio"))
+            attn_output.reshape(bsz, q_len, self.num_heads, self.head_dim)
+            attn_output = torch.cat((
+                attn_output[:, :, :self.num_heads // 2],
+                attn_output[:, :, self.num_heads // 2:].roll(groupsz // 2, dims=1)
+            ))
+
+        attn_output = attn_output.reshape(bsz, q_len, self.hidden_size).contiguous()
+        attn_output = self.o_proj(attn_output)
+
+        if not output_attentions:
+            attn_weights = None
+
+        return attn_output, attn_weights, past_key_value
+
+
+# Disable the transformation of the attention mask in LlamaModel as flash attention
+# takes a boolean padding_mask. Fills in the past kv length for use in forward.
+def _prepare_decoder_attention_mask(
+        self,
+        attention_mask: torch.Tensor,
+        input_shape: torch.Tensor,
+        inputs_embeds: torch.Tensor,
+        past_key_values_length: int
+) -> torch.Tensor:
+    if attention_mask is not None and torch.all(attention_mask):
+        return None  # This uses the faster call when training with full samples
+
+    return attention_mask
 
 
 @dataclass
@@ -705,9 +945,7 @@ def main():
     logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets
-    max_source_length = data_args.max_source_length
-    max_target_length = data_args.max_target_length
-    max_length = max_source_length + max_target_length
+    max_length = training_args.model_max_length
 
     def preprocess_function(examples):
         """
@@ -749,10 +987,14 @@ def main():
                 source_ids = tokenizer.encode(text=dialog[2 * i], add_special_tokens=(i == 0))
                 target_ids = tokenizer.encode(text=dialog[2 * i + 1], add_special_tokens=False)
 
-                if len(source_ids) > max_source_length:
-                    source_ids = source_ids[:max_source_length]
-                if len(target_ids) > max_target_length - 1:  # eos token
-                    target_ids = target_ids[:max_target_length - 1]
+                total_len = len(source_ids) + len(target_ids)
+                max_source_len = int(max_length * (len(source_ids) / total_len))
+                max_target_len = int(max_length * (len(target_ids) / total_len))
+
+                if len(source_ids) > max_source_len:
+                    source_ids = source_ids[:max_source_len]
+                if len(target_ids) > max_target_len - 1:  # eos token
+                    target_ids = target_ids[:max_target_len - 1]
                 if len(source_ids) > 0 and source_ids[0] == tokenizer.eos_token_id:
                     source_ids = source_ids[1:]
                 if len(target_ids) > 0 and target_ids[-1] == tokenizer.eos_token_id:
@@ -848,6 +1090,54 @@ def main():
             torch_dtype=torch_dtype,
             cache_dir=model_args.cache_dir
         )
+
+        # Set RoPE scaling
+        if model_args.rope_scaling is not None:
+            if hasattr(config, "use_dynamic_ntk"):  # for Qwen models
+                logger.warning("Qwen model does not support RoPE scaling in training.")
+            elif hasattr(config, "rope_scaling"):  # for LLaMA and Falcon models
+                if model_args.rope_scaling == "dynamic":
+                    logger.warning(
+                        "Dynamic NTK may not work well with fine-tuning. "
+                        "See: https://github.com/huggingface/transformers/pull/24653"
+                    )
+                current_max_length = getattr(config, "max_position_embeddings", None)
+                if current_max_length and training_args.model_max_length > current_max_length:
+                    scaling_factor = float(math.ceil(training_args.model_max_length / current_max_length))
+                else:
+                    logger.warning("Input length is smaller than max length. Consider increase input length.")
+                    scaling_factor = 1.0
+
+                setattr(config, "rope_scaling", {"type": model_args.rope_scaling, "factor": scaling_factor})
+                logger.info("Using {} scaling strategy and setting scaling factor to {}".format(
+                    model_args.rope_scaling, scaling_factor
+                ))
+            else:
+                logger.warning("Current model does not support RoPE scaling.")
+
+        # Set FlashAttention-2
+        if model_args.flash_attn:
+            if getattr(config, "model_type", None) == "llama":
+                modeling_llama.LlamaAttention = LlamaFlashAttention2
+                modeling_llama.LlamaModel._prepare_decoder_attention_mask = _prepare_decoder_attention_mask
+                logger.info("Using FlashAttention-2 for faster training and inference.")
+            elif getattr(config, "model_type", None) == "qwen":
+                logger.info("Qwen models automatically enable FlashAttention if installed.")
+            else:
+                logger.warning("Current model does not support FlashAttention-2.")
+        elif model_args.shift_attn and getattr(config, "model_type", None) == "llama":
+            modeling_llama.LlamaAttention = LlamaShiftShortAttention
+            logger.warning("Using `--flash_attn` for faster training in large context length, enable if your GPU"
+                           " is RTX4090, A100 or H100.")
+
+        # Set shift short attention (S^2-Attn)
+        if model_args.shift_attn:
+            if getattr(config, "model_type", None) == "llama":
+                setattr(config, "group_size_ratio", 0.25)
+                logger.info("Using shift short attention with group_size_ratio=1/4.")
+            else:
+                logger.warning("Current model does not support shift short attention.")
+
         if training_args.load_in_kbits in [4, 8]:
             load_in_4bit = training_args.load_in_kbits == 4
             load_in_8bit = training_args.load_in_kbits == 8
@@ -928,7 +1218,7 @@ def main():
         tokenizer=tokenizer,
         model=model,
         label_pad_token_id=IGNORE_INDEX,
-        pad_to_multiple_of=8 if training_args.fp16 else None,
+        pad_to_multiple_of=4,  # for shift short attention
     )
     # Initialize our Trainer
     trainer = SavePeftModelTrainer(

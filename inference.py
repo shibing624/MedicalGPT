@@ -46,6 +46,7 @@ def stream_generate_answer(
         context_len=2048,
         stop_str="</s>",
 ):
+    """Generate answer from prompt with GPT and stream the output"""
     streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
@@ -74,6 +75,38 @@ def stream_generate_answer(
             break
     if do_print:
         print()
+    return generated_text
+
+
+@torch.inference_mode()
+def generate_answer(
+        model,
+        tokenizer,
+        prompt,
+        device,
+        do_print=False,
+        max_new_tokens=512,
+        temperature=0.7,
+        repetition_penalty=1.0,
+        context_len=2048,
+        stop_str="</s>",
+):
+    """Generate answer from prompt with GPT"""
+    input_ids = tokenizer(prompt).input_ids
+    max_src_len = context_len - max_new_tokens - 8
+    input_ids = input_ids[-max_src_len:]
+    generation_kwargs = dict(
+        input_ids=torch.as_tensor([input_ids]).to(device),
+        max_new_tokens=max_new_tokens,
+        temperature=temperature,
+        repetition_penalty=repetition_penalty,
+    )
+    generation_output = model.generate(**generation_kwargs)
+    prompt_length = len(input_ids[0])
+    outputs = generation_output.tolist()[0][prompt_length:]
+    generated_text = tokenizer.decode(outputs, skip_special_tokens=True)
+    if do_print:
+        print(generated_text)
     return generated_text
 
 
@@ -200,7 +233,7 @@ def main():
             # Single turn inference
             history = [[example, '']]
             prompt = prompt_template.get_prompt(messages=history)
-            response = stream_generate_answer(
+            response = generate_answer(
                 model,
                 tokenizer,
                 prompt,
