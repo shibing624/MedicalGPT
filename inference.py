@@ -94,6 +94,7 @@ def batch_generate_answer(
         repetition_penalty=1.0,
 ):
     """Generate answer from prompt with GPT, batch mode"""
+    generated_texts = []
     generation_kwargs = dict(
         max_new_tokens=max_new_tokens,
         do_sample=do_sample,
@@ -104,9 +105,17 @@ def batch_generate_answer(
     inputs_tokens = tokenizer(prompts, return_tensors="pt", padding=True)
     input_ids = inputs_tokens['input_ids'].to(device)
     outputs = model.generate(input_ids=input_ids, **generation_kwargs)
-    prompt_len = len(input_ids[0])
-    outputs = [i[prompt_len:] for i in outputs]
-    generated_texts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+    for gen_sequence in outputs:
+        prompt_len = len(input_ids[0])
+        gen_sequence = gen_sequence[prompt_len:]
+        gen_text = tokenizer.decode(gen_sequence, skip_special_tokens=True)
+        stop_str = tokenizer.eos_token or prompt_template.stop_str
+        pos = gen_text.find(stop_str)
+        if pos != -1:
+            gen_text = gen_text[:pos]
+        gen_text = gen_text.strip()
+        generated_texts.append(gen_text)
+
     return generated_texts
 
 
