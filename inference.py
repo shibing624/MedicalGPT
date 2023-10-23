@@ -246,7 +246,6 @@ def main():
                 tokenizer,
                 prompt_template,
                 device,
-                eval_batch_size=args.eval_batch_size,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty,
