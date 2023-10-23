@@ -229,7 +229,7 @@ def main():
                 history[-1][-1] = response.strip()
     else:
         print("Start inference.")
-        counts = []
+        counts = 0
         if os.path.exists(args.output_file):
             os.remove(args.output_file)
         eval_batch_size = args.eval_batch_size
@@ -251,7 +251,7 @@ def main():
                 repetition_penalty=args.repetition_penalty,
             )
             results = []
-            for example, response in enumerate(batch, responses):
+            for example, response in zip(batch, responses):
                 print(f"===")
                 print(f"Input: {example}")
                 print(f"Output: {response}\n")

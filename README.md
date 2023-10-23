@@ -30,6 +30,8 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - DPO方法来自论文[Direct Preference Optimization:Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
 
 ## 🔥 News
+[2023/10/23] v1.6版本：新增了RoPE插值来扩展GPT模型的上下文长度；针对LLaMA模型支持了[FlashAttention-2](https://github.com/Dao-AILab/flash-attention)和[LongLoRA](https://github.com/dvlab-research/LongLoRA) 提出的 **$S^2$-Attn**；支持了[NEFTune](https://github.com/neelsjain/NEFTune)给embedding加噪训练。详见[Release-v1.6](https://github.com/shibing624/MedicalGPT/releases/tag/1.6.0)
+
 [2023/08/28] v1.5版本: 新增[DPO(直接偏好优化)](https://arxiv.org/pdf/2305.18290.pdf)方法，DPO通过直接优化语言模型来实现对其行为的精确控制，可以有效学习到人类偏好。详见[Release-v1.5](https://github.com/shibing624/MedicalGPT/releases/tag/1.5.0)
 
 [2023/08/08] v1.4版本: 发布基于ShareGPT4数据集微调的中英文Vicuna-13B模型[shibing624/vicuna-baichuan-13b-chat](https://huggingface.co/shibing624/vicuna-baichuan-13b-chat)，和对应的LoRA模型[shibing624/vicuna-baichuan-13b-chat-lora](https://huggingface.co/shibing624/vicuna-baichuan-13b-chat-lora)，详见[Release-v1.4](https://github.com/shibing624/MedicalGPT/releases/tag/1.4.0)
@@ -196,8 +198,8 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 - `--tokenizer_path {tokenizer_path}`：存放对应tokenizer的目录。若不提供此参数，则其默认值与--base_model相同
 - `--template_name`：模板名称，如`vicuna`、`alpaca`等。若不提供此参数，则其默认值是vicuna
 - `--interactive`：以交互方式启动多轮问答，使用流式推理
-- `--data_file {file_name}`：非交互方式启动下，按行读取file_name中的的内容进行预测
-- `--predictions_file {file_name}`：非交互式方式下，将预测的结果以json格式写入file_name
+- `--data_file {file_name}`：非交互方式启动下，读取file_name中的的内容进行batch预测
+- `--output_file {file_name}`：非交互式方式下，将预测的结果以jsonl格式写入file_name
 - `--resize_emb`：是否调整embedding大小，若不调整，则使用预训练模型的embedding大小，默认不调整
 - `--only_cpu`：仅使用CPU进行推理
 - `--gpus {gpu_ids}`：指定使用的GPU设备编号，默认为0。如使用多张GPU，以逗号分隔，如0,1,2
@@ -330,5 +332,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py 
 - [Direct Preference Optimization:Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
 - [tloen/alpaca-lora](https://github.com/tloen/alpaca-lora/blob/main/finetune.py)
 - [ymcui/Chinese-LLaMA-Alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca)
+- [hiyouga/LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory)
+- [dvlab-research/LongLoRA](https://github.com/dvlab-research/LongLoRA)
 
 Thanks for their great work!

@@ -21,6 +21,7 @@ import math
 import os
 from dataclasses import dataclass, field
 from glob import glob
+from types import MethodType
 from typing import Literal, Optional, Tuple, List, Dict, Sequence
 
 import torch
@@ -132,6 +133,10 @@ class ModelArguments:
     shift_attn: Optional[bool] = field(
         default=False,
         metadata={"help": "Enable shift short attention (S^2-Attn) proposed by LongLoRA."}
+    )
+    neft_alpha: Optional[float] = field(
+        default=0,
+        metadata={"help": "The alpha parameter to control the noise magnitude in NEFTune. value can be 5."}
     )
 
     def __post_init__(self):
@@ -1167,6 +1172,22 @@ def main():
                 bnb_4bit_compute_dtype=torch_dtype,
             ) if training_args.qlora else None,
         )
+
+        # Set NEFTune trick for fine-tuning
+        if model_args.neft_alpha > 0:
+            input_embed = model.get_input_embeddings()
+            if isinstance(input_embed, torch.nn.Embedding):
+                def noisy_forward(self: torch.nn.Embedding, x: torch.Tensor) -> torch.Tensor:
+                    embeddings = input_embed.__class__.forward(self, x)
+                    dims = self.num_embeddings * self.embedding_dim
+                    mag_norm = model_args.neft_alpha / (dims ** 0.5)
+                    embeddings += torch.zeros_like(embeddings).uniform_(-mag_norm, mag_norm)
+                    return embeddings
+
+                input_embed.forward = MethodType(noisy_forward, input_embed)
+                logger.info("Using noisy embedding with alpha={:.2f}".format(model_args.neft_alpha))
+            else:
+                logger.warning("Input embeddings are not normal nn.Embedding, cannot transform into noisy embedding.")
     else:
         raise ValueError(f"Error, model_name_or_path is None, SFT must be loaded from a pre-trained model")
 
