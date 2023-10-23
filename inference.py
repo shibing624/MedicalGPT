@@ -54,6 +54,7 @@ def stream_generate_answer(
     generation_kwargs = dict(
         input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
+        do_sample=True,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
         streamer=streamer,
@@ -98,6 +99,7 @@ def generate_answer(
     generation_kwargs = dict(
         input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
+        do_sample=True,
         temperature=temperature,
         repetition_penalty=repetition_penalty,
     )

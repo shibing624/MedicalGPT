@@ -134,6 +134,7 @@ def main():
     write_batch_size = args.batch_size * world_size * 10
     generation_kwargs = dict(
         max_new_tokens=args.max_new_tokens,
+        do_sample=True,
         temperature=args.temperature,
         repetition_penalty=args.repetition_penalty,
     )

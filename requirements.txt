@@ -1,5 +1,5 @@
 loguru
-transformers>=4.34.1
+transformers>=4.33.2
 sentencepiece
 datasets
 tqdm
