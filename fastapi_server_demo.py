@@ -89,121 +89,120 @@ class Item(BaseModel):
     input: str = Field(..., max_length=2048)
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--model_type', default=None, type=str, required=True)
-parser.add_argument('--base_model', default=None, type=str, required=True)
-parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
-parser.add_argument('--tokenizer_path', default=None, type=str)
-parser.add_argument('--template_name', default="vicuna", type=str,
-                    help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
-parser.add_argument("--temperature", type=float, default=0.7)
-parser.add_argument("--repetition_penalty", type=float, default=1.0)
-parser.add_argument("--max_new_tokens", type=int, default=512)
-parser.add_argument('--data_file', default=None, type=str,
-                    help="A file that contains instructions (one instruction per line)")
-parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (single-turn)")
-parser.add_argument('--predictions_file', default='./predictions_result.jsonl', type=str)
-parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
-parser.add_argument('--gpus', default="0", type=str)
-parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
-args = parser.parse_args()
-print(args)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_type', default=None, type=str, required=True)
+    parser.add_argument('--base_model', default=None, type=str, required=True)
+    parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
+    parser.add_argument('--tokenizer_path', default=None, type=str)
+    parser.add_argument('--template_name', default="vicuna", type=str,
+                        help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
+    parser.add_argument("--temperature", default=0.7, type=float)
+    parser.add_argument("--repetition_penalty", default=1.0, type=float)
+    parser.add_argument("--max_new_tokens", default=512, type=int)
+    parser.add_argument('--data_file', default=None, type=str,
+                        help="A file that contains instructions (one instruction per line)")
+    parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (single-turn)")
+    parser.add_argument('--predictions_file', default='./predictions_result.jsonl', type=str)
+    parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
+    parser.add_argument('--gpus', default="0", type=str)
+    parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
+    parser.add_argument('--port', default=8008, type=int)
+    args = parser.parse_args()
+    print(args)
 
+    def load_model(args):
+        if args.only_cpu is True:
+            args.gpus = ""
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
+        load_type = torch.float16
+        if torch.cuda.is_available():
+            device = torch.device(0)
+        else:
+            device = torch.device('cpu')
+        if args.tokenizer_path is None:
+            args.tokenizer_path = args.base_model
 
-def load_model(args):
-    if args.only_cpu is True:
-        args.gpus = ""
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
-    load_type = torch.float16
-    if torch.cuda.is_available():
-        device = torch.device(0)
-    else:
-        device = torch.device('cpu')
-    if args.tokenizer_path is None:
-        args.tokenizer_path = args.base_model
+        model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+        tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
+        base_model = model_class.from_pretrained(
+            args.base_model,
+            load_in_8bit=False,
+            torch_dtype=load_type,
+            low_cpu_mem_usage=True,
+            device_map='auto',
+            trust_remote_code=True,
+        )
+        try:
+            base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
+        except OSError:
+            print("Failed to load generation config, use default.")
+        if args.resize_emb:
+            model_vocab_size = base_model.get_input_embeddings().weight.size(0)
+            tokenzier_vocab_size = len(tokenizer)
+            print(f"Vocab of the base model: {model_vocab_size}")
+            print(f"Vocab of the tokenizer: {tokenzier_vocab_size}")
+            if model_vocab_size != tokenzier_vocab_size:
+                print("Resize model embeddings to fit tokenizer")
+                base_model.resize_token_embeddings(tokenzier_vocab_size)
 
-    model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
-    base_model = model_class.from_pretrained(
-        args.base_model,
-        load_in_8bit=False,
-        torch_dtype=load_type,
-        low_cpu_mem_usage=True,
-        device_map='auto',
-        trust_remote_code=True,
-    )
-    try:
-        base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
-    except OSError:
-        print("Failed to load generation config, use default.")
-    if args.resize_emb:
-        model_vocab_size = base_model.get_input_embeddings().weight.size(0)
-        tokenzier_vocab_size = len(tokenizer)
-        print(f"Vocab of the base model: {model_vocab_size}")
-        print(f"Vocab of the tokenizer: {tokenzier_vocab_size}")
-        if model_vocab_size != tokenzier_vocab_size:
-            print("Resize model embeddings to fit tokenizer")
-            base_model.resize_token_embeddings(tokenzier_vocab_size)
+        if args.lora_model:
+            model = PeftModel.from_pretrained(base_model, args.lora_model, torch_dtype=load_type, device_map='auto')
+            print("Loaded lora model")
+        else:
+            model = base_model
+        if device == torch.device('cpu'):
+            model.float()
+        model.eval()
+        print(tokenizer)
+        return model, tokenizer, device
 
-    if args.lora_model:
-        model = PeftModel.from_pretrained(base_model, args.lora_model, torch_dtype=load_type, device_map='auto')
-        print("Loaded lora model")
-    else:
-        model = base_model
-    if device == torch.device('cpu'):
-        model.float()
-    model.eval()
-    print(tokenizer)
-    return model, tokenizer, device
+    # define the app
+    app = FastAPI()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"])
 
+    model, tokenizer, device = load_model(args)
+    prompt_template = get_conv_template(args.template_name)
+    stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
 
-# define the app
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"])
+    def predict(sentence):
+        history = [[sentence, '']]
+        prompt = prompt_template.get_prompt(messages=history)
+        response = stream_generate_answer(
+            model,
+            tokenizer,
+            prompt,
+            device,
+            do_print=False,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+            repetition_penalty=args.repetition_penalty,
+            stop_str=stop_str,
+        )
+        return response.strip()
 
-model, tokenizer, device = load_model(args)
-prompt_template = get_conv_template(args.template_name)
-stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
+    @app.get('/')
+    async def index():
+        return {"message": "index, docs url: /docs"}
 
+    @app.post('/chat')
+    async def chat(item: Item):
+        try:
+            response = predict(item.input)
+            result_dict = {'response': response}
+            logger.debug(f"Successfully get sentence embeddings, q:{item.input}")
+            return result_dict
+        except Exception as e:
+            logger.error(e)
+            return None
 
-def predict(sentence):
-    history = [[sentence, '']]
-    prompt = prompt_template.get_prompt(messages=history)
-    response = stream_generate_answer(
-        model,
-        tokenizer,
-        prompt,
-        device,
-        do_print=False,
-        max_new_tokens=args.max_new_tokens,
-        temperature=args.temperature,
-        repetition_penalty=args.repetition_penalty,
-        stop_str=stop_str,
-    )
-    return response.strip()
-
-
-@app.get('/')
-async def index():
-    return {"message": "index, docs url: /docs"}
-
-
-@app.post('/chat')
-async def chat(item: Item):
-    try:
-        response = predict(item.input)
-        result_dict = {'response': response}
-        logger.debug(f"Successfully get sentence embeddings, q:{item.input}")
-        return result_dict
-    except Exception as e:
-        logger.error(e)
-        return None
+    uvicorn.run(app=app, host='0.0.0.0', port=args.port, workers=1)
 
 
 if __name__ == '__main__':
-    uvicorn.run(app=app, host='0.0.0.0', port=8008)
+    main()
