@@ -80,7 +80,7 @@ def main():
         args.tokenizer_path = args.base_model
 
     model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
+    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True, padding_side='left')
     load_type = torch.float16
     base_model = model_class.from_pretrained(
         args.base_model,
