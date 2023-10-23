@@ -56,8 +56,8 @@ except ImportError:  # https://github.com/huggingface/transformers/releases/tag/
     from transformers.deepspeed import is_deepspeed_zero3_enabled
 
 try:
-    from flash_attn import flash_attn_func, flash_attn_varlen_func  # type: ignore
-    from flash_attn.bert_padding import pad_input, unpad_input  # type: ignore
+    from flash_attn import flash_attn_func, flash_attn_varlen_func
+    from flash_attn.bert_padding import pad_input, unpad_input
 except ImportError:
     print("FlashAttention-2 is not installed, ignore this if you are not using FlashAttention.")
 
@@ -1110,7 +1110,8 @@ def main():
                 if current_max_length and training_args.model_max_length > current_max_length:
                     scaling_factor = float(math.ceil(training_args.model_max_length / current_max_length))
                 else:
-                    logger.warning("Input length is smaller than max length. Consider increase input length.")
+                    logger.warning(f"Input model_max_length({training_args.model_max_length}) is smaller than max "
+                                   f"length({current_max_length}). Consider increase model_max_length.")
                     scaling_factor = 1.0
 
                 setattr(config, "rope_scaling", {"type": model_args.rope_scaling, "factor": scaling_factor})

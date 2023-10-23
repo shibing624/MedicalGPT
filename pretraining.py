@@ -649,7 +649,9 @@ def main():
             if modules_to_save is not None:
                 modules_to_save = modules_to_save.split(',')
                 # Resize the embedding layer to match the new tokenizer
-                model.resize_token_embeddings(len(tokenizer))
+                embedding_size = model.get_input_embeddings().weight.shape[0]
+                if len(tokenizer) > embedding_size:
+                    model.resize_token_embeddings(len(tokenizer))
             logger.info(f"Peft target_modules: {target_modules}")
             logger.info(f"Peft lora_rank: {training_args.lora_rank}")
             peft_config = LoraConfig(
