@@ -3,8 +3,8 @@
 @author:XuMing(xuming624@qq.com)
 @description: Train a model from SFT using DPO
 """
-
 import os
+from copy import deepcopy
 from dataclasses import dataclass, field
 from glob import glob
 from typing import Dict, Optional
@@ -387,25 +387,14 @@ def main():
         args.model_name_or_path,
         config=config,
         torch_dtype=torch_dtype,
+        load_in_4bit=args.load_in_4bit,
+        load_in_8bit=args.load_in_8bit,
         low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,
         quantization_config=BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch_dtype,
-        ) if args.qlora else None,
-    )
-    model_ref = model_class.from_pretrained(
-        args.model_name_or_path,
-        config=config,
-        torch_dtype=torch_dtype,
-        low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
-        device_map=args.device_map,
-        trust_remote_code=args.trust_remote_code,
-        quantization_config=BitsAndBytesConfig(
-            load_in_4bit=True,
+            load_in_4bit=args.load_in_4bit,
+            load_in_8bit=args.load_in_8bit,
             bnb_4bit_use_double_quant=True,
             bnb_4bit_quant_type="nf4",
             bnb_4bit_compute_dtype=torch_dtype,
@@ -456,7 +445,7 @@ def main():
     )
     trainer = DPOTrainer(
         model,
-        model_ref,
+        ref_model=deepcopy(model),
         args=training_args,
         beta=args.beta,
         train_dataset=train_dataset,

@@ -89,6 +89,8 @@ class ModelArguments:
             )
         },
     )
+    load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
+    load_in_4bit: bool = field(default=False, metadata={"help": "Whether to load the model in 4bit mode or not."})
     cache_dir: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
@@ -203,7 +205,6 @@ class PretrainArguments(TrainingArguments):
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
     qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
-    load_in_kbits: Optional[int] = field(default=None, metadata={"help": "Kbits to train the model, value is 4, 8"})
     deepspeed_plugin: Optional[str] = field(default=None)
     debug: Optional[str] = field(
         default="",
@@ -214,10 +215,6 @@ class PretrainArguments(TrainingArguments):
             )
         },
     )
-
-    def __post_init__(self):
-        if self.load_in_kbits is not None:
-            assert self.load_in_kbits in [4, 8], "We only accept 4-bit or 8-bit quantization"
 
 
 def accuracy(predictions, references, normalize=True, sample_weight=None):
@@ -611,17 +608,12 @@ def main():
             trust_remote_code=model_args.trust_remote_code,
             cache_dir=model_args.cache_dir
         )
-        if training_args.load_in_kbits in [4, 8]:
-            load_in_4bit = training_args.load_in_kbits == 4
-            load_in_8bit = training_args.load_in_kbits == 8
+        load_in_4bit = model_args.load_in_4bit
+        load_in_8bit = model_args.load_in_8bit
+        load_in_8bit_skip_modules = None
+        if load_in_8bit or load_in_4bit:
             if training_args.modules_to_save is not None:
                 load_in_8bit_skip_modules = training_args.modules_to_save.split(',')
-            else:
-                load_in_8bit_skip_modules = None
-        else:
-            load_in_4bit = False
-            load_in_8bit = False
-            load_in_8bit_skip_modules = None
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             config=config,
@@ -650,7 +642,7 @@ def main():
             model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
         else:
             logger.info("Init new peft model")
-            if training_args.load_in_kbits in [4, 8]:
+            if load_in_8bit or load_in_4bit:
                 model = prepare_model_for_kbit_training(model, training_args.gradient_checkpointing)
             target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
             if target_modules and 'all' in target_modules:

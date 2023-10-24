@@ -56,10 +56,12 @@ class ScriptArguments:
         default=None, metadata={"help": "The model checkpoint for weights initialization."}
     )
     reward_model_name_or_path: Optional[str] = field(default=None, metadata={"help": "The reward model name"})
+    reward_model_device: Optional[str] = field(default="cuda:0", metadata={"help": "The reward model device"})
     tokenizer_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "The tokenizer for weights initialization."}
     )
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
+    load_in_4bit: bool = field(default=False, metadata={"help": "Whether to load the model in 4bit mode or not."})
     cache_dir: Optional[str] = field(
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
@@ -98,7 +100,7 @@ class ScriptArguments:
     template_name: Optional[str] = field(default="vicuna", metadata={"help": "The template name."})
     batch_size: Optional[int] = field(default=8, metadata={"help": "Batch size"})
     mini_batch_size: Optional[int] = field(default=1, metadata={"help": "PPO minibatch size"})
-    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
+    max_source_length: Optional[int] = field(default=512, metadata={"help": "Max length of prompt input text"})
     max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     min_target_length: Optional[int] = field(default=4, metadata={"help": "Min length of output text"})
     max_train_samples: Optional[int] = field(
@@ -139,7 +141,7 @@ class ScriptArguments:
     lora_alpha: Optional[float] = field(default=32.0)
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
-
+    # PPO arguments
     do_train: bool = field(default=False, metadata={"help": "Whether to run training."})
     do_eval: bool = field(default=False, metadata={"help": "Whether to run eval on the validation set."})
     early_stopping: Optional[bool] = field(default=False, metadata={"help": "Whether to early stop"})
@@ -168,6 +170,8 @@ class ScriptArguments:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
         if self.reward_model_name_or_path is None:
             raise ValueError("You must specify a valid reward_model_name_or_path to run training.")
+        if self.max_source_length < 60:
+            raise ValueError("You must specify a valid max_source_length >= 60 to run training")
 
 
 def print_trainable_parameters(model):
@@ -262,6 +266,7 @@ def main():
         args.model_name_or_path,
         config=config,
         torch_dtype=torch_dtype,
+        load_in_4bit=args.load_in_4bit,
         load_in_8bit=args.load_in_8bit,
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,
@@ -269,7 +274,8 @@ def main():
     )
     print_trainable_parameters(model)
     # Load reward model
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    default_device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = args.reward_model_device if args.reward_model_device is not None else default_device
     reward_config = config_class.from_pretrained(
         args.reward_model_name_or_path,
         torch_dtype=torch_dtype,
