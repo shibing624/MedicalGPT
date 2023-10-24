@@ -205,7 +205,7 @@ class DataTrainingArguments:
 
 
 @dataclass
-class PeftArguments(TrainingArguments):
+class FinetuneArguments(TrainingArguments):
     use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
     target_modules: Optional[str] = field(default="all")
     lora_rank: Optional[int] = field(default=8)
@@ -865,7 +865,7 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
 
 
 def main():
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, PeftArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, FinetuneArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
     logger.info(f"Model args: {model_args}")
