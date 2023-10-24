@@ -204,6 +204,16 @@ class PretrainArguments(TrainingArguments):
     peft_path: Optional[str] = field(default=None)
     qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
     load_in_kbits: Optional[int] = field(default=None, metadata={"help": "Kbits to train the model, value is 4, 8"})
+    deepspeed_plugin: Optional[str] = field(default=None)
+    debug: Optional[str] = field(
+        default="",
+        metadata={
+            "help": (
+                "Whether or not to enable debug mode. default is '', "
+                "`underflow_overflow` (Detect underflow and overflow in activations and weights), "
+            )
+        },
+    )
 
     def __post_init__(self):
         if self.load_in_kbits is not None:
