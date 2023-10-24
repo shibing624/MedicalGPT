@@ -219,6 +219,16 @@ class PeftArguments(TrainingArguments):
         default=512,
         metadata={"help": "Maximum sequence length. suggest value is 8192 * 4, 8192 * 2, 8192, 4096, 2048, 1024, 512"}
     )
+    deepspeed_plugin: Optional[str] = field(default=None)
+    debug: Optional[str] = field(
+        default="",
+        metadata={
+            "help": (
+                "Whether or not to enable debug mode. default is '', "
+                "`underflow_overflow` (Detect underflow and overflow in activations and weights), "
+            )
+        },
+    )
 
     def __post_init__(self):
         if self.load_in_kbits is not None:
@@ -1221,7 +1231,7 @@ def main():
         model.print_trainable_parameters()
     else:
         logger.info("Fine-tuning method: Full parameters training")
-        model = model.float()
+        # model = model.float()
         print_trainable_parameters(model)
 
     # Initialize our Trainer
