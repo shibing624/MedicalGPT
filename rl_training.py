@@ -239,23 +239,28 @@ def main():
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 0  # set as the <unk> token
 
-    logger.info("Load model")
-    peft_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        target_modules=args.target_modules,
-        inference_mode=False,
-        r=args.lora_rank,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-    )
+    # Load model
+    peft_config = None
+    if args.use_peft:
+        logger.info("Fine-tuning method: LoRA(PEFT)")
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            target_modules=args.target_modules,
+            inference_mode=False,
+            r=args.lora_rank,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+        )
+    else:
+        logger.info("Fine-tuning method: Full parameters training")
     torch_dtype = (
         args.torch_dtype
         if args.torch_dtype in ["auto", None]
         else getattr(torch, args.torch_dtype)
     )
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
     if world_size > 1:
-        args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+        args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
     config = config_class.from_pretrained(
         args.model_name_or_path,
         torch_dtype=torch_dtype,
@@ -503,9 +508,9 @@ def main():
 
             if step and step % args.save_steps == 0:
                 save_dir = os.path.join(output_dir, f"checkpoint-{step}")
-                save_model(save_dir)
+                trainer.save_pretrained(save_dir)
         # Save final model
-        save_model(output_dir)
+        trainer.save_pretrained(output_dir)
 
 
 if __name__ == "__main__":

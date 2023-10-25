@@ -618,7 +618,6 @@ def main():
 
         metrics = train_result.metrics
         metrics["train_samples"] = max_train_samples
-        logger.debug(f"Training metrics: {metrics}")
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()

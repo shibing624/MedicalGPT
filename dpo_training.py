@@ -371,10 +371,10 @@ def main():
         if args.torch_dtype in ["auto", None]
         else getattr(torch, args.torch_dtype)
     )
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
     ddp = world_size != 1
     if ddp:
-        args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+        args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
     if args.qlora and is_deepspeed_zero3_enabled():
         logger.warning("ZeRO3 are both currently incompatible with QLoRA.")
     config = config_class.from_pretrained(
@@ -431,18 +431,23 @@ def main():
     )
 
     # Initialize DPO trainer
-    target_modules = args.target_modules.split(',') if args.target_modules else None
-    if target_modules and 'all' in target_modules:
-        target_modules = find_all_linear_names(model, int4=args.load_in_4bit, int8=args.load_in_8bit)
-    logger.info(f"Peft target_modules: {target_modules}")
-    peft_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        target_modules=target_modules,
-        inference_mode=False,
-        r=args.lora_rank,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-    )
+    peft_config = None
+    if args.use_peft:
+        logger.info("Fine-tuning method: LoRA(PEFT)")
+        target_modules = args.target_modules.split(',') if args.target_modules else None
+        if target_modules and 'all' in target_modules:
+            target_modules = find_all_linear_names(model, int4=args.load_in_4bit, int8=args.load_in_8bit)
+        logger.info(f"Peft target_modules: {target_modules}")
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            target_modules=target_modules,
+            inference_mode=False,
+            r=args.lora_rank,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+        )
+    else:
+        logger.info("Fine-tuning method: Full parameters training")
     trainer = DPOTrainer(
         model,
         ref_model=deepcopy(model),
@@ -463,23 +468,25 @@ def main():
         train_result = trainer.train()
         metrics = train_result.metrics
         metrics["train_samples"] = max_train_samples
-        logger.debug(f"Training metrics: {metrics}")
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
-        logger.info(f"Saving model checkpoint to {args.output_dir}")
-        trainer.save_model(args.output_dir)
-        tokenizer.save_pretrained(args.output_dir)
-        trainer.model.save_pretrained(args.output_dir)
+        if trainer.is_world_process_zero():
+            logger.debug(f"Training metrics: {metrics}")
+            logger.info(f"Saving model checkpoint to {args.output_dir}")
+            trainer.save_model(args.output_dir)
+            tokenizer.save_pretrained(args.output_dir)
+            trainer.model.save_pretrained(args.output_dir)
 
     # Evaluation
     if args.do_eval:
         logger.info("*** Evaluate ***")
         metrics = trainer.evaluate()
         metrics["eval_samples"] = max_eval_samples
-        logger.debug(f"Eval metrics: {metrics}")
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
+        if trainer.is_world_process_zero():
+            logger.debug(f"Eval metrics: {metrics}")
 
 
 if __name__ == "__main__":

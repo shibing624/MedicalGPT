@@ -584,10 +584,10 @@ def main():
             if model_args.torch_dtype in ["auto", None]
             else getattr(torch, model_args.torch_dtype)
         )
-        world_size = int(os.environ.get("WORLD_SIZE", 1))
+        world_size = int(os.environ.get("WORLD_SIZE", "1"))
         ddp = world_size != 1
         if ddp:
-            model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", 0))}
+            model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
         if script_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
 
@@ -696,7 +696,6 @@ def main():
 
         metrics = train_result.metrics
         metrics["train_samples"] = max_train_samples
-        logger.debug(f"Training metrics: {metrics}")
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
