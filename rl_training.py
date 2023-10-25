@@ -465,10 +465,6 @@ def main():
         "do_sample": True,
     }
 
-    def save_model(save_dir):
-        trainer.accelerator.unwrap_model(trainer.model).save_pretrained(save_dir)
-        trainer.tokenizer.save_pretrained(save_dir)
-
     # Training
     if args.do_train:
         logger.info("*** Train ***")

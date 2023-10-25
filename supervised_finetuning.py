@@ -958,6 +958,7 @@ def main():
             part of code modified from https://github.com/lm-sys/FastChat
         """
         input_ids_list = []
+        attention_mask_list = []
         targets_list = []
         roles = ["human", "gpt"]
 
@@ -1011,10 +1012,12 @@ def main():
                 labels += [IGNORE_INDEX] * len(source_ids) + target_ids + [tokenizer.eos_token_id]
 
             input_ids_list.append(input_ids)
+            attention_mask_list.append([1] * len(input_ids))
             targets_list.append(labels)
 
         return dict(
             input_ids=input_ids_list,
+            attention_mask=attention_mask_list,
             labels=targets_list,
         )
 
