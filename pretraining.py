@@ -601,6 +601,7 @@ def main():
         load_in_8bit = model_args.load_in_8bit
         load_in_8bit_skip_modules = None
         if load_in_8bit or load_in_4bit:
+            logger.info(f"Quantizing model, load_in_4bit: {load_in_4bit}, load_in_8bit: {load_in_8bit}")
             if script_args.modules_to_save is not None:
                 load_in_8bit_skip_modules = script_args.modules_to_save.split(',')
         model = model_class.from_pretrained(

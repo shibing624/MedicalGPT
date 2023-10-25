@@ -365,7 +365,7 @@ def main():
         logger.debug("First eval example:")
         logger.debug(eval_dataset[0]['prompt'] + eval_dataset[0]['chosen'])
 
-    logger.info("Loading model")
+    # Load model
     torch_dtype = (
         args.torch_dtype
         if args.torch_dtype in ["auto", None]
@@ -375,6 +375,7 @@ def main():
     ddp = world_size != 1
     if ddp:
         args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
+    logger.info(f"Device map: {args.device_map}")
     if args.qlora and is_deepspeed_zero3_enabled():
         logger.warning("ZeRO3 are both currently incompatible with QLoRA.")
     config = config_class.from_pretrained(
@@ -383,6 +384,8 @@ def main():
         torch_dtype=torch_dtype,
         cache_dir=args.cache_dir
     )
+    if args.load_in_4bit or args.load_in_8bit:
+        logger.info(f"Quantizing model, load_in_4bit: {args.load_in_4bit}, load_in_8bit: {args.load_in_8bit}")
     model = model_class.from_pretrained(
         args.model_name_or_path,
         config=config,
