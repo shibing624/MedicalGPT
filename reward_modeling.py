@@ -73,6 +73,7 @@ class ModelArguments:
             )
         },
     )
+    load_in_4bit: bool = field(default=False, metadata={"help": "Whether to load the model in 4bit mode or not."})
     load_in_8bit: bool = field(default=False, metadata={"help": "Whether to load the model in 8bit mode or not."})
     cache_dir: Optional[str] = field(
         default=None,
@@ -111,7 +112,7 @@ class ModelArguments:
 
 
 @dataclass
-class DataTrainingArguments:
+class DataArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
@@ -160,7 +161,7 @@ class DataTrainingArguments:
 
 
 @dataclass
-class PeftArguments(TrainingArguments):
+class ScriptArguments:
     use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
     target_modules: Optional[str] = field(default="all")
     lora_rank: Optional[int] = field(default=8)
@@ -292,15 +293,15 @@ class RewardTrainer(Trainer):
         self.model.save_pretrained(output_dir)
 
 
-def save_model(output_dir, model, tokenizer, args):
+def save_model(model, tokenizer, args):
     """Save the model and the tokenizer."""
+    output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
 
     # Take care of distributed/parallel training
     model_to_save = model.module if hasattr(model, "module") else model
     model_to_save.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
-    torch.save(args, os.path.join(output_dir, TRAINING_ARGS_NAME))
 
 
 class CastOutputToFloat(torch.nn.Sequential):
@@ -347,12 +348,13 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
 
 
 def main():
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, PeftArguments))
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    parser = HfArgumentParser((ModelArguments, DataArguments, TrainingArguments, ScriptArguments))
+    model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses()
 
     logger.info(f"Model args: {model_args}")
     logger.info(f"Data args: {data_args}")
     logger.info(f"Training args: {training_args}")
+    logger.info(f"Script args: {script_args}")
     logger.info(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
@@ -362,8 +364,6 @@ def main():
     set_seed(training_args.seed)
 
     # Load model
-    if not model_args.model_type:
-        raise ValueError("Please specify a model_type, e.g. llama, chatglm, bloom, etc.")
     config_class, model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
     if model_args.model_name_or_path:
         torch_dtype = (
@@ -371,9 +371,9 @@ def main():
             if model_args.torch_dtype in ["auto", None]
             else getattr(torch, model_args.torch_dtype)
         )
-        world_size = int(os.environ.get("WORLD_SIZE", 1))
+        world_size = int(os.environ.get("WORLD_SIZE", "1"))
         if world_size > 1:
-            model_args.device_map = {"": int(os.environ["LOCAL_RANK"]) or 0}
+            model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
         config = config_class.from_pretrained(
             model_args.model_name_or_path,
             num_labels=1,
@@ -386,11 +386,11 @@ def main():
                 model_args.model_name_or_path,
                 config=config,
                 torch_dtype=torch_dtype,
+                load_in_4bit=model_args.load_in_4bit,
                 load_in_8bit=model_args.load_in_8bit,
                 device_map=model_args.device_map,
                 trust_remote_code=model_args.trust_remote_code,
             )
-            model.score = CastOutputToFloat(model.score)
         else:
             model = model_class.from_pretrained(
                 model_args.model_name_or_path,
@@ -417,34 +417,35 @@ def main():
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token_id = 0
 
-    if training_args.use_peft:
-        if training_args.peft_path is not None:
-            logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
-            model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
+    if script_args.use_peft:
+        logger.info("Fine-tuning method: LoRA(PEFT)")
+        if script_args.peft_path is not None:
+            logger.info(f"Peft from pre-trained model: {script_args.peft_path}")
+            model = PeftModel.from_pretrained(model, script_args.peft_path, is_trainable=True)
         else:
             logger.info("Init new peft model")
-            target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
+            if model_args.load_in_8bit:
+                model = prepare_model_for_int8_training(model)
+            target_modules = script_args.target_modules.split(',') if script_args.target_modules else None
             if target_modules and 'all' in target_modules:
                 target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)
-            modules_to_save = training_args.modules_to_save
+            modules_to_save = script_args.modules_to_save
             if modules_to_save is not None:
                 modules_to_save = modules_to_save.split(',')
             logger.info(f"Peft target_modules: {target_modules}")
-            logger.info(f"Peft lora_rank: {training_args.lora_rank}")
+            logger.info(f"Peft lora_rank: {script_args.lora_rank}")
             peft_config = LoraConfig(
                 task_type=TaskType.SEQ_CLS,
                 target_modules=target_modules,
                 inference_mode=False,
-                r=training_args.lora_rank,
-                lora_alpha=training_args.lora_alpha,
-                lora_dropout=training_args.lora_dropout,
+                r=script_args.lora_rank,
+                lora_alpha=script_args.lora_alpha,
+                lora_dropout=script_args.lora_dropout,
                 modules_to_save=modules_to_save)
             model = get_peft_model(model, peft_config)
-        if model_args.load_in_8bit:
-            model = prepare_model_for_int8_training(model)
         model.print_trainable_parameters()
     else:
-        logger.info("Full parameters training")
+        logger.info("Fine-tuning method: Full parameters training")
         print_trainable_parameters(model)
 
     # Get reward dataset for tuning the reward model.
@@ -621,8 +622,12 @@ def main():
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
         trainer.save_state()
-        logger.info(f"Saving model checkpoint to {training_args.output_dir}")
-        save_model(training_args.output_dir, model, tokenizer, training_args)
+
+        model.config.use_cache = True  # enable cache after training
+        if trainer.is_world_process_zero():
+            logger.debug(f"Training metrics: {metrics}")
+            logger.info(f"Saving model checkpoint to {training_args.output_dir}")
+            save_model(model, tokenizer, training_args)
 
     # Evaluation
     if training_args.do_eval:
@@ -635,9 +640,10 @@ def main():
         except OverflowError:
             perplexity = float("inf")
         metrics["perplexity"] = perplexity
-        logger.debug(f"Eval metrics: {metrics}")
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
+        if trainer.is_world_process_zero():
+            logger.debug(f"Eval metrics: {metrics}")
 
 
 if __name__ == "__main__":

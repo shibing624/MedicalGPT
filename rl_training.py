@@ -100,7 +100,7 @@ class ScriptArguments:
     template_name: Optional[str] = field(default="vicuna", metadata={"help": "The template name."})
     batch_size: Optional[int] = field(default=8, metadata={"help": "Batch size"})
     mini_batch_size: Optional[int] = field(default=1, metadata={"help": "PPO minibatch size"})
-    max_source_length: Optional[int] = field(default=512, metadata={"help": "Max length of prompt input text"})
+    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
     max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
     min_target_length: Optional[int] = field(default=4, metadata={"help": "Min length of output text"})
     max_train_samples: Optional[int] = field(

@@ -41,7 +41,7 @@ from transformers import (
     AutoTokenizer,
     HfArgumentParser,
     Trainer,
-    TrainingArguments,
+    Seq2SeqTrainingArguments,
     is_torch_tpu_available,
     set_seed,
     BitsAndBytesConfig,
@@ -128,7 +128,7 @@ class ModelArguments:
 
 
 @dataclass
-class DataTrainingArguments:
+class DataArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
     """
@@ -196,7 +196,7 @@ class DataTrainingArguments:
 
 
 @dataclass
-class PretrainArguments(TrainingArguments):
+class ScriptArguments:
     use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
     target_modules: Optional[str] = field(default="all")
     lora_rank: Optional[int] = field(default=8)
@@ -205,16 +205,6 @@ class PretrainArguments(TrainingArguments):
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
     qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
-    deepspeed_plugin: Optional[str] = field(default=None)
-    debug: Optional[str] = field(
-        default="",
-        metadata={
-            "help": (
-                "Whether or not to enable debug mode. default is '', "
-                "`underflow_overflow` (Detect underflow and overflow in activations and weights), "
-            )
-        },
-    )
 
 
 def accuracy(predictions, references, normalize=True, sample_weight=None):
@@ -377,12 +367,13 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
 
 
 def main():
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, PretrainArguments))
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    parser = HfArgumentParser((ModelArguments, DataArguments, Seq2SeqTrainingArguments, ScriptArguments))
+    model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses()
 
     logger.info(f"Model args: {model_args}")
     logger.info(f"Data args: {data_args}")
     logger.info(f"Training args: {training_args}")
+    logger.info(f"Script args: {script_args}")
     logger.info(
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
@@ -392,8 +383,6 @@ def main():
     set_seed(training_args.seed)
 
     # Load tokenizer
-    if not model_args.model_type:
-        raise ValueError("Please specify a model_type, e.g. llama, chatglm, bloom, etc.")
     config_class, model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
 
     tokenizer_kwargs = {
@@ -599,7 +588,7 @@ def main():
         ddp = world_size != 1
         if ddp:
             model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", 0))}
-        if training_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
+        if script_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
 
         config = config_class.from_pretrained(
@@ -612,8 +601,8 @@ def main():
         load_in_8bit = model_args.load_in_8bit
         load_in_8bit_skip_modules = None
         if load_in_8bit or load_in_4bit:
-            if training_args.modules_to_save is not None:
-                load_in_8bit_skip_modules = training_args.modules_to_save.split(',')
+            if script_args.modules_to_save is not None:
+                load_in_8bit_skip_modules = script_args.modules_to_save.split(',')
         model = model_class.from_pretrained(
             model_args.model_name_or_path,
             config=config,
@@ -630,24 +619,24 @@ def main():
                 bnb_4bit_use_double_quant=True,
                 bnb_4bit_quant_type="nf4",
                 bnb_4bit_compute_dtype=torch_dtype,
-            ) if training_args.qlora else None,
+            ) if script_args.qlora else None,
         )
     else:
         raise ValueError(f"Error, model_name_or_path is None, Continue PT must be loaded from a pre-trained model")
 
-    if training_args.use_peft:
+    if script_args.use_peft:
         logger.info("Fine-tuning method: LoRA(PEFT)")
-        if training_args.peft_path is not None:
-            logger.info(f"Peft from pre-trained model: {training_args.peft_path}")
-            model = PeftModel.from_pretrained(model, training_args.peft_path, is_trainable=True)
+        if script_args.peft_path is not None:
+            logger.info(f"Peft from pre-trained model: {script_args.peft_path}")
+            model = PeftModel.from_pretrained(model, script_args.peft_path, is_trainable=True)
         else:
             logger.info("Init new peft model")
             if load_in_8bit or load_in_4bit:
                 model = prepare_model_for_kbit_training(model, training_args.gradient_checkpointing)
-            target_modules = training_args.target_modules.split(',') if training_args.target_modules else None
+            target_modules = script_args.target_modules.split(',') if script_args.target_modules else None
             if target_modules and 'all' in target_modules:
                 target_modules = find_all_linear_names(model, int4=load_in_4bit, int8=load_in_8bit)
-            modules_to_save = training_args.modules_to_save
+            modules_to_save = script_args.modules_to_save
             if modules_to_save is not None:
                 modules_to_save = modules_to_save.split(',')
                 # Resize the embedding layer to match the new tokenizer
@@ -655,14 +644,14 @@ def main():
                 if len(tokenizer) > embedding_size:
                     model.resize_token_embeddings(len(tokenizer))
             logger.info(f"Peft target_modules: {target_modules}")
-            logger.info(f"Peft lora_rank: {training_args.lora_rank}")
+            logger.info(f"Peft lora_rank: {script_args.lora_rank}")
             peft_config = LoraConfig(
                 task_type=TaskType.CAUSAL_LM,
                 target_modules=target_modules,
                 inference_mode=False,
-                r=training_args.lora_rank,
-                lora_alpha=training_args.lora_alpha,
-                lora_dropout=training_args.lora_dropout,
+                r=script_args.lora_rank,
+                lora_alpha=script_args.lora_alpha,
+                lora_dropout=script_args.lora_dropout,
                 modules_to_save=modules_to_save)
             model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
@@ -710,8 +699,11 @@ def main():
         logger.debug(f"Training metrics: {metrics}")
         trainer.log_metrics("train", metrics)
         trainer.save_metrics("train", metrics)
-        model.config.use_cache = True  # enable cache after training
         trainer.save_state()
+
+        model.config.use_cache = True  # enable cache after training
+        tokenizer.padding_side = "left"  # restore padding side
+        tokenizer.init_kwargs["padding_side"] = "left"
 
         if trainer.is_world_process_zero():
             logger.debug(f"Training metrics: {metrics}")

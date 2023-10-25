@@ -1,7 +1,7 @@
 loguru
 transformers>=4.33.2
 sentencepiece
-datasets
+datasets>=2.14.6
 tqdm
 tensorboard
 tqdm>=4.47.0
