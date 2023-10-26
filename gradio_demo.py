@@ -103,7 +103,7 @@ def main():
         streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
         input_ids = tokenizer(prompt).input_ids
         context_len = 2048
-        max_new_tokens = 1024
+        max_new_tokens = 512
         max_src_len = context_len - max_new_tokens - 8
         input_ids = input_ids[-max_src_len:]
         generation_kwargs = dict(
@@ -112,7 +112,6 @@ def main():
             max_new_tokens=max_new_tokens,
             do_sample=True,
             temperature=0.7,
-            top_p=0.8,
             repetition_penalty=1.0,
         )
         thread = Thread(target=model.generate, kwargs=generation_kwargs)
