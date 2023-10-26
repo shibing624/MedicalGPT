@@ -44,11 +44,13 @@ def stream_generate_answer(
         prompt,
         device,
         max_new_tokens=512,
+        do_sample=True,
         temperature=0.7,
         top_p=0.8,
         repetition_penalty=1.0,
         context_len=2048,
 ):
+    """Generate answer from prompt with GPT and stream the output"""
     streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
     input_ids = tokenizer(prompt).input_ids
     max_src_len = context_len - max_new_tokens - 8
@@ -56,12 +58,12 @@ def stream_generate_answer(
     generation_kwargs = dict(
         input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
+        do_sample=do_sample,
         temperature=temperature,
         top_p=top_p,
         repetition_penalty=repetition_penalty,
         streamer=streamer,
     )
-
     thread = Thread(target=model.generate, kwargs=generation_kwargs)
     thread.start()
 
@@ -144,7 +146,6 @@ def main():
     tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
     base_model = model_class.from_pretrained(
         args.base_model,
-        load_in_8bit=False,
         torch_dtype=load_type,
         low_cpu_mem_usage=True,
         device_map='auto',
@@ -193,7 +194,6 @@ def main():
 
         prompt = prompt_template.get_prompt(messages=history)
         response = ""
-
         for new_text in stream_generate_answer(
                 model,
                 tokenizer,
