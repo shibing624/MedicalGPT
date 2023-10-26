@@ -98,8 +98,8 @@ def main():
 
     def predict(message, history):
         """Generate answer from prompt with GPT and stream the output"""
-        history.append([message, ''])
-        prompt = prompt_template.get_prompt(messages=history)
+        history_messages = history + [[message, ""]]
+        prompt = prompt_template.get_prompt(messages=history_messages)
         streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
         input_ids = tokenizer(prompt).input_ids
         context_len = 2048
