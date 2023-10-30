@@ -4,7 +4,6 @@
 @description:
 
 pip install gradio>=3.50.2
-pip install mdtex2html
 """
 import argparse
 import os
