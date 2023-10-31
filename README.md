@@ -128,18 +128,19 @@ Training Stage:
 
 #### Supported Models
 
-| Model Name                                               | Model Size                  | Template   |
-|----------------------------------------------------------|-----------------------------|------------|
-| [BLOOMZ](https://huggingface.co/bigscience/bloomz)       | 560M/1.1B/1.7B/3B/7.1B/176B | vicuna     |
-| [LLaMA](https://github.com/facebookresearch/llama)       | 7B/13B/33B/65B              | alpaca     |
-| [LLaMA-2](https://huggingface.co/meta-llama)             | 7B/13B/70B                  | llama2     |
-| [Baichuan](https://github.com/baichuan-inc/baichuan-13B) | 7B/13B                      | baichuan   |
-| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)   | 7B/13B                      | baichuan2  |
-| [InternLM](https://github.com/InternLM/InternLM)         | 7B                          | intern     |
-| [Qwen](https://github.com/QwenLM/Qwen-7B)                | 7B                          | chatml     |
-| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)        | 13B                         | xverse     |
-| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)           | 6B                          | chatglm    |
-| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)         | 6B                          | chatglm2   |
+| Model Name                                               | Model Size                  | Template  |
+|----------------------------------------------------------|-----------------------------|-----------|
+| [BLOOMZ](https://huggingface.co/bigscience/bloomz)       | 560M/1.1B/1.7B/3B/7.1B/176B | vicuna    |
+| [LLaMA](https://github.com/facebookresearch/llama)       | 7B/13B/33B/65B              | alpaca    |
+| [LLaMA-2](https://huggingface.co/meta-llama)             | 7B/13B/70B                  | llama2    |
+| [Baichuan](https://github.com/baichuan-inc/baichuan-13B) | 7B/13B                      | baichuan  |
+| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)   | 7B/13B                      | baichuan2 |
+| [InternLM](https://github.com/InternLM/InternLM)         | 7B                          | intern    |
+| [Qwen](https://github.com/QwenLM/Qwen-7B)                | 7B                          | chatml    |
+| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)        | 13B                         | xverse    |
+| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)           | 6B                          | chatglm   |
+| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)         | 6B                          | chatglm2  |
+| [ChatGLM3](https://github.com/THUDM/ChatGLM3)            | 6B                          | chatglm3  |
 
 The following models are tested:
 
@@ -164,6 +165,7 @@ llama2:
 chatglm:
 - [THUDM/chatglm-6b](https://huggingface.co/THUDM/chatglm-6b)
 - [THUDM/chatglm2-6b](https://huggingface.co/THUDM/chatglm2-6b)
+- [THUDM/chatglm3-6b](https://huggingface.co/THUDM/chatglm3-6b)
 
 baichuan:
 - [baichuan-inc/baichuan-7B](https://huggingface.co/baichuan-inc/baichuan-7B)
