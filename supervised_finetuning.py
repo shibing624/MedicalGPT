@@ -631,7 +631,6 @@ Support: https://huggingface.co/THUDM/chatglm2-6b
 source: https://huggingface.co/THUDM/chatglm2-6b/blob/main/modeling_chatglm.py#L1007
 """
 register_conv_template(
-    # source:
     Conversation(
         name="chatglm2",
         system_prompt="",
@@ -662,7 +661,8 @@ register_conv_template(
 register_conv_template(
     Conversation(
         name="phoenix",
-        system_prompt="A chat between a curious human and an artificial intelligence assistant. The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n",
+        system_prompt="A chat between a curious human and an artificial intelligence assistant. "
+                      "The assistant gives helpful, detailed, and polite answers to the human's questions.\n\n",
         messages=[],
         roles=("Human", "Assistant"),
         prompt="Human: <s>{query}</s>Assistant: ",
