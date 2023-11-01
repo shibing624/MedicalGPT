@@ -686,6 +686,7 @@ register_conv_template(
 
 """aquila template
 Supports: https://huggingface.co/qhduan/aquilachat-7b
+          https://huggingface.co/BAAI/AquilaChat2-34B
 """
 register_conv_template(
     Conversation(
@@ -694,13 +695,14 @@ register_conv_template(
                       "The assistant gives helpful, detailed, and polite answers to the human's questions.",
         messages=[],
         roles=("Human", "Assistant"),
-        prompt="Human: {query}###Assistant: ",
+        prompt="Human: {query}###Assistant:",
         sep="###",
     )
 )
 
 """intern template
 Supports: https://huggingface.co/internlm/internlm-chat-7b
+          https://huggingface.co/internlm/internlm-chat-20b
 """
 register_conv_template(
     Conversation(
@@ -714,7 +716,10 @@ register_conv_template(
     )
 )
 
-"""StarChat template"""
+"""StarChat template
+Supports: https://huggingface.co/HuggingFaceH4/starchat-alpha
+          https://huggingface.co/HuggingFaceH4/starchat-beta
+"""
 register_conv_template(
     Conversation(
         name="starchat",
@@ -728,6 +733,9 @@ register_conv_template(
 )
 
 """llama2 template
+Supports: https://huggingface.co/meta-llama/Llama-2-7b-chat-hf
+          https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
+          https://huggingface.co/meta-llama/Llama-2-70b-chat-hf
 reference: https://github.com/facebookresearch/llama/blob/cfc3fc8c1968d390eb830e65c63865e980873a06/llama/generation.py#L212
 """
 register_conv_template(
@@ -743,13 +751,13 @@ register_conv_template(
                       "If you don't know the answer to a question, please don't share false information.\n<</SYS>>\n\n",
         messages=[],
         roles=("[INST]", "[/INST]"),
-        prompt="[INST] {query} [/INST] ",
+        prompt="[INST] {query} [/INST]",
         sep="</s>",
     )
 )
 
 """llama2-zh template
-Sources: https://github.com/ymcui/Chinese-LLaMA-Alpaca-2
+source: https://github.com/ymcui/Chinese-LLaMA-Alpaca-2
 Supports: https://huggingface.co/ziqingyang/chinese-alpaca-2-7b
 """
 register_conv_template(
@@ -758,7 +766,23 @@ register_conv_template(
         system_prompt="[INST] <<SYS>>\nYou are a helpful assistant. 你是一个乐于助人的助手。\n<</SYS>>\n\n [/INST]",
         messages=[],
         roles=("[INST]", "[/INST]"),
-        prompt="[INST] {query} [/INST] ",
+        prompt="[INST] {query} [/INST]",
+        sep="</s>",
+    )
+)
+
+"""mistral template
+Supports: https://huggingface.co/mistralai/Mistral-7B-v0.1
+          https://huggingface.co/HuggingFaceH4/zephyr-7b-beta
+source: https://docs.mistral.ai/llm/mistral-instruct-v0.1
+"""
+register_conv_template(
+    Conversation(
+        name="mistral",
+        system_prompt="<s>",
+        messages=[],
+        roles=("[INST]", "[/INST]"),
+        prompt="[INST] {query} [/INST]",
         sep="</s>",
     )
 )
@@ -1257,7 +1281,7 @@ def main():
         tokenizer=tokenizer,
         model=model,
         label_pad_token_id=IGNORE_INDEX,
-        pad_to_multiple_of=4,  # for shift short attention
+        pad_to_multiple_of=4 if tokenizer.padding_side == "right" else None,  # for shift short attention
     )
     # Initialize our Trainer
     trainer = SavePeftModelTrainer(

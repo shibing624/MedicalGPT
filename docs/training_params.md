@@ -23,9 +23,9 @@
 9. PT和SFT支持qlora训练，如果使用的是 RTX4090、A100 或 H100 GPU，支持nf4，使用`--qlora True --load_in_4bit True`参数启用qlora训练，开启qlora训练，会减少显存占用，训练加速，同时建议设置`--torch_dtype bfloat16 --optim paged_adamw_32bit`保证训练精度
 10. 扩词表后的增量预训练，PT阶段加上`--modules_to_save embed_tokens,lm_head`参数，后续SFT等阶段不用加
 11. 新增了RoPE插值来扩展GPT模型的上下文长度，通过[位置插值方法](https://arxiv.org/abs/2306.15595)，在增量数据上进行训练，使模型获得长文本处理能力，使用 `--rope_scaling linear` 参数训练模型，使用`--rope_scaling dynamic` 参数预测模型
-12. 针对LLaMA模型支持了[FlashAttention-2](https://github.com/Dao-AILab/flash-attention)，如果您使用的是 RTX4090、A100 或 H100 GPU，请使用 `--flash_attn` 参数以启用 FlashAttention-2
+12. 针对LLaMA模型支持了[FlashAttention-2](https://github.com/Dao-AILab/flash-attention)，如果您使用的是 RTX4090、A100 或 H100 GPU，SFT中请使用 `--flash_attn` 参数以启用 FlashAttention-2
 13. 新增了[LongLoRA](https://github.com/dvlab-research/LongLoRA) 提出的 **$S^2$-Attn**，使模型获得长文本处理能力，SFT中使用 `--shift_attn` 参数以启用该功能
-14. 支持了[NEFTune](https://github.com/neelsjain/NEFTune)给embedding加噪SFT训练方法，[NEFTune paper](https://arxiv.org/abs/2310.05914), 使用 `--neft_alpha` 参数启用 NEFTune，例如 `--neft_alpha 5`
+14. 支持了[NEFTune](https://github.com/neelsjain/NEFTune)给embedding加噪SFT训练方法，[NEFTune paper](https://arxiv.org/abs/2310.05914), SFT中使用 `--neft_alpha` 参数启用 NEFTune，例如 `--neft_alpha 5`
 
 **关于LoRA Training**
 
