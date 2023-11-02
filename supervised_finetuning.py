@@ -558,7 +558,7 @@ register_conv_template(
 )
 
 """Baichuan template
-source: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/f5f47be2adbbdceb784f334d6fa1ca2c73e65097/modeling_baichuan.py#L507
+source: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat/blob/main/generation_utils.py#L31
 Support: https://huggingface.co/baichuan-inc/Baichuan-13B-Chat
 """
 register_conv_template(
@@ -567,7 +567,7 @@ register_conv_template(
         system_prompt="",
         messages=[],
         roles=("<reserved_102>", "<reserved_103>"),
-        prompt=" <reserved_102> {query} <reserved_103> ",
+        prompt="<reserved_102>{query}<reserved_103>",
         sep="</s>",
     )
 )
@@ -582,7 +582,7 @@ register_conv_template(
         system_prompt="",
         messages=[],
         roles=("<reserved_106>", "<reserved_107>"),
-        prompt=" <reserved_106> {query} <reserved_107> ",
+        prompt="<reserved_106>{query}<reserved_107>",
         sep="</s>",
     )
 )
