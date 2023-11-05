@@ -82,7 +82,7 @@ def main():
     if args.tokenizer_path:
         tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
     else:
-        tokenizer = tokenizer_class.from_pretrained(peft_model_path, trust_remote_code=True)
+        tokenizer = tokenizer_class.from_pretrained(base_model_path, trust_remote_code=True)
     if args.resize_emb:
         base_model_token_size = base_model.get_input_embeddings().weight.size(0)
         if base_model_token_size != len(tokenizer):
