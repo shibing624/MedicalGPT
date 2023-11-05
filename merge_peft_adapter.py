@@ -101,7 +101,7 @@ def main():
 
     print("Saving to Hugging Face format...")
     tokenizer.save_pretrained(output_dir)
-    base_model.save_pretrained(output_dir, max_shard_size='10GB')
+    base_model.save_pretrained(output_dir, safe_serialization=False)  # max_shard_size='10GB'
     print(f"Done! model saved to {output_dir}")
 
 
