@@ -22,9 +22,9 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --evaluation_strategy steps \
     --save_steps 500 \
     --save_strategy steps \
-    --save_total_limit 3 \
+    --save_total_limit 13 \
     --gradient_accumulation_steps 1 \
-    --preprocessing_num_workers 1 \
+    --preprocessing_num_workers 10 \
     --block_size 1024 \
     --output_dir outputs-pt-bloom-v1 \
     --overwrite_output_dir \

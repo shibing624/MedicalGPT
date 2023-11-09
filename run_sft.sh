@@ -11,6 +11,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --fp16 \
     --max_train_samples 1000 \
     --max_eval_samples 10 \
+    --model_max_length 1024 \
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
     --warmup_ratio 0.05 \
@@ -21,7 +22,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --evaluation_strategy steps \
     --save_steps 500 \
     --save_strategy steps \
-    --save_total_limit 3 \
+    --save_total_limit 13 \
     --gradient_accumulation_steps 1 \
     --preprocessing_num_workers 4 \
     --output_dir outputs-sft-bloom-v1 \
