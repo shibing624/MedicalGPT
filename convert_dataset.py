@@ -13,10 +13,17 @@ if __name__ == "__main__":
     parser.add_argument("--in_file", type=str)
     parser.add_argument("--out_file", type=str)
     parser.add_argument("--data_type", type=str, default='alpaca')
+    parser.add_argument("--file_type", type=str, default='json')
     args = parser.parse_args()
     print(args)
     data_files = {"train": args.in_file}
-    raw_datasets = load_dataset('json', data_files=data_files)
+    if args.file_type == 'csv':
+        raw_datasets = load_dataset('csv', data_files=data_files, column_names=['instruction', 'input', 'output'],
+                                    delimiter='\t')
+    elif args.file_type in ['json', 'jsonl']:
+        raw_datasets = load_dataset('json', data_files=data_files)
+    else:
+        raise ValueError("File type not supported")
     ds = raw_datasets['train']
 
 
