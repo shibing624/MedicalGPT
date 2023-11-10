@@ -44,7 +44,7 @@ def main():
                         help="Base model name or path")
     parser.add_argument('--tokenizer_path', default=None, type=str,
                         help="Please specify tokenization path.")
-    parser.add_argument('--new_model', default=None, required=True, type=str,
+    parser.add_argument('--lora_model', default=None, required=True, type=str,
                         help="Please specify LoRA model to be merged.")
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--output_dir', default='./merged', type=str)
