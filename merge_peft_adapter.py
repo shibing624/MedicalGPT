@@ -5,9 +5,9 @@
 
 Usage:
 python merge_peft_adapter.py \
-    --base_model_name_or_path path/to/llama/model \
+    --base_model path/to/llama/model \
     --tokenizer_path path/to/llama/tokenizer \
-    --peft_model_path path/to/lora/model \
+    --lora_model path/to/lora/model \
     --output_dir path/to/output/dir
 
 after merged, chatglm and baichuan model need copy python script to output dir.
@@ -40,11 +40,11 @@ MODEL_CLASSES = {
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_type', default=None, type=str, required=True)
-    parser.add_argument('--base_model_name_or_path', default=None, required=True, type=str,
+    parser.add_argument('--base_model', default=None, required=True, type=str,
                         help="Base model name or path")
     parser.add_argument('--tokenizer_path', default=None, type=str,
                         help="Please specify tokenization path.")
-    parser.add_argument('--peft_model_path', default=None, required=True, type=str,
+    parser.add_argument('--lora_model', default=None, required=True, type=str,
                         help="Please specify LoRA model to be merged.")
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--output_dir', default='./merged', type=str)
