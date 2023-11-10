@@ -110,6 +110,7 @@ def main():
     else:
         model = base_model
     model.eval()
+    model.requires_grad_(False)  # fix all model params
     # Use multi-GPU inference
     model = DistributedDataParallel(model, device_ids=[local_rank])
     model = model.module

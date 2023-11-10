@@ -226,28 +226,6 @@ class ScriptArguments:
             raise ValueError("You must specify a valid model_max_length >= 60 to run training")
 
 
-class CastOutputToFloat(torch.nn.Module):
-    """Cast the output of the model to float"""
-
-    def __init__(self, ori_linear: torch.nn.Linear) -> None:
-        super().__init__()
-        self.in_features = ori_linear.in_features
-        self.out_features = ori_linear.out_features
-        self.weight = ori_linear.weight
-        if ori_linear.bias is not None:
-            self.bias = ori_linear.bias
-        else:
-            self.register_parameter('bias', None)
-
-    def forward(self, input):
-        return torch.nn.functional.linear(input, self.weight, self.bias).to(torch.float32)
-
-    def extra_repr(self) -> str:
-        return 'in_features={}, out_features={}, bias={}'.format(
-            self.in_features, self.out_features, self.bias is not None
-        )
-
-
 # Copied from: https://github.com/hiyouga/LLaMA-Factory/blob/main/src/llmtuner/extras/patches/llama_patch.py
 class LlamaShiftShortAttention(LlamaAttention):
 
@@ -1215,6 +1193,11 @@ def main():
             ) if script_args.qlora else None,
         )
 
+        # Fix ChatGLM2 and ChatGLM3 LM head
+        if getattr(config, "model_type", None) == "chatglm":
+            setattr(model, "lm_head", model.transformer.output_layer)
+            setattr(model, "_keys_to_ignore_on_save", ["lm_head.weight"])
+
         # Set NEFTune trick for fine-tuning
         if model_args.neft_alpha > 0:
             input_embed = model.get_input_embeddings()
@@ -1235,6 +1218,20 @@ def main():
 
     if script_args.use_peft:
         logger.info("Fine-tuning method: LoRA(PEFT)")
+
+        # Set fp32 forward hook for lm_head
+        output_layer = getattr(model, "lm_head")
+        if isinstance(output_layer, torch.nn.Linear):
+            def fp32_forward_pre_hook(module: torch.nn.Module, args: Tuple[torch.Tensor]):
+                return args[0].to(output_layer.weight.dtype)
+
+            def fp32_forward_post_hook(module: torch.nn.Module, args: Tuple[torch.Tensor], output: torch.Tensor):
+                return output.to(torch.float32)
+
+            output_layer.register_forward_pre_hook(fp32_forward_pre_hook)
+            output_layer.register_forward_hook(fp32_forward_post_hook)
+
+        # Load LoRA model
         if script_args.peft_path is not None:
             logger.info(f"Peft from pre-trained model: {script_args.peft_path}")
             model = PeftModel.from_pretrained(model, script_args.peft_path, is_trainable=True)
