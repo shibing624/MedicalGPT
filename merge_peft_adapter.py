@@ -7,7 +7,7 @@ Usage:
 python merge_peft_adapter.py \
     --base_model path/to/llama/model \
     --tokenizer_path path/to/llama/tokenizer \
-    --lora_model path/to/lora/model \
+    --new_model path/to/lora/model \
     --output_dir path/to/output/dir
 
 after merged, chatglm and baichuan model need copy python script to output dir.
@@ -44,19 +44,19 @@ def main():
                         help="Base model name or path")
     parser.add_argument('--tokenizer_path', default=None, type=str,
                         help="Please specify tokenization path.")
-    parser.add_argument('--lora_model', default=None, required=True, type=str,
+    parser.add_argument('--new_model', default=None, required=True, type=str,
                         help="Please specify LoRA model to be merged.")
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--output_dir', default='./merged', type=str)
     args = parser.parse_args()
     print(args)
 
-    base_model_path = args.base_model_name_or_path
-    peft_model_path = args.peft_model_path
+    base_model_path = args.base_model
+    lora_model_path = args.lora_model
     output_dir = args.output_dir
     print(f"Base model: {base_model_path}")
-    print(f"LoRA model: {peft_model_path}")
-    peft_config = PeftConfig.from_pretrained(peft_model_path)
+    print(f"LoRA model: {lora_model_path}")
+    peft_config = PeftConfig.from_pretrained(lora_model_path)
 
     model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     if peft_config.task_type == "SEQ_CLS":
@@ -89,15 +89,15 @@ def main():
             base_model.resize_token_embeddings(len(tokenizer))
             print(f"Resize vocabulary size {base_model_token_size} to {len(tokenizer)}")
 
-    lora_model = PeftModel.from_pretrained(
+    new_model = PeftModel.from_pretrained(
         base_model,
-        peft_model_path,
+        lora_model_path,
         device_map="auto",
         torch_dtype=torch.float16,
     )
-    lora_model.eval()
+    new_model.eval()
     print(f"Merging with merge_and_unload...")
-    base_model = lora_model.merge_and_unload()
+    base_model = new_model.merge_and_unload()
 
     print("Saving to Hugging Face format...")
     tokenizer.save_pretrained(output_dir)
