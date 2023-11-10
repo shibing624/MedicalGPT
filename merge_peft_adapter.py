@@ -7,7 +7,7 @@ Usage:
 python merge_peft_adapter.py \
     --base_model path/to/llama/model \
     --tokenizer_path path/to/llama/tokenizer \
-    --new_model path/to/lora/model \
+    --lora_model path/to/lora/model \
     --output_dir path/to/output/dir
 
 after merged, chatglm and baichuan model need copy python script to output dir.
