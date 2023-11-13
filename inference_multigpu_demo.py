@@ -14,7 +14,7 @@ import torch
 import torch.distributed as dist
 from loguru import logger
 from peft import PeftModel
-from torch.nn.parallel import DistributedDataParallel
+from torch.nn import DataParallel
 from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from tqdm import tqdm
 from transformers import (
@@ -112,7 +112,7 @@ def main():
     model.eval()
     model.requires_grad_(False)  # fix all model params
     # Use multi-GPU inference
-    model = DistributedDataParallel(model, device_ids=[local_rank])
+    model = DataParallel(model)
     model = model.module
     logger.info(tokenizer)
     # test data
