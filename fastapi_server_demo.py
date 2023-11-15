@@ -49,7 +49,6 @@ def stream_generate_answer(
         device,
         do_print=True,
         max_new_tokens=512,
-        temperature=0.7,
         repetition_penalty=1.0,
         context_len=2048,
         stop_str="</s>",
@@ -61,7 +60,8 @@ def stream_generate_answer(
     generation_kwargs = dict(
         input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
-        temperature=temperature,
+        do_sample=False,
+        num_beams=1,
         repetition_penalty=repetition_penalty,
         streamer=streamer,
     )
@@ -97,7 +97,6 @@ def main():
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
-    parser.add_argument("--temperature", default=0.7, type=float)
     parser.add_argument("--repetition_penalty", default=1.0, type=float)
     parser.add_argument("--max_new_tokens", default=512, type=int)
     parser.add_argument('--data_file', default=None, type=str,
@@ -180,7 +179,6 @@ def main():
             device,
             do_print=False,
             max_new_tokens=args.max_new_tokens,
-            temperature=args.temperature,
             repetition_penalty=args.repetition_penalty,
             stop_str=stop_str,
         )
