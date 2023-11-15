@@ -58,7 +58,6 @@ def main():
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
-    parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
     parser.add_argument("--max_new_tokens", type=int, default=128)
     parser.add_argument("--batch_size", type=int, default=4)
@@ -110,7 +109,6 @@ def main():
     else:
         model = base_model
     model.eval()
-    model.requires_grad_(False)  # fix all model params
     # Use multi-GPU inference
     model = DataParallel(model)
     model = model.module
@@ -135,8 +133,8 @@ def main():
     write_batch_size = args.batch_size * world_size * 10
     generation_kwargs = dict(
         max_new_tokens=args.max_new_tokens,
-        do_sample=True,
-        temperature=args.temperature,
+        do_sample=False,
+        num_beams=1,
         repetition_penalty=args.repetition_penalty,
     )
     stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str

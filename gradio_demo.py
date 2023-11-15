@@ -109,8 +109,8 @@ def main():
             input_ids=torch.as_tensor([input_ids]).to(device),
             streamer=streamer,
             max_new_tokens=max_new_tokens,
-            do_sample=True,
-            temperature=0.7,
+            do_sample=False,
+            num_beams=1,
             repetition_penalty=1.0,
         )
         thread = Thread(target=model.generate, kwargs=generation_kwargs)

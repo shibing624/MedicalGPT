@@ -42,8 +42,8 @@ def stream_generate_answer(
         device,
         do_print=True,
         max_new_tokens=512,
-        do_sample=True,
-        temperature=0.7,
+        do_sample=False,
+        num_beams=1,
         repetition_penalty=1.0,
         context_len=2048,
         stop_str="</s>",
@@ -57,7 +57,7 @@ def stream_generate_answer(
         input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
         do_sample=do_sample,
-        temperature=temperature,
+        num_beams=num_beams,
         repetition_penalty=repetition_penalty,
         streamer=streamer,
     )
@@ -89,8 +89,8 @@ def batch_generate_answer(
         prompt_template,
         device,
         max_new_tokens=512,
-        do_sample=True,
-        temperature=0.7,
+        do_sample=False,
+        num_beams=1,
         repetition_penalty=1.0,
 ):
     """Generate answer from prompt with GPT, batch mode"""
@@ -98,7 +98,7 @@ def batch_generate_answer(
     generation_kwargs = dict(
         max_new_tokens=max_new_tokens,
         do_sample=do_sample,
-        temperature=temperature,
+        num_beams=num_beams,
         repetition_penalty=repetition_penalty,
     )
     prompts = [prompt_template.get_prompt(messages=[[s, '']]) for s in sentences]
@@ -127,7 +127,6 @@ def main():
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
-    parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
     parser.add_argument("--max_new_tokens", type=int, default=512)
     parser.add_argument('--data_file', default=None, type=str,
@@ -230,7 +229,7 @@ def main():
                 device,
                 do_print=True,
                 max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature,
+                num_beams=args.num_beams,
                 repetition_penalty=args.repetition_penalty,
                 stop_str=stop_str,
             )
@@ -256,7 +255,7 @@ def main():
                 prompt_template,
                 device,
                 max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature,
+                num_beams=args.num_beams,
                 repetition_penalty=args.repetition_penalty,
             )
             results = []
