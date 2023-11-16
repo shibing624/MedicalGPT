@@ -229,7 +229,6 @@ def main():
                 device,
                 do_print=True,
                 max_new_tokens=args.max_new_tokens,
-                num_beams=args.num_beams,
                 repetition_penalty=args.repetition_penalty,
                 stop_str=stop_str,
             )
@@ -255,7 +254,6 @@ def main():
                 prompt_template,
                 device,
                 max_new_tokens=args.max_new_tokens,
-                num_beams=args.num_beams,
                 repetition_penalty=args.repetition_penalty,
             )
             results = []
