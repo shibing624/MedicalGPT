@@ -64,8 +64,9 @@ def main():
             raise ValueError("chatglm does not support sequence classification")
         base_model = AutoModelForSequenceClassification.from_pretrained(
             base_model_path,
+            num_labels=1,
             load_in_8bit=False,
-            torch_dtype=torch.float16,
+            torch_dtype=torch.float32,
             trust_remote_code=True,
             device_map="auto",
         )
