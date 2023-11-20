@@ -99,10 +99,6 @@ def main():
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
     parser.add_argument("--repetition_penalty", default=1.0, type=float)
     parser.add_argument("--max_new_tokens", default=512, type=int)
-    parser.add_argument('--data_file', default=None, type=str,
-                        help="A file that contains instructions (one instruction per line)")
-    parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (single-turn)")
-    parser.add_argument('--predictions_file', default='./predictions_result.jsonl', type=str)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--gpus', default="0", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
