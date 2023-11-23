@@ -5,6 +5,13 @@
 
 usage:
 CUDA_VISIBLE_DEVICES=0 python fastapi_server_demo.py --model_type bloom --base_model bigscience/bloom-560m
+
+curl -X 'POST' 'http://0.0.0.0:8008/chat' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "input": "咏鹅--骆宾王；登黄鹤楼--"
+}'
 """
 
 import argparse
