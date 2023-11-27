@@ -35,9 +35,9 @@ LoRA layers were using at all stages to reduce memory requirements.
 At each stage the peft adapter layers were merged with the base model, using: 
 ```shell
 python merge_peft_adapter.py \
-  --base_model_name_or_path base_model_dir \
+  --base_model base_model_dir \
   --tokenizer_path base_model_dir \
-  --peft_model_path lora_model_dir \
+  --lora_model lora_model_dir \
   --output_dir outputs-merged
 ```
 
