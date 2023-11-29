@@ -55,11 +55,13 @@ try:
 except ImportError:  # https://github.com/huggingface/transformers/releases/tag/v4.33.1
     from transformers.deepspeed import is_deepspeed_zero3_enabled
 
+is_flash_attn_2_available = False
 try:
     from flash_attn import flash_attn_func, flash_attn_varlen_func
     from flash_attn.bert_padding import pad_input, unpad_input
+    is_flash_attn_2_available = True
 except ImportError:
-    print("FlashAttention-2 is not installed, ignore this if you are not using FlashAttention.")
+    is_flash_attn_2_available = False
 
 MODEL_CLASSES = {
     "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
@@ -1147,9 +1149,12 @@ def main():
         # Set FlashAttention-2
         if model_args.flash_attn:
             if getattr(config, "model_type", None) == "llama":
-                modeling_llama.LlamaAttention = LlamaFlashAttention2
-                modeling_llama.LlamaModel._prepare_decoder_attention_mask = _prepare_decoder_attention_mask
-                logger.info("Using FlashAttention-2 for faster training and inference.")
+                if is_flash_attn_2_available:
+                    modeling_llama.LlamaAttention = LlamaFlashAttention2
+                    modeling_llama.LlamaModel._prepare_decoder_attention_mask = _prepare_decoder_attention_mask
+                    logger.info("Using FlashAttention-2 for faster training and inference.")
+                else:
+                    logger.warning("FlashAttention-2 is not installed.")
             elif getattr(config, "model_type", None) == "qwen":
                 logger.info("Qwen models automatically enable FlashAttention if installed.")
             else:
