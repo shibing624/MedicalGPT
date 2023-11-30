@@ -1,16 +1,15 @@
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
-    --model_type bloom \
-    --model_name_or_path bigscience/bloomz-560m \
+python pretraining.py \
+    --model_type chatglm \
+    --model_name_or_path F:\\Models\\ChatGLM-3\\chatglm3-6b-base \
+    --load_in_4bit False\
+    --load_in_8bit True\
     --train_file_dir ./data/pretrain \
     --validation_file_dir ./data/pretrain \
-    --per_device_train_batch_size 4 \
-    --per_device_eval_batch_size 4 \
+    --per_device_train_batch_size 1 \
     --do_train \
-    --do_eval \
     --use_peft True \
     --seed 42 \
-    --max_train_samples 10000 \
-    --max_eval_samples 10 \
+    --max_train_samples 5000 \
     --num_train_epochs 0.5 \
     --learning_rate 2e-4 \
     --warmup_ratio 0.05 \
@@ -21,11 +20,11 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --evaluation_strategy steps \
     --save_steps 500 \
     --save_strategy steps \
-    --save_total_limit 13 \
+    --save_total_limit 3 \
     --gradient_accumulation_steps 1 \
     --preprocessing_num_workers 10 \
     --block_size 512 \
-    --output_dir outputs-pt-bloom-v1 \
+    --output_dir outputs-pt-chatglm-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
@@ -34,7 +33,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --lora_alpha 16 \
     --lora_dropout 0.05 \
     --torch_dtype bfloat16 \
-    --bf16 \
+    --fp16 \
     --device_map auto \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \

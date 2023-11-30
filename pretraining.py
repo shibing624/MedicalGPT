@@ -648,7 +648,7 @@ def main():
             logger.info(f"Peft lora_rank: {script_args.lora_rank}")
             peft_config = LoraConfig(
                 task_type=TaskType.CAUSAL_LM,
-                target_modules=target_modules,
+                # target_modules=target_modules,
                 inference_mode=False,
                 r=script_args.lora_rank,
                 lora_alpha=script_args.lora_alpha,

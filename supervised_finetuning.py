@@ -117,7 +117,7 @@ class ModelArguments:
         },
     )
     device_map: Optional[str] = field(
-        default="auto",
+        default="cuda:1",
         metadata={"help": "Device to map model to. If `auto` is passed, the device will be selected automatically. "},
     )
     trust_remote_code: bool = field(
@@ -626,7 +626,7 @@ source: https://huggingface.co/THUDM/chatglm3-6b/blob/main/tokenization_chatglm.
 register_conv_template(
     Conversation(
         name="chatglm3",
-        system_prompt="",
+        system_prompt="与user进行深度对话",#自定义本次训练
         messages=[],
         roles=("<|user|>", "<|assistant|>"),
         prompt="<|user|>\n{query}<|assistant|>",
@@ -885,7 +885,9 @@ def main():
         f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
         + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
     )
-
+    y_n = input("start training？y/n")
+    if y_n == "n":
+        return
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
