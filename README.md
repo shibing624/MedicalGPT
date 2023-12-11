@@ -107,6 +107,15 @@ cd MedicalGPT
 pip install -r requirements.txt --upgrade
 ```
 
+#### Hardware Requirement
+
+| Method | Bits |   7B  |  13B  |  30B  |   65B  |
+| ------ | ---- | ----- | ----- | ----- | ------ |
+| Full   |  16  | 160GB | 320GB | 600GB | 1200GB |
+| LoRA   |  16  |  16GB |  32GB |  80GB |  160GB |
+| QLoRA  |   8  |  10GB |  16GB |  40GB |   80GB |
+| QLoRA  |   4  |   6GB |  12GB |  24GB |   48GB |
+
 ## 🚀 Training Pipeline
 
 Training Stage:
@@ -128,20 +137,22 @@ Training Stage:
 
 #### Supported Models
 
-| Model Name                                                           | Model Size                  | Template  |
-|----------------------------------------------------------------------|-----------------------------|-----------|
+| Model Name                                                           | Model Size                 | Template  |
+|----------------------------------------------------------------------|----------------------------|-----------|
 | [BLOOMZ](https://huggingface.co/bigscience/bloomz)                   | 560M/1.1B/1.7B/3B/7.1B/176B | vicuna    |
-| [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B              | alpaca    |
-| [LLaMA-2](https://huggingface.co/meta-llama)                         | 7B/13B/70B                  | llama2    |
-| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B                          | mistral   |
-| [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                      | baichuan  |
-| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                      | baichuan2 |
-| [InternLM](https://github.com/InternLM/InternLM)                     | 7B                          | intern    |
-| [Qwen](https://github.com/QwenLM/Qwen-7B)                            | 7B                          | chatml    |
-| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                         | xverse    |
-| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                       | 6B                          | chatglm   |
-| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                          | chatglm2  |
-| [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                          | chatglm3  |
+| [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B             | alpaca    |
+| [LLaMA-2](https://huggingface.co/meta-llama)                         | 7B/13B/70B                 | llama2    |
+| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B                         | mistral   |
+| [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                     | baichuan  |
+| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                     | baichuan2 |
+| [InternLM](https://github.com/InternLM/InternLM)                     | 7B                         | intern    |
+| [Qwen](https://github.com/QwenLM/Qwen-7B)                            | 7B                         | chatml    |
+| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                        | xverse    |
+| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                       | 6B                         | chatglm   |
+| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                         | chatglm2  |
+| [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                         | chatglm3  |
+| [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                     | yi        |
+| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/67B                     | deepseek  |
 
 The following models are tested:
 
@@ -274,15 +285,6 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py 
 - 7万条英文Reward数据集：[yitingxie/rlhf-reward-datasets](https://huggingface.co/datasets/yitingxie/rlhf-reward-datasets)
 - 3千条中文知乎问答偏好数据集：[liyucheng/zhihu_rlhf_3k](https://huggingface.co/datasets/liyucheng/zhihu_rlhf_3k)
 
-## ✅ Todo
-
-1. [x] add multi-round dialogue data fine-tuning method
-2. [x] add reward model fine-tuning
-3. [x] add rl fine-tuning
-4. [x] add medical reward dataset
-5. [x] add llama in8/int4 training
-6. [x] add all training and predict demo in colab
-7. [x] add dpo training
 
 ## ☎️ Contact
 

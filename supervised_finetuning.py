@@ -59,6 +59,7 @@ is_flash_attn_2_available = False
 try:
     from flash_attn import flash_attn_func, flash_attn_varlen_func
     from flash_attn.bert_padding import pad_input, unpad_input
+
     is_flash_attn_2_available = True
 except ImportError:
     is_flash_attn_2_available = False
@@ -759,7 +760,7 @@ source: https://docs.mistral.ai/llm/mistral-instruct-v0.1
 register_conv_template(
     Conversation(
         name="mistral",
-        system_prompt="<s>",
+        system_prompt="",
         messages=[],
         roles=("[INST]", "[/INST]"),
         prompt="[INST] {query} [/INST]",
@@ -789,6 +790,37 @@ register_conv_template(
     Conversation(
         name="chatml",
         system_prompt="You are a helpful assistant.",
+        messages=[],
+        roles=("user", "assistant"),
+        prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
+        sep="<|im_end|>\n",
+        stop_str="<|im_end|>",
+    )
+)
+
+"""deepseek template
+Supports: https://huggingface.co/deepseek-ai/deepseek-llm-7b-chat
+"""
+register_conv_template(
+    Conversation(
+        name="deepseek",
+        system_prompt="",
+        messages=[],
+        roles=("User", "Assistant"),
+        prompt="User: {query}\n\nAssistant:",
+        sep="</s>",
+    )
+)
+
+"""Yi template
+source: https://github.com/01-ai/Yi
+Supports: https://huggingface.co/01-ai/Yi-34B-Chat
+          https://huggingface.co/01-ai/Yi-6B-Chat
+"""
+register_conv_template(
+    Conversation(
+        name="yi",
+        system_prompt="",
         messages=[],
         roles=("user", "assistant"),
         prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
