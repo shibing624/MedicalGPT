@@ -5,6 +5,6 @@ datasets>=2.14.6
 tqdm
 tensorboard
 tqdm>=4.47.0
-peft>=0.5.0
+peft>=0.5.0,<=0.6.0
 accelerate>=0.21.0
 trl>=0.7.1

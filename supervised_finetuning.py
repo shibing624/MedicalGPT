@@ -824,7 +824,7 @@ register_conv_template(
         messages=[],
         roles=("user", "assistant"),
         prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
-        sep="<|im_end|>\n",
+        sep="\n",
         stop_str="<|im_end|>",
     )
 )
