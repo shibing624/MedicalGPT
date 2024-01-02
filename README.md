@@ -295,6 +295,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py 
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/wechat.jpeg" width="200" />
 
+<img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/wechat_group.png" width="200" />
 
 ## ⚠️ 局限性、使用限制与免责声明
 
