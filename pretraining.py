@@ -395,12 +395,6 @@ def main():
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
 
-    # Preprocessing the datasets.
-    def tokenize_function(examples):
-        tokenized_inputs = tokenizer(examples["text"])
-        tokenized_inputs["labels"] = tokenized_inputs["input_ids"].copy()
-        return tokenized_inputs
-
     if data_args.block_size is None:
         block_size = tokenizer.model_max_length
         if block_size > 2048:
@@ -417,8 +411,23 @@ def main():
             )
         block_size = min(data_args.block_size, tokenizer.model_max_length)
 
+    # Preprocessing the datasets.
+    def tokenize_function(examples):
+        tokenized_inputs = tokenizer(
+            examples["text"],
+            truncation=True,
+            padding='max_length',
+            max_length=block_size
+        )
+        # Copy the input_ids to the labels for language modeling. This is suitable for both
+        # masked language modeling (like BERT) or causal language modeling (like GPT).
+        tokenized_inputs["labels"] = tokenized_inputs["input_ids"].copy()
+
+        return tokenized_inputs
+
     # Main data processing function that will concatenate all texts from our dataset and generate chunks of block_size.
-    def group_texts(examples):
+    def tokenize_and_group_text_function(examples):
+        examples = tokenizer(examples["text"])
         # Concatenate all texts.
         concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
         total_length = len(concatenated_examples[list(examples.keys())[0]])
@@ -431,6 +440,7 @@ def main():
             k: [t[i: i + block_size] for i in range(0, total_length, block_size)]
             for k, t in concatenated_examples.items()
         }
+        result["labels"] = result["input_ids"].copy()
         return result
 
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
@@ -524,42 +534,40 @@ def main():
 
     with training_args.main_process_first(desc="Dataset tokenization and grouping"):
         if not data_args.streaming:
-            tokenized_datasets = raw_datasets.map(
-                tokenize_function,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                remove_columns=column_names,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc="Running tokenizer on dataset",
-            )
             if training_args.group_by_length:
-                lm_datasets = tokenized_datasets.map(
-                    group_texts,
+                lm_datasets = raw_datasets.map(
+                    tokenize_and_group_text_function,
                     batched=True,
                     num_proc=data_args.preprocessing_num_workers,
                     load_from_cache_file=not data_args.overwrite_cache,
                     desc=f"Grouping texts in chunks of {block_size}",
                 )
             else:
-                lm_datasets = tokenized_datasets
+                lm_datasets = raw_datasets.map(
+                    tokenize_function,
+                    batched=True,
+                    num_proc=data_args.preprocessing_num_workers,
+                    remove_columns=column_names,
+                    load_from_cache_file=not data_args.overwrite_cache,
+                    desc="Running tokenizer on dataset",
+                )
         else:
-            tokenized_datasets = raw_datasets.map(
-                tokenize_function,
-                batched=True,
-                remove_columns=column_names,
-            )
             if training_args.group_by_length:
-                lm_datasets = tokenized_datasets.map(
-                    group_texts,
+                lm_datasets = raw_datasets.map(
+                    tokenize_and_group_text_function,
                     batched=True,
                 )
             else:
-                lm_datasets = tokenized_datasets
+                lm_datasets = raw_datasets.map(
+                    tokenize_function,
+                    batched=True,
+                    remove_columns=column_names,
+                )
 
     train_dataset = None
     max_train_samples = 0
     if training_args.do_train:
-        if "train" not in tokenized_datasets:
+        if "train" not in lm_datasets:
             raise ValueError("--do_train requires a train dataset")
         train_dataset = lm_datasets['train']
         max_train_samples = len(train_dataset)
@@ -573,7 +581,7 @@ def main():
     eval_dataset = None
     max_eval_samples = 0
     if training_args.do_eval:
-        if "validation" not in tokenized_datasets:
+        if "validation" not in lm_datasets:
             raise ValueError("--do_eval requires a validation dataset")
         eval_dataset = lm_datasets["validation"]
         max_eval_samples = len(eval_dataset)
