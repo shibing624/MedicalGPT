@@ -397,7 +397,9 @@ def main():
 
     # Preprocessing the datasets.
     def tokenize_function(examples):
-        return tokenizer(examples["text"])
+        tokenized_inputs = tokenizer(examples["text"])
+        tokenized_inputs["labels"] = tokenized_inputs["input_ids"].copy()
+        return tokenized_inputs
 
     if data_args.block_size is None:
         block_size = tokenizer.model_max_length
@@ -553,7 +555,6 @@ def main():
                 )
             else:
                 lm_datasets = tokenized_datasets
-        lm_datasets["labels"] = lm_datasets["input_ids"].copy()
 
     train_dataset = None
     max_train_samples = 0
