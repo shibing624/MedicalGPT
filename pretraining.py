@@ -429,7 +429,6 @@ def main():
             k: [t[i: i + block_size] for i in range(0, total_length, block_size)]
             for k, t in concatenated_examples.items()
         }
-        result["labels"] = result["input_ids"].copy()
         return result
 
     # Get the datasets: you can either provide your own CSV/JSON/TXT training and evaluation files (see below)
@@ -531,23 +530,30 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on dataset",
             )
-            lm_datasets = tokenized_datasets.map(
-                group_texts,
-                batched=True,
-                num_proc=data_args.preprocessing_num_workers,
-                load_from_cache_file=not data_args.overwrite_cache,
-                desc=f"Grouping texts in chunks of {block_size}",
-            )
+            if training_args.group_by_length:
+                lm_datasets = tokenized_datasets.map(
+                    group_texts,
+                    batched=True,
+                    num_proc=data_args.preprocessing_num_workers,
+                    load_from_cache_file=not data_args.overwrite_cache,
+                    desc=f"Grouping texts in chunks of {block_size}",
+                )
+            else:
+                lm_datasets = tokenized_datasets
         else:
             tokenized_datasets = raw_datasets.map(
                 tokenize_function,
                 batched=True,
                 remove_columns=column_names,
             )
-            lm_datasets = tokenized_datasets.map(
-                group_texts,
-                batched=True,
-            )
+            if training_args.group_by_length:
+                lm_datasets = tokenized_datasets.map(
+                    group_texts,
+                    batched=True,
+                )
+            else:
+                lm_datasets = tokenized_datasets
+        lm_datasets["labels"] = lm_datasets["input_ids"].copy()
 
     train_dataset = None
     max_train_samples = 0
