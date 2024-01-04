@@ -1293,6 +1293,8 @@ def main():
                 lora_dropout=script_args.lora_dropout,
                 modules_to_save=modules_to_save)
             model = get_peft_model(model, peft_config)
+        for param in filter(lambda p: p.requires_grad, model.parameters()):
+            param.data = param.data.to(torch.float32)
         model.print_trainable_parameters()
     else:
         logger.info("Fine-tuning method: Full parameters training")
