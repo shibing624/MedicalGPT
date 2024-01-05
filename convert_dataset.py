@@ -30,7 +30,7 @@ if __name__ == "__main__":
     def process_alpaca(examples):
         convs = []
         for instruction, inp, output in zip(examples['instruction'], examples['input'], examples['output']):
-            if len(inp.strip()) > 1:
+            if inp and len(inp.strip()) > 0:
                 instruction = instruction + '\n\n' + inp
             q = instruction
             a = output
