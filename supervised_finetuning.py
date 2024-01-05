@@ -26,7 +26,7 @@ from typing import Literal, Optional, Tuple, List, Dict, Sequence
 
 import torch
 import torch.nn as nn
-from datasets import load_dataset
+from datasets import load_dataset, DatasetDict
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_kbit_training
 from transformers import (
@@ -957,18 +957,15 @@ def main():
             cache_dir=model_args.cache_dir,
         )
         if "validation" not in raw_datasets.keys():
-            raw_datasets["validation"] = load_dataset(
-                data_args.dataset_name,
-                data_args.dataset_config_name,
-                split=f"train[:{data_args.validation_split_percentage}%]",
-                cache_dir=model_args.cache_dir,
+            shuffled_train_dataset = raw_datasets["train"].shuffle(seed=42)
+            # Split the shuffled train dataset into training and validation sets
+            split = shuffled_train_dataset.train_test_split(
+                test_size=data_args.validation_split_percentage / 100,
+                seed=42
             )
-            raw_datasets["train"] = load_dataset(
-                data_args.dataset_name,
-                data_args.dataset_config_name,
-                split=f"train[{data_args.validation_split_percentage}%:]",
-                cache_dir=model_args.cache_dir,
-            )
+            # Assign the split datasets back to raw_datasets
+            raw_datasets["train"] = split["train"]
+            raw_datasets["validation"] = split["test"]
     else:
         # Loading a dataset from local files.
         data_files = {}
@@ -989,18 +986,13 @@ def main():
         )
         # If no validation data is there, validation_split_percentage will be used to divide the dataset.
         if "validation" not in raw_datasets.keys():
-            raw_datasets["validation"] = load_dataset(
-                'json',
-                data_files=data_files,
-                split=f"train[:{data_args.validation_split_percentage}%]",
-                cache_dir=model_args.cache_dir,
+            shuffled_train_dataset = raw_datasets["train"].shuffle(seed=42)
+            split = shuffled_train_dataset.train_test_split(
+                test_size=float(data_args.validation_split_percentage / 100),
+                seed=42
             )
-            raw_datasets["train"] = load_dataset(
-                'json',
-                data_files=data_files,
-                split=f"train[{data_args.validation_split_percentage}%:]",
-                cache_dir=model_args.cache_dir,
-            )
+            raw_datasets["train"] = split["train"]
+            raw_datasets["validation"] = split["test"]
     logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets
@@ -1084,7 +1076,7 @@ def main():
     if training_args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
-        train_dataset = raw_datasets['train']
+        train_dataset = raw_datasets['train'].shuffle(seed=42)
         max_train_samples = len(train_dataset)
         if data_args.max_train_samples is not None and data_args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), data_args.max_train_samples)
