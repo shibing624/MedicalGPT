@@ -431,10 +431,12 @@ def main():
         # Concatenate all texts.
         concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
         total_length = len(concatenated_examples[list(examples.keys())[0]])
-        # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
-        # customize this part to your needs.
-        if total_length >= block_size:
-            total_length = (total_length // block_size) * block_size
+        # We add padding to make total_length divisible by block_size.
+        if total_length % block_size != 0:
+            padding_length = block_size - total_length % block_size
+            for k in concatenated_examples.keys():
+                concatenated_examples[k].extend([tokenizer.pad_token_id] * padding_length)
+            total_length = len(concatenated_examples[list(examples.keys())[0]])
         # Split by chunks of max_len.
         result = {
             k: [t[i: i + block_size] for i in range(0, total_length, block_size)]
