@@ -43,20 +43,14 @@ def main():
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan2, chatglm2 etc.")
-    parser.add_argument('--gpus', default="0", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--share', action='store_true', help='Share gradio')
     parser.add_argument('--port', default=8081, type=int, help='Port of gradio demo')
     args = parser.parse_args()
     print(args)
-
-    if args.only_cpu is True:
-        args.gpus = ""
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
-
     load_type = torch.float16
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and not args.only_cpu:
         device = torch.device(0)
     else:
         device = torch.device('cpu')

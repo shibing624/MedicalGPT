@@ -26,7 +26,7 @@ from typing import Literal, Optional, Tuple, List, Dict, Sequence
 
 import torch
 import torch.nn as nn
-from datasets import load_dataset, DatasetDict
+from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_kbit_training
 from transformers import (
@@ -521,6 +521,18 @@ register_conv_template(
         messages=[],
         roles=("USER", "ASSISTANT"),
         prompt="USER: {query} ASSISTANT:",
+        sep="</s>",
+    )
+)
+
+"""Base model template, for few shot"""
+register_conv_template(
+    Conversation(
+        name="base",
+        system_prompt="",
+        messages=[],
+        roles=("USER", "ASSISTANT"),
+        prompt="{query}",
         sep="</s>",
     )
 )
