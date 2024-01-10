@@ -27,6 +27,14 @@
 13. 新增了[LongLoRA](https://github.com/dvlab-research/LongLoRA) 提出的 **$S^2$-Attn**，使模型获得长文本处理能力，SFT中使用 `--shift_attn` 参数以启用该功能
 14. 支持了[NEFTune](https://github.com/neelsjain/NEFTune)给embedding加噪SFT训练方法，[NEFTune paper](https://arxiv.org/abs/2310.05914), SFT中使用 `--neft_alpha` 参数启用 NEFTune，例如 `--neft_alpha 5`
 
+**关于PT Training**
+
+1. PT阶段是可选的，如果你没有海量领域文本，可以跳过此阶段，直接进行SFT阶段的有监督微调
+2. 我实验发现：
+   - 做领域知识注入，SFT比PT更高效，也可以跳过PT阶段
+   - PT阶段，设置`--group_by_text False`在短文本上训练，并设置`--block_size 128`，效果稍好，但训练速度会变慢；长文本训练就设置`--group_by_text True`，默认是True
+
+
 **关于LoRA Training**
 
 默认使用LoRA训练，每个stage的LoRA模型权重都需要合并到base model中，使用以下命令合并，下一个stage的`model_name_or_path`指定为合并后的模型文件夹。
