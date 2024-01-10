@@ -196,7 +196,7 @@ def main():
         try:
             response = predict(item.input)
             result_dict = {'response': response}
-            logger.debug(f"Successfully get sentence embeddings, q:{item.input}")
+            logger.debug(f"Successfully get result, q:{item.input}")
             return result_dict
         except Exception as e:
             logger.error(e)
