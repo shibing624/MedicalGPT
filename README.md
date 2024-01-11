@@ -251,11 +251,6 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py 
 </details>
 
 
-#### 关联项目
-- [shibing624/ChatPDF](https://github.com/shibing624/ChatPDF)：基于本地 LLM 做检索知识问答（RAG）
-- [shibing624/chatgpt-webui](https://github.com/shibing624/chatgpt-webui)：给 LLM 对话和检索知识问答（RAG）提供一个简单好用的Web UI界面
-
-
 ## 📚 Dataset 
 ### 医疗数据集
 
@@ -340,3 +335,8 @@ Medical项目代码的授权协议为 [The Apache License 2.0](/LICENSE)，代�
 - [dvlab-research/LongLoRA](https://github.com/dvlab-research/LongLoRA)
 
 Thanks for their great work!
+
+#### 关联项目推荐
+- [shibing624/ChatPDF](https://github.com/shibing624/ChatPDF)：基于本地 LLM 做检索知识问答（RAG）
+- [shibing624/chatgpt-webui](https://github.com/shibing624/chatgpt-webui)：给 LLM 对话和检索知识问答（RAG）提供一个简单好用的Web UI界面
+
