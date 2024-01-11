@@ -250,6 +250,12 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py 
 
 </details>
 
+
+#### 关联项目
+- [shibing624/ChatPDF](https://github.com/shibing624/ChatPDF)：基于本地 LLM 做检索知识问答（RAG）
+- [shibing624/chatgpt-webui](https://github.com/shibing624/chatgpt-webui)：给 LLM 对话和检索知识问答（RAG）提供一个简单好用的Web UI界面
+
+
 ## 📚 Dataset 
 ### 医疗数据集
 
@@ -296,21 +302,11 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py 
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/wechat_group.png" width="200" />
 
-## ⚠️ 局限性、使用限制与免责声明
-
-基于当前数据和基础模型训练得到的SFT模型，在效果上仍存在以下问题：
-
-1. 在涉及事实性的指令上可能会产生违背事实的错误回答。
-
-2. 对于具备危害性的指令无法很好的鉴别，由此会产生危害性言论。
-
-3. 在一些涉及推理、代码、多轮对话等场景下模型的能力仍有待提高。
-
-基于以上模型局限性，我们要求开发者仅将我们开源的模型权重及后续用此项目生成的衍生物用于研究目的，不得用于商业，以及其他会对社会带来危害的用途。
+## ⚠️ LICENSE
 
 本项目仅可应用于研究目的，项目开发者不承担任何因使用本项目（包含但不限于数据、模型、代码等）导致的危害或损失。详细请参考[免责声明](https://github.com/shibing624/MedicalGPT/blob/main/DISCLAIMER)。
 
-项目代码的授权协议为 [The Apache License 2.0](/LICENSE)，代码可免费用做商业用途，模型权重和数据只能用于研究目的。请在产品说明中附加MedicalGPT的链接和授权协议。
+Medical项目代码的授权协议为 [The Apache License 2.0](/LICENSE)，代码可免费用做商业用途，模型权重和数据只能用于研究目的。请在产品说明中附加MedicalGPT的链接和授权协议。
 
 
 ## 😇 Citation
