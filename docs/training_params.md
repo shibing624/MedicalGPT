@@ -6,7 +6,7 @@
 - 第三阶段 
   - RLHF(Reinforcement Learning from Human Feedback)分为两步：
     - RM(Reward Model)奖励模型建模 `run_rm.sh`
-    - RL(Reinforcement Learning)基于人类反馈的强化学习 `run_rl.sh`
+    - RL(Reinforcement Learning)基于人类反馈的强化学习 `run_ppo.sh`
   - DPO(Direct Preference Optimization)直接偏好优化 `run_dpo.sh`
 
 
@@ -17,7 +17,7 @@
 3. 指定训练集，`--train_file_dir`指定训练数据目录，`--validation_file_dir`指定验证数据目录，如果不指定，默认使用`--dataset_name`指定的HF datasets数据集，训练集字段格式见[数据集格式](https://github.com/shibing624/MedicalGPT/wiki/%E6%95%B0%E6%8D%AE%E9%9B%86)，建议领域训练集中加入一些通用对话数据，数据集链接见[📚 Dataset](https://github.com/shibing624/MedicalGPT#-dataset)，当前默认多轮对话格式，兼容单轮对话，微调训练集如果是alpaca格式，可以用[convert_dataset.py](https://github.com/shibing624/MedicalGPT/blob/main/convert_dataset.py)转为shareGPT格式，即可传入训练
 4. 如果运行环境支持deepspeed，加上`--deepspeed deepspeed_zero_stage2_config.json`参数启动zero2模式；显存不足，加上`--deepspeed deepspeed_zero_stage3_config.json --fp16`参数启动zero3混合精度模式
 5. 如果gpu支持int8/int4量化，加上`--load_in_4bit True`代表采用4bit量化训练，或者`--load_in_8bit True`代表采用8bit量化训练，均可显著减少显存占用
-6. 调试模型，`--max_train_samples`和`--max_eval_samples`指定训练和验证数据集的最大样本数，用于快速验证代码是否可用，训练时请删除这两个参数或者设置为-1
+6. 训练集条数控制，`--max_train_samples`和`--max_eval_samples`指定训练和验证数据集的最大样本数，用于快速验证代码是否可用，训练时建议设置为`--max_train_samples -1`表示用全部训练集，`--max_eval_samples 50`表示用50条验证数据
 7. 训练方式，指定`--use_peft False`为全参训练（要移除`--fp16`），`--use_peft True`是LoRA训练；注意：全参训练LLaMA-7B模型需要120GB显存，LoRA训练需要13GB显存
 8. 支持恢复训练，LoRA训练时指定`--peft_path`为旧的adapter_model.bin所在文件夹路径；全参训练时指定`--resume_from_checkpoint`为旧模型权重的文件夹路径
 9. PT和SFT支持qlora训练，如果使用的是 RTX4090、A100 或 H100 GPU，支持nf4，使用`--qlora True --load_in_4bit True`参数启用qlora训练，开启qlora训练，会减少显存占用，训练加速，同时建议设置`--torch_dtype bfloat16 --optim paged_adamw_32bit`保证训练精度

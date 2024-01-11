@@ -1122,6 +1122,11 @@ def main():
             if data_args.max_eval_samples is not None and data_args.max_eval_samples > 0:
                 max_eval_samples = min(len(eval_dataset), data_args.max_eval_samples)
                 eval_dataset = eval_dataset.select(range(max_eval_samples))
+            eval_size = len(eval_dataset)
+            logger.debug(f"Num eval_samples: {eval_size}")
+            if eval_size > 500:
+                logger.warning(f"Num eval_samples is large: {eval_size}, "
+                               f"training slow, consider reduce it by `--max_eval_samples=50`")
             logger.debug(f"Example eval_dataset[0]: {eval_dataset[0]}")
             eval_dataset = eval_dataset.map(
                 preprocess_function,

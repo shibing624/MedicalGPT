@@ -403,6 +403,9 @@ def main():
             bnb_4bit_compute_dtype=torch_dtype,
         ) if args.qlora else None,
     )
+    # fixed FP16 ValueError
+    for param in filter(lambda p: p.requires_grad, model.parameters()):
+        param.data = param.data.to(torch.float32)
 
     # Initialize our Trainer
     if args.gradient_checkpointing:

@@ -84,7 +84,7 @@ Reinforcement Learning fine-tuning of llama-7b-sft with the llama-7b-reward rewa
 ```shell
 pip install git+https://github.com/lvwerra/trl
 cd scripts
-sh run_rl.sh
+sh run_ppo.sh
 ```
 
 ### Stage 3: DPO(Direct Preference Optimization)

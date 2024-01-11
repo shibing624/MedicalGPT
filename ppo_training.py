@@ -277,6 +277,9 @@ def main():
         trust_remote_code=args.trust_remote_code,
         peft_config=peft_config if args.use_peft else None,
     )
+    for param in filter(lambda p: p.requires_grad, model.parameters()):
+        param.data = param.data.to(torch.float32)
+
     print_trainable_parameters(model)
     # Load reward model
     default_device = "cuda" if torch.cuda.is_available() else "cpu"
