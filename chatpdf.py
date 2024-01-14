@@ -451,7 +451,7 @@ if __name__ == "__main__":
     parser.add_argument("--gen_model_type", type=str, default="auto")
     parser.add_argument("--gen_model", type=str, default="01-ai/Yi-6B-Chat")
     parser.add_argument("--lora_model", type=str, default=None)
-    parser.add_argument("--corpus_files", type=str, default="data/rag/sample.pdf")
+    parser.add_argument("--corpus_files", type=str, default="data/rag/medical_corpus.txt")
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--int4", action='store_true', help="use int4 quantization")
     parser.add_argument("--int8", action='store_true', help="use int8 quantization")
@@ -472,5 +472,11 @@ if __name__ == "__main__":
         chunk_overlap=args.chunk_overlap,
         corpus_files=args.corpus_files.split(','),
     )
-    r = m.predict('自然语言中的非平行迁移是指什么？')
-    print(r)
+    query = [
+        "肛门病变可能是什么疾病的症状",
+        "天雄的药用植物栽培是什么",
+        "膺窗穴的定位是什么",
+    ]
+    for i in query:
+        r = m.predict(i)
+        print(r)
