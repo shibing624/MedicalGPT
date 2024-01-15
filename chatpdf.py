@@ -455,8 +455,8 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--int4", action='store_true', help="use int4 quantization")
     parser.add_argument("--int8", action='store_true', help="use int8 quantization")
-    parser.add_argument("--chunk_size", type=int, default=220)
-    parser.add_argument("--chunk_overlap", type=int, default=20)
+    parser.add_argument("--chunk_size", type=int, default=100)
+    parser.add_argument("--chunk_overlap", type=int, default=5)
     args = parser.parse_args()
     print(args)
     sim_model = BertSimilarity(model_name_or_path=args.sim_model, device=args.device)
@@ -473,10 +473,13 @@ if __name__ == "__main__":
         corpus_files=args.corpus_files.split(','),
     )
     query = [
-        "肛门病变可能是什么疾病的症状",
+        "维胺酯维E乳膏能治理什么疾病",
         "天雄的药用植物栽培是什么",
         "膺窗穴的定位是什么",
     ]
     for i in query:
-        r = m.predict(i)
-        print(r)
+        response, reference_results = m.predict(i)
+        print(f"===")
+        print(f"Input: {i}")
+        print(f"Reference: {reference_results}")
+        print(f"Output: {response}")
