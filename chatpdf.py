@@ -198,7 +198,7 @@ class ChatPDF:
             gen_model_name_or_path,
             load_in_8bit=int8 if gen_model_type not in ['baichuan', 'chatglm'] else False,
             load_in_4bit=int4 if gen_model_type not in ['baichuan', 'chatglm'] else False,
-            torch_dtype=torch.float16,
+            torch_dtype="auto",
             device_map=device_map,
             trust_remote_code=True,
         )
@@ -217,7 +217,7 @@ class ChatPDF:
             model = PeftModel.from_pretrained(
                 model,
                 peft_name,
-                torch_dtype=torch.float16,
+                torch_dtype="auto",
             )
             logger.info(f"Loaded peft model from {peft_name}")
         model.eval()
