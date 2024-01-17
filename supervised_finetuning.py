@@ -1311,11 +1311,13 @@ def main():
         print_trainable_parameters(model)
 
     # Initialize our Trainer
-    if training_args.gradient_checkpointing:
+    if training_args.gradient_checkpointing and getattr(model, "supports_gradient_checkpointing", False):
         model.gradient_checkpointing_enable()
         model.config.use_cache = False
+        logger.info("Gradient checkpointing enabled.")
     else:
         model.config.use_cache = True
+        logger.info("Gradient checkpointing disabled.")
     model.enable_input_require_grads()
     if not ddp and torch.cuda.device_count() > 1:
         # Keeps Trainer from trying its own DataParallelism when more than 1 gpu is available
