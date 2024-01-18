@@ -131,7 +131,8 @@ def main():
     parser.add_argument("--max_new_tokens", type=int, default=512)
     parser.add_argument('--data_file', default=None, type=str,
                         help="A file that contains instructions (one instruction per line)")
-    parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (single-turn)")
+    parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (default multi-turn)")
+    parser.add_argument('--single_tune', action='store_true', help='Whether to use single-tune model')
     parser.add_argument('--output_file', default='./predictions_result.jsonl', type=str)
     parser.add_argument("--eval_batch_size", type=int, default=4)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
@@ -215,6 +216,8 @@ def main():
                 continue
 
             print(f"{prompt_template.roles[1]}: ", end="", flush=True)
+            if args.single_tune:
+                history = []
 
             history.append([query, ''])
             prompt = prompt_template.get_prompt(messages=history)
