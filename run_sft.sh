@@ -7,6 +7,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --per_device_eval_batch_size 4 \
     --do_train \
     --do_eval \
+    --template_name vicuna \
     --use_peft True \
     --max_train_samples 1000 \
     --max_eval_samples 10 \
