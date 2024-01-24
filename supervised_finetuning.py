@@ -212,6 +212,7 @@ class DataArguments:
 @dataclass
 class ScriptArguments:
     use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
+    train_on_inputs: bool = field(default=False, metadata={"help": "Whether to train on inputs"})
     target_modules: Optional[str] = field(default="all")
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
@@ -1067,7 +1068,10 @@ def main():
                     break
 
                 input_ids += source_ids + target_ids + [tokenizer.eos_token_id]  # add eos token for each turn
-                labels += [IGNORE_INDEX] * len(source_ids) + target_ids + [tokenizer.eos_token_id]
+                if script_args.train_on_inputs:
+                    labels += source_ids + target_ids + [tokenizer.eos_token_id]
+                else:
+                    labels += [IGNORE_INDEX] * len(source_ids) + target_ids + [tokenizer.eos_token_id]
 
             input_ids_list.append(input_ids)
             attention_mask_list.append([1] * len(input_ids))
@@ -1152,6 +1156,7 @@ def main():
         ddp = world_size != 1
         if ddp:
             model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
+            training_args.gradient_accumulation_steps = training_args.gradient_accumulation_steps // world_size or 1
         if script_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
 
