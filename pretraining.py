@@ -690,7 +690,7 @@ def main():
         model.print_trainable_parameters()
     else:
         logger.info("Fine-tuning method: Full parameters training")
-        # model = model.float()
+        model = model.float()
         print_trainable_parameters(model)
 
     # Initialize our Trainer
