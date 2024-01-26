@@ -26,6 +26,7 @@
 12. 针对LLaMA模型支持了[FlashAttention-2](https://github.com/Dao-AILab/flash-attention)，如果您使用的是 RTX4090、A100 或 H100 GPU，SFT中请使用 `--flash_attn` 参数以启用 FlashAttention-2
 13. 新增了[LongLoRA](https://github.com/dvlab-research/LongLoRA) 提出的 **$S^2$-Attn**，使模型获得长文本处理能力，SFT中使用 `--shift_attn` 参数以启用该功能
 14. 支持了[NEFTune](https://github.com/neelsjain/NEFTune)给embedding加噪SFT训练方法，[NEFTune paper](https://arxiv.org/abs/2310.05914), SFT中使用 `--neft_alpha` 参数启用 NEFTune，例如 `--neft_alpha 5`
+15. 支持微调Mixtral混合专家MoE模型 **[Mixtral 8x7B](https://huggingface.co/mistralai/Mixtral-8x7B-v0.1)**，SFT中如果用lora微调模型，可以开启4bit量化和QLoRA`--load_in_4bit True --qlora True`以节省显存，建议设置`--target_modules q_proj,k_proj,v_proj,o_proj`，这样可以避免对MoE专家网络的MLP层量化，因为它们很稀疏且量化后会导致性能效果下降。
 
 **关于PT Training**
 

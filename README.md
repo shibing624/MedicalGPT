@@ -30,6 +30,8 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - DPO方法来自论文[Direct Preference Optimization:Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
 
 ## 🔥 News
+[2024/01/26] v1.8版本：支持微调Mixtral混合专家MoE模型 **[Mixtral 8x7B](https://huggingface.co/mistralai/Mixtral-8x7B-v0.1)**。详见[Release-v1.8](https://github.com/shibing624/MedicalGPT/releases/tag/1.8.0)
+
 [2024/01/14] v1.7版本：新增检索增强生成(RAG)的基于文件问答[ChatPDF](https://github.com/shibing624/ChatPDF)功能，代码`chatpdf.py`，可以基于微调后的LLM结合知识库文件问答提升行业问答准确率。详见[Release-v1.7](https://github.com/shibing624/MedicalGPT/releases/tag/1.7.0)
 
 [2023/10/23] v1.6版本：新增RoPE插值来扩展GPT模型的上下文长度；针对LLaMA模型支持了[FlashAttention-2](https://github.com/Dao-AILab/flash-attention)和[LongLoRA](https://github.com/dvlab-research/LongLoRA) 提出的 **$S^2$-Attn**；支持了[NEFTune](https://github.com/neelsjain/NEFTune)给embedding加噪训练方法。详见[Release-v1.6](https://github.com/shibing624/MedicalGPT/releases/tag/1.6.0)
@@ -110,12 +112,13 @@ pip install -r requirements.txt --upgrade
 
 #### Hardware Requirement
 
-| Method | Bits |   7B  |  13B  |  30B  |   65B  |
-| ------ | ---- | ----- | ----- | ----- | ------ |
-| Full   |  16  | 160GB | 320GB | 600GB | 1200GB |
-| LoRA   |  16  |  16GB |  32GB |  80GB |  160GB |
-| QLoRA  |   8  |  10GB |  16GB |  40GB |   80GB |
-| QLoRA  |   4  |   6GB |  12GB |  24GB |   48GB |
+
+| 训练方法 | 精度 |   7B  |  13B  |  30B  |   65B  |   8x7B |
+| ------- | ---- | ----- | ----- | ----- | ------ | ------ |
+| 全参数   |  16  | 160GB | 320GB | 600GB | 1200GB |  900GB |
+| LoRA    |  16  |  16GB |  32GB |  80GB |  160GB |  120GB |
+| QLoRA   |   8  |  10GB |  16GB |  40GB |   80GB |   80GB |
+| QLoRA   |   4  |   6GB |  12GB |  24GB |   48GB |   32GB |
 
 ## 🚀 Training Pipeline
 

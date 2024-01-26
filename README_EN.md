@@ -50,6 +50,8 @@ Parameter Description:
 - `--gpus {gpu_ids}`: Specifies the number of GPU devices used, the default is 0. If using multiple GPUs, separate them with commas, such as 0,1,2
 
 
+
+
 ## 🚀 Training Pipeline
 
 ### Stage 1: Continue Pretraining
@@ -113,6 +115,16 @@ Reinforcement Learning fine-tuning of llama-7b-sft with the llama-7b-reward rewa
 sh run_ppo.sh
 ```
 [Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
+
+
+### Hardware Requirement
+
+| Method | Bits |   7B  |  13B  |  30B  |   65B  |   8x7B |
+| ------ | ---- | ----- | ----- | ----- | ------ | ------ |
+| Full   |  16  | 160GB | 320GB | 600GB | 1200GB |  900GB |
+| LoRA   |  16  |  16GB |  32GB |  80GB |  160GB |  120GB |
+| QLoRA  |   8  |  10GB |  16GB |  40GB |   80GB |   80GB |
+| QLoRA  |   4  |   6GB |  12GB |  24GB |   48GB |   32GB |
 
 ## 🔥 Inference 
 After the training is complete, now we load the trained model to verify the effect of the model generating text.
