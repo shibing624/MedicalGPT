@@ -842,6 +842,21 @@ register_conv_template(
     )
 )
 
+"""Orion template
+source: https://github.com/OrionStarAI/Orion
+Supports: https://huggingface.co/OrionStarAI/Orion-14B-Chat
+"""
+register_conv_template(
+    Conversation(
+        name="orion",
+        system_prompt="",
+        messages=[],
+        roles=("Human", "Assistant"),
+        prompt="Human: {query}\n\nAssistant: </s>",
+        sep="</s>",
+    )
+)
+
 
 def get_conv_template(name: str) -> Conversation:
     """Get a conversation template."""
