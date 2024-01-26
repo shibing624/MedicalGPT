@@ -95,6 +95,11 @@ class ModelArguments:
         default=None,
         metadata={"help": "Where do you want to store the pretrained models downloaded from huggingface.co"},
     )
+    model_revision: Optional[str] = field(
+        default="main",
+        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
+    )
+    hf_hub_token: Optional[str] = field(default=None, metadata={"help": "Auth token to log in with Hugging Face Hub."})
     use_fast_tokenizer: bool = field(
         default=False,
         metadata={"help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."},
@@ -621,17 +626,20 @@ def main():
         if script_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and ZeRO3 are both currently incompatible with QLoRA.")
 
-        config = config_class.from_pretrained(
-            model_args.model_name_or_path,
-            torch_dtype=torch_dtype,
-            trust_remote_code=model_args.trust_remote_code,
-            cache_dir=model_args.cache_dir
-        )
+        config_kwargs = {
+            "trust_remote_code": model_args.trust_remote_code,
+            "cache_dir": model_args.cache_dir,
+            "revision": model_args.model_revision,
+            "token": model_args.hf_hub_token,
+        }
+        config = config_class.from_pretrained(model_args.model_name_or_path, **config_kwargs)
         load_in_4bit = model_args.load_in_4bit
         load_in_8bit = model_args.load_in_8bit
         load_in_8bit_skip_modules = None
         if load_in_8bit or load_in_4bit:
             logger.info(f"Quantizing model, load_in_4bit: {load_in_4bit}, load_in_8bit: {load_in_8bit}")
+            if is_deepspeed_zero3_enabled():
+                raise ValueError("DeepSpeed ZeRO-3 is incompatible with quantization.")
             if script_args.modules_to_save is not None:
                 load_in_8bit_skip_modules = script_args.modules_to_save.split(',')
         model = model_class.from_pretrained(

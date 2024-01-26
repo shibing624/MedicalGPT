@@ -144,7 +144,7 @@ Training Stage:
 | [BLOOMZ](https://huggingface.co/bigscience/bloomz)                   | 560M/1.1B/1.7B/3B/7.1B/176B | vicuna    |
 | [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B              | alpaca    |
 | [LLaMA-2](https://huggingface.co/meta-llama)                         | 7B/13B/70B                  | llama2    |
-| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B                          | mistral   |
+| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B/8x7B                     | mistral   |
 | [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                      | baichuan  |
 | [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                      | baichuan2 |
 | [InternLM](https://github.com/InternLM/InternLM)                     | 7B                          | intern    |
@@ -154,7 +154,7 @@ Training Stage:
 | [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                          | chatglm2  |
 | [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                          | chatglm3  |
 | [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                      | yi        |
-| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/67B                      | deepseek  |
+| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/16B/67B                  | deepseek  |
 | [Orion](https://github.com/OrionStarAI/Orion)                        | 14B                         | orion     |
 
 The following models are tested:
