@@ -151,7 +151,7 @@ Training Stage:
 | [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                      | baichuan  |
 | [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                      | baichuan2 |
 | [InternLM](https://github.com/InternLM/InternLM)                     | 7B                          | intern    |
-| [Qwen](https://github.com/QwenLM/Qwen-7B)                            | 7B                          | chatml    |
+| [Qwen](https://github.com/QwenLM/Qwen)                               | 1.8B/7B/14B/72B             | chatml    |
 | [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                         | xverse    |
 | [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                       | 6B                          | chatglm   |
 | [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                          | chatglm2  |
