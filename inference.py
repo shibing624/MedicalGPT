@@ -137,6 +137,8 @@ def main():
     parser.add_argument("--eval_batch_size", type=int, default=4)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
+    parser.add_argument('--load_in_8bit', action='store_true', help='Whether to load model in 8bit')
+    parser.add_argument('--load_in_4bit', action='store_true', help='Whether to load model in 4bit')
     args = parser.parse_args()
     print(args)
     load_type = torch.float16
@@ -151,7 +153,8 @@ def main():
     tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True, padding_side='left')
     base_model = model_class.from_pretrained(
         args.base_model,
-        load_in_8bit=False,
+        load_in_8bit=args.load_in_8bit,
+        load_in_4bit=args.load_in_4bit,
         torch_dtype=load_type,
         low_cpu_mem_usage=True,
         device_map='auto',
