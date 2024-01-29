@@ -948,7 +948,7 @@ def mlp_forward(self: "MixtralBLockSparseTop2MLP", hidden_states: torch.Tensor) 
 
 
 # Modified from: https://huggingface.co/deepseek-ai/deepseek-moe-16b-base/blob/main/modeling_deepseek.py
-def moe_forward(self: "MixtralSparseMoeBlock", hidden_states: torch.Tensor) -> torch.Tensor:
+def moe_forward(self: "MixtralSparseMoeBlock", hidden_states: torch.Tensor):
     batch_size, sequence_length, hidden_dim = hidden_states.shape
     hidden_states = hidden_states.view(-1, hidden_dim)
     # router_logits: (batch * sequence_length, n_experts)

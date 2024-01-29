@@ -28,13 +28,6 @@
 14. 支持了[NEFTune](https://github.com/neelsjain/NEFTune)给embedding加噪SFT训练方法，[NEFTune paper](https://arxiv.org/abs/2310.05914), SFT中使用 `--neft_alpha` 参数启用 NEFTune，例如 `--neft_alpha 5`
 15. 支持微调Mixtral混合专家MoE模型 **[Mixtral 8x7B](https://huggingface.co/mistralai/Mixtral-8x7B-v0.1)**，SFT中如果用lora微调模型，可以开启4bit量化和QLoRA`--load_in_4bit True --qlora True`以节省显存，建议设置`--target_modules q_proj,k_proj,v_proj,o_proj`，这样可以避免对MoE专家网络的MLP层量化，因为它们很稀疏且量化后会导致性能效果下降。
 
-**关于PT Training**
-
-1. PT阶段是可选的，如果你没有海量领域文本，可以跳过此阶段，直接进行SFT阶段的有监督微调
-2. 我实验发现：
-   - 做领域知识注入，SFT比PT更高效，也可以跳过PT阶段
-   - PT阶段，设置`--group_by_text False`在短文本上训练，并设置`--block_size 128`，效果稍好，但训练速度会变慢；长文本训练就设置`--group_by_text True`，默认是True
-
 
 **关于LoRA Training**
 
