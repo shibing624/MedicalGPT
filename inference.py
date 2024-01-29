@@ -92,6 +92,7 @@ def batch_generate_answer(
         do_sample=False,
         num_beams=1,
         repetition_penalty=1.0,
+        stop_str="</s>",
 ):
     """Generate answer from prompt with GPT, batch mode"""
     generated_texts = []
@@ -109,7 +110,6 @@ def batch_generate_answer(
         prompt_len = len(input_ids[0])
         gen_sequence = gen_sequence[prompt_len:]
         gen_text = tokenizer.decode(gen_sequence, skip_special_tokens=True)
-        stop_str = tokenizer.eos_token or prompt_template.stop_str
         pos = gen_text.find(stop_str)
         if pos != -1:
             gen_text = gen_text[:pos]
@@ -257,6 +257,7 @@ def main():
                 device,
                 max_new_tokens=args.max_new_tokens,
                 repetition_penalty=args.repetition_penalty,
+                stop_str=stop_str,
             )
             results = []
             for example, response in zip(batch, responses):

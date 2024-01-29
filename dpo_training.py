@@ -390,8 +390,6 @@ def main():
         args.model_name_or_path,
         config=config,
         torch_dtype=torch_dtype,
-        load_in_4bit=args.load_in_4bit,
-        load_in_8bit=args.load_in_8bit,
         low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,
