@@ -59,11 +59,14 @@ def main():
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
+    parser.add_argument('--do_sample', action='store_true', help='Whether to use sampling in generation')
     parser.add_argument("--max_new_tokens", type=int, default=128)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument('--data_file', default=None, type=str, help="Predict file, one example per line")
     parser.add_argument('--output_file', default='./predictions_result.jsonl', type=str)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
+    parser.add_argument('--load_in_8bit', action='store_true', help='Whether to load model in 8bit')
+    parser.add_argument('--load_in_4bit', action='store_true', help='Whether to load model in 4bit')
     args = parser.parse_args()
     logger.info(args)
 
@@ -83,7 +86,8 @@ def main():
     load_type = torch.float16
     base_model = model_class.from_pretrained(
         args.base_model,
-        load_in_8bit=False,
+        load_in_8bit=args.load_in_8bit,
+        load_in_4bit=args.load_in_4bit,
         torch_dtype=load_type,
         low_cpu_mem_usage=True,
         device_map={"": local_rank},
@@ -133,8 +137,7 @@ def main():
     write_batch_size = args.batch_size * world_size * 10
     generation_kwargs = dict(
         max_new_tokens=args.max_new_tokens,
-        do_sample=False,
-        num_beams=1,
+        do_sample=args.do_sample,
         repetition_penalty=args.repetition_penalty,
     )
     stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
