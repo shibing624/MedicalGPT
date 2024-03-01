@@ -232,8 +232,7 @@ class ChatPDF:
             from supervised_finetuning import get_conv_template
             prompt_template = get_conv_template(self.prompt_template_name)
             prompt = prompt_template.get_prompt(messages=self.history)
-            input_ids = self.tokenizer(prompt).input_ids
-            input_ids = torch.as_tensor([input_ids])
+            input_ids = self.tokenizer(prompt, return_tensors='pt').input_ids
         else:
             for conv in self.history:
                 if conv and len(conv) > 0 and conv[0]:
