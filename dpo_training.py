@@ -454,7 +454,7 @@ def main():
         logger.info("Fine-tuning method: Full parameters training")
     trainer = DPOTrainer(
         model,
-        ref_model=deepcopy(model),
+        ref_model=None if args.use_peft else deepcopy(model),
         args=training_args,
         beta=args.beta,
         train_dataset=train_dataset,
