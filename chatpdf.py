@@ -44,7 +44,7 @@ MODEL_CLASSES = {
     "auto": (AutoModelForCausalLM, AutoTokenizer),
 }
 
-PROMPT_TEMPLATE = """基于以下已知信息，简洁和专业的来回答用户的问题。
+RAG_PROMPT = """基于以下已知信息，简洁和专业的来回答用户的问题。
 如果无法从中得到答案，请说 "根据已知信息无法回答该问题" 或 "没有提供足够的相关信息"，不允许在答案中添加编造成分，答案请使用中文。
 
 已知内容:
@@ -133,6 +133,7 @@ class ChatPDF:
             int4: bool = False,
             chunk_size: int = 250,
             chunk_overlap: int = 30,
+            prompt_template_name: str = None,
     ):
         """
         Init RAG model.
@@ -147,6 +148,7 @@ class ChatPDF:
         :param int4: use int4 quantization, default False
         :param chunk_size: chunk size, default 250
         :param chunk_overlap: chunk overlap, default 50
+        :param prompt_template_name: prompt template name, default None, if set, inplace tokenizer.apply_chat_template
         """
         if torch.cuda.is_available():
             default_device = torch.device(0)
@@ -175,6 +177,7 @@ class ChatPDF:
         if corpus_files:
             self.add_corpus(corpus_files)
         self.save_corpus_emb_dir = save_corpus_emb_dir
+        self.prompt_template_name = prompt_template_name
 
     def __str__(self):
         return f"Similarity model: {self.sim_model}, Generate model: {self.gen_model}"
@@ -225,17 +228,24 @@ class ChatPDF:
 
     def _get_chat_input(self):
         messages = []
-        for conv in self.history:
-            if conv and len(conv) > 0 and conv[0]:
-                messages.append({'role': 'user', 'content': conv[0]})
-            if conv and len(conv) > 1 and conv[1]:
-                messages.append({'role': 'assistant', 'content': conv[1]})
-        input_ids = self.tokenizer.apply_chat_template(
-            conversation=messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_tensors='pt'
-        )
+        if self.prompt_template_name:
+            from supervised_finetuning import get_conv_template
+            prompt_template = get_conv_template(self.prompt_template_name)
+            prompt = prompt_template.get_prompt(messages=self.history)
+            input_ids = self.tokenizer(prompt).input_ids
+            input_ids = torch.as_tensor([input_ids])
+        else:
+            for conv in self.history:
+                if conv and len(conv) > 0 and conv[0]:
+                    messages.append({'role': 'user', 'content': conv[0]})
+                if conv and len(conv) > 1 and conv[1]:
+                    messages.append({'role': 'assistant', 'content': conv[1]})
+            input_ids = self.tokenizer.apply_chat_template(
+                conversation=messages,
+                tokenize=True,
+                add_generation_prompt=True,
+                return_tensors='pt'
+            )
         return input_ids.to(self.gen_model.device)
 
     @torch.inference_mode()
@@ -372,8 +382,8 @@ class ChatPDF:
                 yield '没有提供足够的相关信息', reference_results
             self.history = []
             reference_results = self._add_source_numbers(reference_results)
-            context_str = '\n'.join(reference_results)[:(context_len - len(PROMPT_TEMPLATE))]
-            prompt = PROMPT_TEMPLATE.format(context_str=context_str, query_str=query)
+            context_str = '\n'.join(reference_results)[:(context_len - len(RAG_PROMPT))]
+            prompt = RAG_PROMPT.format(context_str=context_str, query_str=query)
             # logger.debug(f"prompt: {prompt}")
         else:
             prompt = query
@@ -410,8 +420,8 @@ class ChatPDF:
                 return '没有提供足够的相关信息', reference_results
             self.history = []
             reference_results = self._add_source_numbers(reference_results)
-            context_str = '\n'.join(reference_results)[:(context_len - len(PROMPT_TEMPLATE))]
-            prompt = PROMPT_TEMPLATE.format(context_str=context_str, query_str=query)
+            context_str = '\n'.join(reference_results)[:(context_len - len(RAG_PROMPT))]
+            prompt = RAG_PROMPT.format(context_str=context_str, query_str=query)
             # logger.debug(f"prompt: {prompt}")
         else:
             prompt = query
@@ -450,6 +460,8 @@ if __name__ == "__main__":
     parser.add_argument("--sim_model", type=str, default="shibing624/text2vec-base-multilingual")
     parser.add_argument("--gen_model_type", type=str, default="auto")
     parser.add_argument("--gen_model", type=str, default="01-ai/Yi-6B-Chat")
+    parser.add_argument("--prompt_template_name", type=str, default=None,
+                        help="The prompt template name. it can be vicuna/alpaca/yi..., None is use apply_chat_template.")
     parser.add_argument("--lora_model", type=str, default=None)
     parser.add_argument("--corpus_files", type=str, default="data/rag/medical_corpus.txt")
     parser.add_argument("--device", type=str, default=None)
@@ -471,6 +483,7 @@ if __name__ == "__main__":
         chunk_size=args.chunk_size,
         chunk_overlap=args.chunk_overlap,
         corpus_files=args.corpus_files.split(','),
+        prompt_template_name=args.prompt_template_name,
     )
     query = [
         "维胺酯维E乳膏能治理什么疾病",
