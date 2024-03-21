@@ -1,0 +1,30 @@
+python main.py \
+    --model_type bloom \
+    --model_name_or_path ./merged-sft \
+    --train_file_dir /kaggle/working/MedicalGPT/data/reward \
+    --validation_file_dir /kaggle/working/MedicalGPT/data/reward \
+    --per_device_train_batch_size 3 \
+    --per_device_eval_batch_size 1 \
+    --do_train \
+    --do_eval \
+    --use_peft True \
+    --max_train_samples 1000 \
+    --max_eval_samples 10 \
+    --max_steps 100 \
+    --eval_steps 10 \
+    --save_steps 50 \
+    --max_source_length 128 \
+    --max_target_length 128 \
+    --output_dir outputs-dpo-v1 \
+    --target_modules all \
+    --lora_rank 8 \
+    --lora_alpha 16 \
+    --lora_dropout 0.05 \
+    --torch_dtype float16 \
+    --fp16 True \
+    --device_map auto \
+    --report_to tensorboard \
+    --remove_unused_columns False \
+    --gradient_checkpointing True \
+    --cache_dir ./cache \
+    --use_fast_tokenizer

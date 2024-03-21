@@ -1,0 +1,3 @@
+export RUN_PACKAGE=algorithm.llm.train.reward_modeling
+export RUN_CLASS=RewardModeling
+export USE_MODELSCOPE_HUB=1
