@@ -117,7 +117,7 @@ sh run_ppo.sh
 [Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
 
 
-### Hardware Requirement
+### Hardware Requirement(VRAM)
 
 | Method | Bits |   7B  |  13B  |  30B  |   65B  |   8x7B |
 | ------ | ---- | ----- | ----- | ----- | ------ | ------ |

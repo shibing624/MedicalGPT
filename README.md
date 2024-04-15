@@ -110,7 +110,7 @@ cd MedicalGPT
 pip install -r requirements.txt --upgrade
 ```
 
-#### Hardware Requirement
+#### Hardware Requirement(显存/VRAM)
 
 
 | 训练方法 | 精度 |   7B  |  13B  |  30B  |   65B  |   8x7B |
