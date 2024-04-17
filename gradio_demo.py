@@ -6,7 +6,6 @@
 pip install gradio>=3.50.2
 """
 import argparse
-import os
 from threading import Thread
 
 import gradio as gr
@@ -104,6 +103,7 @@ def main():
             streamer=streamer,
             max_new_tokens=max_new_tokens,
             temperature=0.7,
+            do_sample=True,
             num_beams=1,
             repetition_penalty=1.0,
         )

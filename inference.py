@@ -57,6 +57,7 @@ def stream_generate_answer(
         input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
         temperature=temperature,
+        do_sample=True if temperature > 0.0 else False,
         repetition_penalty=repetition_penalty,
         streamer=streamer,
     )
@@ -97,6 +98,7 @@ def batch_generate_answer(
     generation_kwargs = dict(
         max_new_tokens=max_new_tokens,
         temperature=temperature,
+        do_sample=True if temperature > 0.0 else False,
         repetition_penalty=repetition_penalty,
     )
     prompts = [prompt_template.get_prompt(messages=[[s, '']]) for s in sentences]

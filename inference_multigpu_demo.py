@@ -144,6 +144,7 @@ def main():
     generation_kwargs = dict(
         max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,
+        do_sample=True if args.temperature > 0.0 else False,
         repetition_penalty=args.repetition_penalty,
     )
     stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
