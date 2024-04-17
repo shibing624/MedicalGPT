@@ -11,7 +11,8 @@ import time
 from argparse import ArgumentParser
 from contextlib import asynccontextmanager
 from pprint import pprint
-from typing import Dict, List, Literal, Optional, Union
+from threading import Thread
+from typing import Dict, List, Literal, Optional, Union, Any
 
 import torch
 import uvicorn
@@ -23,7 +24,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.generation import GenerationConfig
+from transformers import GenerationConfig, TextIteratorStreamer
 
 
 class BasicAuthMiddleware(BaseHTTPMiddleware):
@@ -350,34 +351,62 @@ def parse_response(response):
     return choice_data
 
 
-# completion mode, not chat mode
-def text_complete_last_message(history, stop_words_ids, gen_kwargs, system):
-    im_start = '<|im_start|>'
-    im_end = '<|im_end|>'
-    prompt = f'{im_start}system\n{system}{im_end}'
-    for i, (query, response) in enumerate(history):
-        query = query.lstrip('\n').rstrip()
+def model_chat(model, tokenizer, query, history, gen_kwargs, system):
+    messages = [
+        {"role": "system", "content": system}
+    ]
+    for i, (question, response) in enumerate(history):
+        question = question.lstrip('\n').rstrip()
         response = response.lstrip('\n').rstrip()
-        prompt += f'\n{im_start}user\n{query}{im_end}'
-        prompt += f'\n{im_start}assistant\n{response}{im_end}'
-    prompt = prompt[:-len(im_end)]
+        messages.append({"role": "user", "content": question})
+        messages.append({"role": "assistant", "content": response})
+    messages.append({"role": "user", "content": query})
+    text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+    model_inputs = tokenizer([text], return_tensors='pt').to(model.device)
+    generated_ids = model.generate(model_inputs.input_ids, **gen_kwargs)
+    generated_ids = [
+        output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+    ]
+    response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    print(f'<completion>\n{query}\n<!-- *** -->\n{response}\n</completion>')
+    return response
 
-    _stop_words_ids = [tokenizer.encode(im_end)]
-    if stop_words_ids:
-        for s in stop_words_ids:
-            _stop_words_ids.append(s)
-    stop_words_ids = _stop_words_ids
 
-    input_ids = torch.tensor([tokenizer.encode(prompt)]).to(model.device)
-    output = model.generate(input_ids,
-                            stop_words_ids=stop_words_ids,
-                            **gen_kwargs).tolist()[0]
-    output = tokenizer.decode(output, errors='ignore')
-    assert output.startswith(prompt)
-    output = output[len(prompt):]
-    output = trim_stop_words(output, ['<|endoftext|>', im_end])
-    print(f'<completion>\n{prompt}\n<!-- *** -->\n{output}\n</completion>')
-    return output
+def stream_model_chat(model, tokenizer, query, history, gen_kwargs, system):
+    messages = [
+        {"role": "system", "content": system}
+    ]
+    for i, (question, response) in enumerate(history):
+        question = question.lstrip('\n').rstrip()
+        response = response.lstrip('\n').rstrip()
+        messages.append({"role": "user", "content": question})
+        messages.append({"role": "assistant", "content": response})
+    messages.append({"role": "user", "content": query})
+
+    text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+    model_inputs = tokenizer([text], return_tensors='pt').to(model.device)
+    gen_kwargs['inputs'] = model_inputs.input_ids
+
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+    gen_kwargs['streamer'] = streamer
+    thread = Thread(target=model.generate, kwargs=gen_kwargs, daemon=True)
+    thread.start()
+
+    def stream():
+        try:
+            return streamer.__next__()
+        except StopIteration:
+            raise StopAsyncIteration()
+
+    return stream()
 
 
 @app.post('/v1/chat/completions', response_model=ChatCompletionResponse)
@@ -418,27 +447,17 @@ async def create_chat_completion(request: ChatCompletionRequest):
                            system=system)
         return StreamingResponse(generate, media_type='text/event-stream')
 
-    stop_words_ids = [tokenizer.encode(s)
-                      for s in stop_words] if stop_words else None
-    if query is _TEXT_COMPLETION_CMD:
-        response = text_complete_last_message(
-            history,
-            stop_words_ids=stop_words_ids,
-            gen_kwargs=gen_kwargs,
-            system=system
-        )
-    else:
-        response, _ = model.chat(
-            tokenizer,
-            query,
-            history=history,
-            system=system,
-            stop_words_ids=stop_words_ids,
-            **gen_kwargs,
-        )
-        print('<chat>')
-        pprint(history, indent=2)
-        print(f'{query}\n<!-- *** -->\n{response}\n</chat>')
+    response = model_chat(
+        model,
+        tokenizer,
+        query,
+        history,
+        gen_kwargs=gen_kwargs,
+        system=system
+    )
+    print('<chat>')
+    pprint(history, indent=2)
+    print(f'{query}\n<!-- *** -->\n{response}\n</chat>')
     _gc()
 
     response = trim_stop_words(response, stop_words)
@@ -455,11 +474,18 @@ async def create_chat_completion(request: ChatCompletionRequest):
                                   object='chat.completion')
 
 
-def _dump_json(data: BaseModel, *args, **kwargs) -> str:
-    try:
-        return data.model_dump_json(*args, **kwargs)
-    except AttributeError:  # pydantic<2.0.0
-        return data.json(*args, **kwargs)  # noqa
+def dictify(data: BaseModel) -> Dict[str, Any]:
+    try:  # pydantic v2
+        return data.model_dump(exclude_unset=True)
+    except AttributeError:  # pydantic v1
+        return data.dict(exclude_unset=True)
+
+
+def jsonify(data: BaseModel) -> str:
+    try:  # pydantic v2
+        return json.dumps(data.model_dump(exclude_unset=True), ensure_ascii=False)
+    except AttributeError:  # pydantic v1
+        return data.json(exclude_unset=True, ensure_ascii=False)
 
 
 async def predict(
@@ -476,21 +502,19 @@ async def predict(
     chunk = ChatCompletionResponse(model=model_id,
                                    choices=[choice_data],
                                    object='chat.completion.chunk')
-    yield '{}'.format(_dump_json(chunk, exclude_unset=True))
+    yield jsonify(chunk)
 
     current_length = 0
-    stop_words_ids = [tokenizer.encode(s)
-                      for s in stop_words] if stop_words else None
-
     delay_token_num = max([len(x) for x in stop_words])
-    response_generator = model.chat_stream(
+    response_generator = stream_model_chat(
+        model,
         tokenizer,
         query,
-        history=history,
-        stop_words_ids=stop_words_ids,
-        system=system,
-        **gen_kwargs
+        history,
+        gen_kwargs,
+        system
     )
+
     _new_response = ''
     for _new_response in response_generator:
         if len(_new_response) <= delay_token_num:
@@ -508,7 +532,7 @@ async def predict(
         chunk = ChatCompletionResponse(model=model_id,
                                        choices=[choice_data],
                                        object='chat.completion.chunk')
-        yield '{}'.format(_dump_json(chunk, exclude_unset=True))
+        yield jsonify(chunk)
 
     if current_length != len(_new_response):
         # Determine whether to print the delay tokens
@@ -520,7 +544,7 @@ async def predict(
             chunk = ChatCompletionResponse(model=model_id,
                                            choices=[choice_data],
                                            object='chat.completion.chunk')
-            yield '{}'.format(_dump_json(chunk, exclude_unset=True))
+            yield jsonify(chunk)
 
     choice_data = ChatCompletionResponseStreamChoice(index=0,
                                                      delta=DeltaMessage(),
@@ -528,7 +552,7 @@ async def predict(
     chunk = ChatCompletionResponse(model=model_id,
                                    choices=[choice_data],
                                    object='chat.completion.chunk')
-    yield '{}'.format(_dump_json(chunk, exclude_unset=True))
+    yield jsonify(chunk)
     yield '[DONE]'
 
     _gc()
