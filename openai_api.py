@@ -211,6 +211,7 @@ def parse_messages(messages, functions):
             name_h = func_info.get('name_for_human', name)
             desc = func_info.get('description', '')
             desc_m = func_info.get('description_for_model', desc)
+            params = func_info.get('parameters', {})
             tool = TOOL_DESC.format(
                 name_for_model=name_m,
                 name_for_human=name_h,
@@ -218,8 +219,7 @@ def parse_messages(messages, functions):
                 #   "Format the arguments as a JSON object."
                 #   "Enclose the code within triple backticks (`) at the beginning and end of the code."
                 description_for_model=desc_m,
-                parameters=json.dumps(func_info['parameters'],
-                                      ensure_ascii=False),
+                parameters=json.dumps(params, ensure_ascii=False),
             )
             tools_text.append(tool)
             tools_name_text.append(name_m)
