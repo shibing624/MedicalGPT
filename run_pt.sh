@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
-    --model_type bloom \
-    --model_name_or_path bigscience/bloomz-560m \
+    --model_type auto \
+    --model_name_or_path Qwen/Qwen1.5-0.5B-Chat \
     --train_file_dir ./data/pretrain \
     --validation_file_dir ./data/pretrain \
     --per_device_train_batch_size 4 \
@@ -26,7 +26,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --preprocessing_num_workers 10 \
     --block_size 512 \
     --group_by_length True \
-    --output_dir outputs-pt-bloom-v1 \
+    --output_dir outputs-pt-qwen-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \

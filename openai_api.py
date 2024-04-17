@@ -555,9 +555,8 @@ def _get_args():
         '--server-name',
         type=str,
         default='127.0.0.1',
-        help=
-        'Demo server name. Default: 127.0.0.1, which is only visible from the local computer.'
-        ' If you want other computers to access your server, use 0.0.0.0 instead.',
+        help='Demo server name. Default: 127.0.0.1, which is only visible from the local computer.'
+             ' If you want other computers to access your server, use 0.0.0.0 instead.',
     )
     parser.add_argument(
         '--disable-gc',

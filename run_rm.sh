@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
-    --model_type bloom \
-    --model_name_or_path bigscience/bloomz-560m \
+    --model_type auto \
+    --model_name_or_path Qwen/Qwen1.5-0.5B-Chat \
     --train_file_dir ./data/reward \
     --validation_file_dir ./data/reward \
     --per_device_train_batch_size 4 \
@@ -23,7 +23,7 @@ CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --save_total_limit 3 \
     --max_source_length 256 \
     --max_target_length 256 \
-    --output_dir outputs-rm-bloom-v1 \
+    --output_dir outputs-rm-qwen-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
