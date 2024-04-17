@@ -10,7 +10,6 @@ import json
 import time
 from argparse import ArgumentParser
 from contextlib import asynccontextmanager
-from pprint import pprint
 from threading import Thread
 from typing import Dict, List, Literal, Optional, Union, Any
 
@@ -19,6 +18,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from loguru import logger
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -372,7 +372,6 @@ def model_chat(model, tokenizer, query, history, gen_kwargs, system):
         output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
     ]
     response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-    print(f'<completion>\n{query}\n<!-- *** -->\n{response}\n</completion>')
     return response
 
 
@@ -424,6 +423,8 @@ async def create_chat_completion(request: ChatCompletionRequest):
             gen_kwargs['temperature'] = request.temperature
     if request.top_p is not None:
         gen_kwargs['top_p'] = request.top_p
+    if request.max_length is not None:
+        gen_kwargs['max_length'] = request.max_length
 
     stop_words = add_extra_stop_words(request.stop)
     if request.functions:
@@ -455,9 +456,8 @@ async def create_chat_completion(request: ChatCompletionRequest):
         gen_kwargs=gen_kwargs,
         system=system
     )
-    print('<chat>')
-    pprint(history, indent=2)
-    print(f'{query}\n<!-- *** -->\n{response}\n</chat>')
+    logger.debug(f'*** history begin ***\n{history}\n*** history end ***\n'
+                 f'question: {query}\nresponse: {response}\n')
     _gc()
 
     response = trim_stop_words(response, stop_words)
