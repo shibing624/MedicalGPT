@@ -680,6 +680,25 @@ register_conv_template(
     )
 )
 
+"""Cohere template
+source: https://huggingface.co/CohereForAI/c4ai-command-r-plus
+Supports: https://huggingface.co/CohereForAI/c4ai-command-r-plus-4bit
+          https://huggingface.co/CohereForAI/c4ai-command-r-plus
+"""
+register_conv_template(
+    Conversation(
+        name="cohere",
+        system_prompt="<BOS_TOKEN>",
+        messages=[],
+        roles=("User", "Assistant"),
+        prompt=(
+            "<|START_OF_TURN_TOKEN|><|USER_TOKEN|>{query}<|END_OF_TURN_TOKEN|>"
+            "<|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>"
+        ),
+        sep="</s>",
+    )
+)
+
 
 def get_conv_template(name: str) -> Conversation:
     """Get a conversation template."""
