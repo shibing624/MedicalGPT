@@ -13,7 +13,7 @@ from typing import Any, List, Union, Optional, Dict
 import torch
 from datasets import load_dataset
 from loguru import logger
-from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_int8_training
+from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_kbit_training
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from torch.utils.data import Dataset
 from transformers import (
@@ -425,7 +425,7 @@ def main():
         else:
             logger.info("Init new peft model")
             if model_args.load_in_8bit:
-                model = prepare_model_for_int8_training(model)
+                model = prepare_model_for_kbit_training(model)
             target_modules = script_args.target_modules.split(',') if script_args.target_modules else None
             if target_modules and 'all' in target_modules:
                 target_modules = find_all_linear_names(model, int4=False, int8=model_args.load_in_8bit)

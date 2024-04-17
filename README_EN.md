@@ -1,4 +1,4 @@
-[**🇨🇳中文**](https://github.com/shibing624/MedicalGPT/blob/main/README.md) | [**🌐English**](https://github.com/shibing624/MedicalGPT/blob/main/README_EN.md) | [**📖文档/Docs**](https://github.com/shibing624/MedicalGPT/wiki) | [**🤖模型/Models**](https://huggingface.co/shibing624) 
+[**🇨🇳中文**](https://github.com/shibing624/MedicalGPT/blob/main/README.md) | [**🌐English**](https://github.com/shibing624/MedicalGPT/blob/main/README_EN.md) | [**📖文档/Docs**](https://github.com/shibing624/MedicalGPT/wiki) | [**🤖模型/Models**](https://huggingface.co/shibing624)
 
 <div align="center">
   <a href="https://github.com/shibing624/MedicalGPT">
@@ -19,7 +19,7 @@
 
 ## 📖 Introduction
 
-**MedicalGPT** training medical GPT model with ChatGPT training pipeline, implemantation of Pretraining, 
+**MedicalGPT** training medical GPT model with ChatGPT training pipeline, implemantation of Pretraining,
 Supervised Finetuning, Reward Modeling and Reinforcement Learning.
 
 
@@ -117,7 +117,17 @@ sh run_ppo.sh
 [Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
 
 
-### Hardware Requirement(VRAM)
+## 💾 Install
+#### Updating the requirements
+From time to time, the `requirements.txt` changes. To update, use this command:
+
+```markdown
+git clone https://github.com/shibing624/MedicalGPT
+cd MedicalGPT
+pip install -r requirements.txt --upgrade
+```
+
+### Hardware Requirement (VRAM)
 
 | Method | Bits |   7B  |  13B  |  30B  |   65B  |   8x7B |
 | ------ | ---- | ----- | ----- | ----- | ------ | ------ |
@@ -126,7 +136,7 @@ sh run_ppo.sh
 | QLoRA  |   8  |  10GB |  16GB |  40GB |   80GB |   80GB |
 | QLoRA  |   4  |   6GB |  12GB |  24GB |   48GB |   32GB |
 
-## 🔥 Inference 
+## 🔥 Inference
 After the training is complete, now we load the trained model to verify the effect of the model generating text.
 
 ```shell
@@ -160,7 +170,7 @@ Parameter Description:
 <br/>
 
 
-## 📚 Dataset 
+## 📚 Dataset
 
 - 2.4 million Chinese medical datasets (including pre-training, instruction fine-tuning and reward datasets): [shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
 
@@ -208,7 +218,7 @@ The project code is still very rough. If you have improved the code, you are wel
 
 Then you can submit a PR.
 
-## 💕 Acknowledgements 
+## 💕 Acknowledgements
 
 - [tloen/alpaca-lora](https://github.com/tloen/alpaca-lora/blob/main/finetune.py)
 - [ymcui/Chinese-LLaMA-Alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca)

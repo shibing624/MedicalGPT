@@ -1,10 +1,10 @@
-loguru
-transformers>=4.39.3
-sentencepiece
+accelerate~=0.27.2
 datasets>=2.14.6
-tqdm
+loguru
+peft~=0.10.0
+sentencepiece
+scikit-learn
 tensorboard
 tqdm>=4.47.0
-peft~=0.10.0
-accelerate~=0.27.2
+transformers>=4.39.3
 trl~=0.8.3
