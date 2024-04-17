@@ -60,7 +60,7 @@ def main():
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
-    parser.add_argument('--do_sample', action='store_true', help='Whether to use sampling in generation')
+    parser.add_argument('--temperature', type=float, default=0.0)
     parser.add_argument("--max_new_tokens", type=int, default=128)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument('--data_file', default=None, type=str, help="Predict file, one example per line")
@@ -143,7 +143,7 @@ def main():
     write_batch_size = args.batch_size * world_size * 10
     generation_kwargs = dict(
         max_new_tokens=args.max_new_tokens,
-        do_sample=args.do_sample,
+        temperature=args.temperature,
         repetition_penalty=args.repetition_penalty,
     )
     stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str

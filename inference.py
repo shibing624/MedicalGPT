@@ -43,7 +43,7 @@ def stream_generate_answer(
         device,
         do_print=True,
         max_new_tokens=512,
-        do_sample=False,
+        temperature=0.0,
         repetition_penalty=1.0,
         context_len=2048,
         stop_str="</s>",
@@ -56,7 +56,7 @@ def stream_generate_answer(
     generation_kwargs = dict(
         input_ids=torch.as_tensor([input_ids]).to(device),
         max_new_tokens=max_new_tokens,
-        do_sample=do_sample,
+        temperature=temperature,
         repetition_penalty=repetition_penalty,
         streamer=streamer,
     )
@@ -88,7 +88,7 @@ def batch_generate_answer(
         prompt_template,
         device,
         max_new_tokens=512,
-        do_sample=False,
+        temperature=0.0,
         repetition_penalty=1.0,
         stop_str="</s>",
 ):
@@ -96,7 +96,7 @@ def batch_generate_answer(
     generated_texts = []
     generation_kwargs = dict(
         max_new_tokens=max_new_tokens,
-        do_sample=do_sample,
+        temperature=temperature,
         repetition_penalty=repetition_penalty,
     )
     prompts = [prompt_template.get_prompt(messages=[[s, '']]) for s in sentences]
@@ -130,7 +130,7 @@ def main():
                         help="A file that contains instructions (one instruction per line)")
     parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (default multi-turn)")
     parser.add_argument('--single_tune', action='store_true', help='Whether to use single-tune model')
-    parser.add_argument('--do_sample', action='store_true', help='Whether to use sampling in generation')
+    parser.add_argument('--temperature', type=float, default=0.0)
     parser.add_argument('--output_file', default='./predictions_result.jsonl', type=str)
     parser.add_argument("--eval_batch_size", type=int, default=4)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
@@ -227,7 +227,7 @@ def main():
                 model.device,
                 do_print=True,
                 max_new_tokens=args.max_new_tokens,
-                do_sample=args.do_sample,
+                temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty,
                 stop_str=stop_str,
             )
@@ -253,7 +253,7 @@ def main():
                 prompt_template,
                 model.device,
                 max_new_tokens=args.max_new_tokens,
-                do_sample=args.do_sample,
+                temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty,
                 stop_str=stop_str,
             )

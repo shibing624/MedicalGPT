@@ -103,7 +103,7 @@ def main():
             input_ids=torch.as_tensor([input_ids]).to(device),
             streamer=streamer,
             max_new_tokens=max_new_tokens,
-            do_sample=False,
+            temperature=0.0,
             num_beams=1,
             repetition_penalty=1.0,
         )
