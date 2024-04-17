@@ -43,7 +43,7 @@ def stream_generate_answer(
         device,
         do_print=True,
         max_new_tokens=512,
-        temperature=0.0,
+        temperature=0.7,
         repetition_penalty=1.0,
         context_len=2048,
         stop_str="</s>",
@@ -88,7 +88,7 @@ def batch_generate_answer(
         prompt_template,
         device,
         max_new_tokens=512,
-        temperature=0.0,
+        temperature=0.7,
         repetition_penalty=1.0,
         stop_str="</s>",
 ):
@@ -130,7 +130,7 @@ def main():
                         help="A file that contains instructions (one instruction per line)")
     parser.add_argument('--interactive', action='store_true', help="run in the instruction mode (default multi-turn)")
     parser.add_argument('--single_tune', action='store_true', help='Whether to use single-tune model')
-    parser.add_argument('--temperature', type=float, default=0.0)
+    parser.add_argument('--temperature', type=float, default=0.7)
     parser.add_argument('--output_file', default='./predictions_result.jsonl', type=str)
     parser.add_argument("--eval_batch_size", type=int, default=4)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')

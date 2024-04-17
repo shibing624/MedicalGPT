@@ -60,7 +60,7 @@ def main():
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
-    parser.add_argument('--temperature', type=float, default=0.0)
+    parser.add_argument('--temperature', type=float, default=0.7)
     parser.add_argument("--max_new_tokens", type=int, default=128)
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument('--data_file', default=None, type=str, help="Predict file, one example per line")
