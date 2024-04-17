@@ -26,7 +26,6 @@ from typing import Literal, Optional, Tuple, List, Dict, Sequence
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_kbit_training
@@ -53,7 +52,6 @@ from transformers.models.llama.modeling_llama import (
     LlamaFlashAttention2,
     Cache
 )
-from transformers.models.mixtral.modeling_mixtral import MixtralBLockSparseTop2MLP, MixtralSparseMoeBlock
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.trainer_pt_utils import LabelSmoother
 from transformers.utils.versions import require_version
@@ -768,6 +766,7 @@ def llama_torch_attn_forward(
         position_ids: Optional[torch.LongTensor] = None,
         past_key_value: Optional["Cache"] = None,
         output_attentions: bool = False,
+        cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
 ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
     bsz, q_len, _ = hidden_states.size()
@@ -780,15 +779,12 @@ def llama_torch_attn_forward(
     key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
     value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
 
-    kv_seq_len = key_states.shape[-2]
-    if past_key_value is not None:
-        kv_seq_len += past_key_value.get_usable_length(kv_seq_len, self.layer_idx)
-
-    cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-    query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+    past_key_value = getattr(self, "past_key_value", past_key_value)
+    cos, sin = self.rotary_emb(value_states, position_ids)
+    query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
     if past_key_value is not None:
-        cache_kwargs = {"sin": sin, "cos": cos}  # Specific to RoPE models
+        cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
         key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
 
     key_states = repeat_kv(key_states, self.num_key_value_groups)
@@ -846,8 +842,9 @@ def llama_flash_attn_forward(
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
-        past_key_value: Optional[Tuple[torch.Tensor]] = None,
+        past_key_value: Optional["Cache"] = None,
         output_attentions: bool = False,
+        cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
 ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
     # LlamaFlashAttention2 attention does not support output_attentions
@@ -864,15 +861,13 @@ def llama_flash_attn_forward(
     key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
     value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
 
-    kv_seq_len = key_states.shape[-2]
-    if past_key_value is not None:
-        kv_seq_len += past_key_value.get_usable_length(kv_seq_len, self.layer_idx)
+    cos, sin = self.rotary_emb(value_states, position_ids)
+    query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin)
 
-    cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-    query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos, sin, position_ids)
+    past_key_value = getattr(self, "past_key_value", past_key_value)
 
     if past_key_value is not None:
-        cache_kwargs = {"sin": sin, "cos": cos}  # Specific to RoPE models
+        cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
         key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
 
     key_states = repeat_kv(key_states, self.num_key_value_groups)
@@ -939,41 +934,6 @@ def llama_flash_attn_forward(
 def apply_llama_patch() -> None:
     LlamaAttention.forward = llama_torch_attn_forward
     LlamaFlashAttention2.forward = llama_flash_attn_forward
-
-
-def mlp_forward(self: "MixtralBLockSparseTop2MLP", hidden_states: torch.Tensor) -> torch.Tensor:
-    current_hidden_states = self.act_fn(self.w1(hidden_states)) * self.w3(hidden_states)
-    current_hidden_states = self.w2(current_hidden_states)
-    return current_hidden_states
-
-
-# Modified from: https://huggingface.co/deepseek-ai/deepseek-moe-16b-base/blob/main/modeling_deepseek.py
-def moe_forward(self: "MixtralSparseMoeBlock", hidden_states: torch.Tensor):
-    batch_size, sequence_length, hidden_dim = hidden_states.shape
-    hidden_states = hidden_states.view(-1, hidden_dim)
-    # router_logits: (batch * sequence_length, n_experts)
-    router_logits = self.gate(hidden_states)
-
-    routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
-    topk_weight, topk_idx = torch.topk(routing_weights, self.top_k, dim=-1, sorted=False)
-    topk_weight /= topk_weight.sum(dim=-1, keepdim=True)
-    # we cast back to the input dtype
-    topk_weight = topk_weight.to(hidden_states.dtype)
-
-    hidden_states = hidden_states.repeat_interleave(self.top_k, dim=0)
-    y = torch.empty_like(hidden_states)
-    flat_topk_idx = topk_idx.view(-1)
-    for i in range(self.num_experts):
-        expert = self.experts[i]
-        y[flat_topk_idx == i] = expert(hidden_states[flat_topk_idx == i])
-    y = (y.view(*topk_weight.shape, -1) * topk_weight.unsqueeze(-1)).sum(dim=1)
-    final_hidden_states = y.reshape(batch_size, sequence_length, hidden_dim)
-    return final_hidden_states, router_logits
-
-
-def patch_mixtral_replace_moe_impl() -> None:
-    MixtralBLockSparseTop2MLP.forward = mlp_forward
-    MixtralSparseMoeBlock.forward = moe_forward
 
 
 def main():
@@ -1328,7 +1288,6 @@ def main():
             from transformers.models.mixtral.modeling_mixtral import MixtralSparseMoeBlock  # type: ignore
 
             set_z3_leaf_modules(model, [MixtralSparseMoeBlock])
-            patch_mixtral_replace_moe_impl()
     else:
         raise ValueError(f"Error, model_name_or_path is None, SFT must be loaded from a pre-trained model")
 

@@ -21,6 +21,7 @@ from transformers import (
     LlamaForCausalLM,
     TextIteratorStreamer,
     GenerationConfig,
+    BitsAndBytesConfig,
 )
 
 from supervised_finetuning import get_conv_template
@@ -133,30 +134,30 @@ def main():
     parser.add_argument('--output_file', default='./predictions_result.jsonl', type=str)
     parser.add_argument("--eval_batch_size", type=int, default=4)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
-    parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
     parser.add_argument('--load_in_8bit', action='store_true', help='Whether to load model in 8bit')
     parser.add_argument('--load_in_4bit', action='store_true', help='Whether to load model in 4bit')
     args = parser.parse_args()
     print(args)
     load_type = torch.float16
-    if torch.cuda.is_available() and not args.only_cpu:
-        device = torch.device(0)
-    else:
-        device = torch.device('cpu')
     if args.tokenizer_path is None:
         args.tokenizer_path = args.base_model
 
     model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True, padding_side='left')
-    base_model = model_class.from_pretrained(
-        args.base_model,
-        load_in_8bit=args.load_in_8bit,
-        load_in_4bit=args.load_in_4bit,
-        torch_dtype=load_type,
-        low_cpu_mem_usage=True,
-        device_map='auto',
-        trust_remote_code=True,
-    )
+    config_kwargs = {
+        "trust_remote_code": True,
+        "torch_dtype": load_type,
+        "low_cpu_mem_usage": True,
+        "device_map": 'auto',
+    }
+    if args.load_in_8bit:
+        config_kwargs['quantization_config'] = BitsAndBytesConfig(load_in_8bit=True)
+    elif args.load_in_4bit:
+        config_kwargs['quantization_config'] = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=load_type,
+        )
+    base_model = model_class.from_pretrained(args.base_model, **config_kwargs)
     try:
         base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
     except OSError:
@@ -175,7 +176,7 @@ def main():
         print("Loaded lora model")
     else:
         model = base_model
-    if device == torch.device('cpu'):
+    if args.only_cpu:
         model.float()
     model.eval()
     print(tokenizer)
@@ -225,7 +226,7 @@ def main():
                 model,
                 tokenizer,
                 prompt,
-                device,
+                model.device,
                 do_print=True,
                 max_new_tokens=args.max_new_tokens,
                 do_sample=args.do_sample,
@@ -252,7 +253,7 @@ def main():
                 model,
                 tokenizer,
                 prompt_template,
-                device,
+                model.device,
                 max_new_tokens=args.max_new_tokens,
                 do_sample=args.do_sample,
                 repetition_penalty=args.repetition_penalty,

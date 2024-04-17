@@ -1,10 +1,10 @@
 loguru
-transformers>=4.37.2
+transformers>=4.39.3
 sentencepiece
 datasets>=2.14.6
 tqdm
 tensorboard
 tqdm>=4.47.0
-peft==0.7.0
-accelerate>=0.21.0
-trl==0.7.11
+peft~=0.10.0
+accelerate~=0.21.0
+trl~=0.8.3

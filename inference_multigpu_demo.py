@@ -26,6 +26,7 @@ from transformers import (
     LlamaTokenizer,
     LlamaForCausalLM,
     GenerationConfig,
+    BitsAndBytesConfig,
 )
 
 from supervised_finetuning import get_conv_template
@@ -92,6 +93,11 @@ def main():
         low_cpu_mem_usage=True,
         device_map={"": local_rank},
         trust_remote_code=True,
+        quantization_config=BitsAndBytesConfig(
+            load_in_4bit=args.load_in_4bit,
+            load_in_8bit=args.load_in_8bit,
+            bnb_4bit_compute_dtype=load_type,
+        ) if args.load_in_8bit or args.load_in_4bit else None,
     )
     try:
         base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
