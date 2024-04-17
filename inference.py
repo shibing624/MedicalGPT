@@ -176,8 +176,6 @@ def main():
         print("Loaded lora model")
     else:
         model = base_model
-    if args.only_cpu:
-        model.float()
     model.eval()
     print(tokenizer)
     # test data
