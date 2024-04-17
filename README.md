@@ -30,6 +30,9 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - DPO方法来自论文[Direct Preference Optimization:Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
 
 ## 🔥 News
+
+[2024/04/17] v1.9版本：支持了 **[ORPO](https://arxiv.org/abs/2403.07691)**，详细用法请参照 `run_orpo.sh`。详见[Release-v1.9](https://github.com/shibing624/MedicalGPT/releases/tag/1.9.0)
+
 [2024/01/26] v1.8版本：支持微调Mixtral混合专家MoE模型 **[Mixtral 8x7B](https://huggingface.co/mistralai/Mixtral-8x7B-v0.1)**。详见[Release-v1.8](https://github.com/shibing624/MedicalGPT/releases/tag/1.8.0)
 
 [2024/01/14] v1.7版本：新增检索增强生成(RAG)的基于文件问答[ChatPDF](https://github.com/shibing624/ChatPDF)功能，代码`chatpdf.py`，可以基于微调后的LLM结合知识库文件问答提升行业问答准确率。详见[Release-v1.7](https://github.com/shibing624/MedicalGPT/releases/tag/1.7.0)

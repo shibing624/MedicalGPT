@@ -699,6 +699,22 @@ register_conv_template(
     )
 )
 
+"""Qwen template
+source: https://huggingface.co/Qwen/CodeQwen1.5-7B-Chat/blob/main/tokenizer_config.json#L18
+Supports: https://huggingface.co/Qwen/CodeQwen1.5-7B-Chat
+"""
+register_conv_template(
+    Conversation(
+        name="qwen",
+        system_prompt="<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n",
+        messages=[],
+        roles=("user", "assistant"),
+        prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
+        sep="\n",
+        stop_str="<|im_end|>",
+    )
+)
+
 
 def get_conv_template(name: str) -> Conversation:
     """Get a conversation template."""
