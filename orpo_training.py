@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 @author:XuMing(xuming624@qq.com)
-@description: Train a model from SFT using ORPO
+@description: Train a model from base model using ORPO
 """
 import os
 from dataclasses import dataclass, field
@@ -22,11 +22,9 @@ from transformers import (
     BloomTokenizerFast,
     AutoTokenizer,
     HfArgumentParser,
-    TrainingArguments,
     BitsAndBytesConfig,
 )
 from transformers.deepspeed import is_deepspeed_zero3_enabled
-
 from trl import ORPOConfig, ORPOTrainer
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
@@ -439,7 +437,7 @@ def main():
         beta=args.orpo_beta,
     )
 
-    # Initialize DPO trainer
+    # Initialize ORPO trainer
     peft_config = None
     if args.use_peft:
         logger.info("Fine-tuning method: LoRA(PEFT)")
