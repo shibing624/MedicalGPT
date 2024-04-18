@@ -105,7 +105,7 @@ CUDA_VISIBLE_DEVICES=0 python gradio_demo.py --model_type base_model_type --base
 
 ## 💾 Install
 #### Updating the requirements
-`requirements.txt`会不时更新. 使用以下命令更新依赖:
+`requirements.txt`会不时更新以适配最新功能，使用以下命令更新依赖:
 
 ```markdown
 git clone https://github.com/shibing624/MedicalGPT
@@ -353,6 +353,5 @@ MedicalGPT项目代码的授权协议为 [The Apache License 2.0](/LICENSE)，�
 Thanks for their great work!
 
 #### 关联项目推荐
-- [shibing624/ChatPDF](https://github.com/shibing624/ChatPDF)：基于本地 LLM 做检索知识问答（RAG）
-- [shibing624/chatgpt-webui](https://github.com/shibing624/chatgpt-webui)：给 LLM 对话和检索知识问答（RAG）提供一个简单好用的Web UI界面
+- [shibing624/ChatPilot](https://github.com/shibing624/ChatPilot)：给 LLM Agent（包括RAG、在线搜索、Code interpreter） 提供一个简单好用的Web UI界面
 
