@@ -146,68 +146,25 @@ Training Stage:
 
 #### Supported Models
 
-| Model Name                                                            | Model Size                  | Template  |
-|-----------------------------------------------------------------------|-----------------------------|-----------|
-| [BLOOMZ](https://huggingface.co/bigscience/bloomz)                    | 560M/1.1B/1.7B/3B/7.1B/176B | vicuna    |
-| [LLaMA](https://github.com/facebookresearch/llama)                    | 7B/13B/33B/65B              | alpaca    |
-| [LLaMA2](https://huggingface.co/meta-llama)                           | 7B/13B/70B                  | llama2    |
-| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1)  | 7B/8x7B                     | mistral   |
-| [Baichuan](https://github.com/baichuan-inc/baichuan-13B)              | 7B/13B                      | baichuan  |
-| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)                | 7B/13B                      | baichuan2 |
-| [InternLM](https://github.com/InternLM/InternLM)                      | 7B                          | intern    |
-| [Qwen](https://github.com/QwenLM/Qwen)                                | 1.8B/7B/14B/72B             | chatml    |
-| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                     | 13B                         | xverse    |
-| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                        | 6B                          | chatglm   |
-| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                      | 6B                          | chatglm2  |
-| [ChatGLM3](https://github.com/THUDM/ChatGLM3)                         | 6B                          | chatglm3  |
-| [Yi](https://github.com/01-ai/Yi)                                     | 6B/34B                      | yi        |
-| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)               | 7B/16B/67B                  | deepseek  |
-| [Orion](https://github.com/OrionStarAI/Orion)                         | 14B                         | orion     |
-
-The following models are tested:
-
-bloom:
-- [bigscience/bloomz-560m](https://huggingface.co/bigscience/bloomz-560m)
-- [bigscience/bloomz-1b7](https://huggingface.co/bigscience/bloomz-1b7)
-- [bigscience/bloomz-7b1](https://huggingface.co/bigscience/bloomz-7b1)
-
-llama:
-- [shibing624/chinese-alpaca-plus-7b-hf](https://huggingface.co/shibing624/chinese-alpaca-plus-7b-hf)
-- [shibing624/chinese-alpaca-plus-13b-hf](https://huggingface.co/shibing624/chinese-alpaca-plus-13b-hf)
-- [minlik/chinese-llama-plus-7b-merged](https://huggingface.co/minlik/chinese-llama-plus-7b-merged)
-- [shibing624/chinese-llama-plus-13b-hf](https://huggingface.co/shibing624/chinese-llama-plus-13b-hf)
-- [decapoda-research/llama-7b-hf](https://huggingface.co/decapoda-research/llama-7b-hf)
-- [IDEA-CCNL/Ziya-LLaMA-13B-v1](https://huggingface.co/IDEA-CCNL/Ziya-LLaMA-13B-v1)
-
-llama2:
-- [daryl149/llama-2-7b-chat-hf](https://huggingface.co/daryl149/llama-2-7b-chat-hf)
-- [meta-llama/Llama-2-7b-chat-hf](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf)
-- [ziqingyang/chinese-alpaca-2-7b](https://huggingface.co/ziqingyang/chinese-alpaca-2-7b)
-
-mistral:
-- [mistralai/Mistral-7B-v0.1](https://huggingface.co/mistralai/Mistral-7B-v0.1)
-- [HuggingFaceH4/zephyr-7b-beta](https://huggingface.co/HuggingFaceH4/zephyr-7b-beta)
-
-chatglm:
-- [THUDM/chatglm-6b](https://huggingface.co/THUDM/chatglm-6b)
-- [THUDM/chatglm2-6b](https://huggingface.co/THUDM/chatglm2-6b)
-- [THUDM/chatglm3-6b](https://huggingface.co/THUDM/chatglm3-6b)
-
-baichuan:
-- [baichuan-inc/baichuan-7B](https://huggingface.co/baichuan-inc/baichuan-7B)
-- [baichuan-inc/Baichuan-13B-Base](https://huggingface.co/baichuan-inc/Baichuan-13B-Base)
-- [baichuan-inc/Baichuan-13B-Chat](https://huggingface.co/baichuan-inc/Baichuan-13B-Chat)
-
-xverse:
-- [xverse/XVERSE-13B-Chat](https://huggingface.co/xverse/XVERSE-13B-Chat)
-
-qwen:
-- [Qwen/Qwen-7B-Chat](https://huggingface.co/Qwen/Qwen-7B-Chat)
-
-yi:
-- [01-ai/Yi-6B-200K](https://huggingface.co/01-ai/Yi-6B-200K)
-- [01-ai/Yi-6B-Chat](https://huggingface.co/01-ai/Yi-6B-Chat)
-- [01-ai/Yi-34B](https://huggingface.co/01-ai/Yi-34B)
+| Model Name                                                           | Model Size                  | Template  |
+|----------------------------------------------------------------------|-----------------------------|-----------|
+| [BLOOMZ](https://huggingface.co/bigscience/bloomz)                   | 560M/1.1B/1.7B/3B/7.1B/176B | vicuna    |
+| [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B              | alpaca    |
+| [LLaMA2](https://huggingface.co/meta-llama)                          | 7B/13B/70B                  | llama2    |
+| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B/8x7B                     | mistral   |
+| [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                      | baichuan  |
+| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                      | baichuan2 |
+| [InternLM](https://github.com/InternLM/InternLM)                     | 7B                          | intern    |
+| [Qwen](https://github.com/QwenLM/Qwen)                               | 1.8B/7B/14B/72B             | chatml    |
+| [Qwen1.5](https://github.com/QwenLM/Qwen1.5)                         | 0.5B/1.8B/4B/14B/72B        | qwen      |
+| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                         | xverse    |
+| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                       | 6B                          | chatglm   |
+| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                          | chatglm2  |
+| [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                          | chatglm3  |
+| [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                      | yi        |
+| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/16B/67B                  | deepseek  |
+| [Orion](https://github.com/OrionStarAI/Orion)                        | 14B                         | orion     |
+| [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)     | 104B                        | cohere    |
 
 ## 💻 Inference
 训练完成后，现在我们加载训练好的模型，验证模型生成文本的效果。
