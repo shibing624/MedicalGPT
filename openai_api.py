@@ -144,15 +144,14 @@ async def list_models():
 
 # To work around that unpleasant leading-\n tokenization issue!
 def add_extra_stop_words(stop_words):
+    _stop_words = []
     if stop_words:
-        _stop_words = []
         _stop_words.extend(stop_words)
         for x in stop_words:
             s = x.lstrip('\n')
             if s and (s not in _stop_words):
                 _stop_words.append(s)
-        return _stop_words
-    return stop_words
+    return _stop_words
 
 
 def trim_stop_words(response, stop_words):
@@ -399,13 +398,7 @@ def stream_model_chat(model, tokenizer, query, history, gen_kwargs, system):
     thread = Thread(target=model.generate, kwargs=gen_kwargs, daemon=True)
     thread.start()
 
-    def stream():
-        try:
-            return streamer.__next__()
-        except StopIteration:
-            raise StopAsyncIteration()
-
-    return stream()
+    yield from streamer
 
 
 @app.post('/v1/chat/completions', response_model=ChatCompletionResponse)
@@ -440,12 +433,12 @@ async def create_chat_completion(request: ChatCompletionRequest):
                 status_code=400,
                 detail='Invalid request: Function calling is not yet implemented for stream mode.',
             )
-        generate = predict(query,
-                           history,
-                           request.model,
-                           stop_words,
-                           gen_kwargs,
-                           system=system)
+        generate = apredict(query,
+                            history,
+                            request.model,
+                            stop_words,
+                            gen_kwargs,
+                            system=system)
         return StreamingResponse(generate, media_type='text/event-stream')
 
     response = model_chat(
@@ -488,7 +481,7 @@ def jsonify(data: BaseModel) -> str:
         return data.json(exclude_unset=True, ensure_ascii=False)
 
 
-async def predict(
+async def apredict(
         query: str,
         history: List[List[str]],
         model_id: str,
@@ -504,8 +497,7 @@ async def predict(
                                    object='chat.completion.chunk')
     yield jsonify(chunk)
 
-    current_length = 0
-    delay_token_num = max([len(x) for x in stop_words])
+    stop_words = [x for x in stop_words if x]
     response_generator = stream_model_chat(
         model,
         tokenizer,
@@ -514,37 +506,18 @@ async def predict(
         gen_kwargs,
         system
     )
+    for token_output in response_generator:
+        # Check if any stop word is in the token output
+        if any(stop_word in token_output for stop_word in stop_words):
+            break
 
-    _new_response = ''
-    for _new_response in response_generator:
-        if len(_new_response) <= delay_token_num:
-            continue
-        new_response = _new_response[:-delay_token_num]
-
-        if len(new_response) == current_length:
-            continue
-
-        new_text = new_response[current_length:]
-        current_length = len(new_response)
-
+        # Send the current token as part of the response
         choice_data = ChatCompletionResponseStreamChoice(
-            index=0, delta=DeltaMessage(content=new_text), finish_reason=None)
+            index=0, delta=DeltaMessage(content=token_output), finish_reason=None)
         chunk = ChatCompletionResponse(model=model_id,
                                        choices=[choice_data],
                                        object='chat.completion.chunk')
         yield jsonify(chunk)
-
-    if current_length != len(_new_response):
-        # Determine whether to print the delay tokens
-        delayed_text = _new_response[current_length:]
-        new_text = trim_stop_words(delayed_text, stop_words)
-        if len(new_text) > 0:
-            choice_data = ChatCompletionResponseStreamChoice(
-                index=0, delta=DeltaMessage(content=new_text), finish_reason=None)
-            chunk = ChatCompletionResponse(model=model_id,
-                                           choices=[choice_data],
-                                           object='chat.completion.chunk')
-            yield jsonify(chunk)
 
     choice_data = ChatCompletionResponseStreamChoice(index=0,
                                                      delta=DeltaMessage(),
