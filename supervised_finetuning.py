@@ -148,7 +148,7 @@ class ModelArguments:
     )
     shift_attn: Optional[bool] = field(
         default=False,
-        metadata={"help": "Enable shift short attention (S^2-Attn) proposed by LongLoRA."}
+        metadata={"help": "Enable shifted sparse attention (S^2-Attn) proposed by LongLoRA."}
     )
     neft_alpha: Optional[float] = field(
         default=0,
@@ -1251,16 +1251,16 @@ def main():
                 logger.warning("FlashAttention-2 is not installed.")
         elif model_args.shift_attn and getattr(config, "model_type", None) == "llama":
             logger.warning("Using `--flash_attn` for faster training in large context length, enable if your GPU"
-                           " is RTX4090, A100 or H100.")
+                           " is RTX3090, RTX4090, A100 or H100.")
 
-        # Set shift short attention (S^2-Attn)
+        # Set shifted sparse attention (S^2-Attn)
         if model_args.shift_attn:
             if getattr(config, "model_type", None) == "llama":
                 setattr(config, "group_size_ratio", 0.25)
                 apply_llama_patch()
-                logger.info("Using shift short attention with group_size_ratio=1/4.")
+                logger.info("Using shifted sparse attention with group_size_ratio=1/4.")
             else:
-                logger.warning("Current model does not support shift short attention.")
+                logger.warning("Current model does not support shifted sparse attention.")
 
         load_in_4bit = model_args.load_in_4bit
         load_in_8bit = model_args.load_in_8bit
@@ -1388,7 +1388,7 @@ def main():
         tokenizer=tokenizer,
         model=model,
         label_pad_token_id=IGNORE_INDEX,
-        pad_to_multiple_of=4 if tokenizer.padding_side == "right" else None,  # for shift short attention
+        pad_to_multiple_of=4 if tokenizer.padding_side == "right" else None,  # for shifted sparse attention
     )
     # Initialize our Trainer
     trainer = SavePeftModelTrainer(
