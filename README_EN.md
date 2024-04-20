@@ -15,7 +15,7 @@
 [![License Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![python_version](https://img.shields.io/badge/Python-3.8%2B-green.svg)](requirements.txt)
 [![GitHub issues](https://img.shields.io/github/issues/shibing624/MedicalGPT.svg)](https://github.com/shibing624/MedicalGPT/issues)
-[![Wechat Group](http://vlog.sfyc.ltd/wechat_everyday/wxgroup_logo.png?imageView2/0/w/60/h/20)](#Contact)
+[![Wechat Group](https://img.shields.io/badge/wechat-group-green.svg?logo=wechat)](#Contact)
 
 ## 📖 Introduction
 
@@ -38,7 +38,7 @@ Training MedicalGPT model：
 
 We provide a simple Gradio-based interactive web interface. After the service is started, it can be accessed through a browser, enter a question, and the model will return an answer. The command is as follows:
 ```shell
-python scripts/gradio_demo.py --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
+python gradio_demo.py --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
 ```
 
 Parameter Description:
@@ -117,6 +117,28 @@ sh run_ppo.sh
 [Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
 
 
+#### Supported Models
+
+| Model Name                                                           | Model Size                  | Template  |
+|----------------------------------------------------------------------|-----------------------------|-----------|
+| [BLOOMZ](https://huggingface.co/bigscience/bloomz)                   | 560M/1.1B/1.7B/3B/7.1B/176B | vicuna    |
+| [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B              | alpaca    |
+| [LLaMA2](https://huggingface.co/meta-llama)                          | 7B/13B/70B                  | llama2    |
+| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B/8x7B                     | mistral   |
+| [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                      | baichuan  |
+| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                      | baichuan2 |
+| [InternLM](https://github.com/InternLM/InternLM)                     | 7B                          | intern    |
+| [Qwen](https://github.com/QwenLM/Qwen)                               | 1.8B/7B/14B/72B             | chatml    |
+| [Qwen1.5](https://github.com/QwenLM/Qwen1.5)                         | 0.5B/1.8B/4B/14B/72B        | qwen      |
+| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                         | xverse    |
+| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                       | 6B                          | chatglm   |
+| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                          | chatglm2  |
+| [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                          | chatglm3  |
+| [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                      | yi        |
+| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/16B/67B                  | deepseek  |
+| [Orion](https://github.com/OrionStarAI/Orion)                        | 14B                         | orion     |
+| [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)     | 104B                        | cohere    |
+
 ## 💾 Install
 #### Updating the requirements
 From time to time, the `requirements.txt` changes. To update, use this command:
@@ -164,7 +186,7 @@ Parameter Description:
 
 <details>
 | Human | Assistant |
-| ----- | ------ |
+|-----|------|
 | How to make yourself energetic, list 5 suggestions | Here are some suggestions to keep you energetic: <br/>1. Get enough sleep. Make sure to get enough sleep every night. <br/>2. Exercise more. Doing moderate aerobic exercise, such as jogging and swimming, can help improve your energy and stamina. 3. Eat healthy food. Choose protein-rich foods such as chicken, fish, and eggs, as well as fresh fruits and vegetables. 4. Reduce caffeine intake. Try to avoid drinking caffeinated beverages or eating caffeinated foods during the day. <br/>5. Relax. Try meditation, yoga, or other forms of relaxation to reduce stress and anxiety. |
 </details>
 <br/>
@@ -224,3 +246,5 @@ Then you can submit a PR.
 - [ymcui/Chinese-LLaMA-Alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca)
 
 Thanks for their great work!
+#### Related Projects
+- [shibing624/ChatPilot](https://github.com/shibing624/ChatPilot): Provide a simple and easy-to-use web UI interface for LLM Agent (including RAG, online search, code interpreter).
