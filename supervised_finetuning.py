@@ -552,6 +552,21 @@ register_conv_template(
     )
 )
 
+"""llama3 template
+source: https://github.com/ymcui/Chinese-LLaMA-Alpaca-2
+Supports: https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct
+"""
+register_conv_template(
+    Conversation(
+        name="llama3",
+        system_prompt="",
+        messages=[],
+        roles=("user", "assistant"),
+        prompt="<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+        sep="<|eot_id|>",
+    )
+)
+
 """llama2-zh template
 source: https://github.com/ymcui/Chinese-LLaMA-Alpaca-2
 Supports: https://huggingface.co/ziqingyang/chinese-alpaca-2-7b

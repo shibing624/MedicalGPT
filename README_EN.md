@@ -124,6 +124,7 @@ sh run_ppo.sh
 | [BLOOMZ](https://huggingface.co/bigscience/bloomz)                   | 560M/1.1B/1.7B/3B/7.1B/176B | vicuna    |
 | [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B              | alpaca    |
 | [LLaMA2](https://huggingface.co/meta-llama)                          | 7B/13B/70B                  | llama2    |
+| [LLaMA3](https://huggingface.co/meta-llama)                          | 8B/70B                      | llama3   |
 | [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B/8x7B                     | mistral   |
 | [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                      | baichuan  |
 | [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                      | baichuan2 |
@@ -151,12 +152,12 @@ pip install -r requirements.txt --upgrade
 
 ### Hardware Requirement (VRAM)
 
-| Method | Bits |   7B  |  13B  |  30B  |   65B  |   8x7B |
-| ------ | ---- | ----- | ----- | ----- | ------ | ------ |
-| Full   |  16  | 160GB | 320GB | 600GB | 1200GB |  900GB |
-| LoRA   |  16  |  16GB |  32GB |  80GB |  160GB |  120GB |
-| QLoRA  |   8  |  10GB |  16GB |  40GB |   80GB |   80GB |
-| QLoRA  |   4  |   6GB |  12GB |  24GB |   48GB |   32GB |
+| Train Method | Bits |   7B  |  13B  |  30B  |   65B  |   8x7B |
+|--------------| ---- | ----- | ----- | ----- | ------ | ------ |
+| Full         |  16  | 160GB | 320GB | 600GB | 1200GB |  900GB |
+| LoRA         |  16  |  16GB |  32GB |  80GB |  160GB |  120GB |
+| QLoRA        |   8  |  10GB |  16GB |  40GB |   80GB |   80GB |
+| QLoRA        |   4  |   6GB |  12GB |  24GB |   48GB |   32GB |
 
 ## 🔥 Inference
 After the training is complete, now we load the trained model to verify the effect of the model generating text.
