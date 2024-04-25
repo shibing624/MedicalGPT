@@ -559,11 +559,15 @@ Supports: https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct
 register_conv_template(
     Conversation(
         name="llama3",
-        system_prompt="",
+        system_prompt="<|begin_of_text|><<SYS>>\nYou are a helpful, excellent and smart assistant.\n<</SYS>>\n\n",
         messages=[],
         roles=("user", "assistant"),
-        prompt="<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
-        sep="<|eot_id|>",
+        prompt=(
+            "<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|>"
+            "<|start_header_id|>assistant<|end_header_id|>\n\n"
+        ),
+        sep="<|end_of_text|>\n",
+        stop_str="<|end_of_text|>",
     )
 )
 
