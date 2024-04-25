@@ -553,7 +553,7 @@ register_conv_template(
 )
 
 """llama3 template
-source: https://github.com/ymcui/Chinese-LLaMA-Alpaca-2
+source: https://huggingface.co/meta-llama
 Supports: https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct
 """
 register_conv_template(
