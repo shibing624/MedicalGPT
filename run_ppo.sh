@@ -7,7 +7,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 ppo_training.py \
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \
     --batch_size 8 \
-    --max_source_length 256 \
+    --max_source_length 2056 \
     --max_target_length 256 \
     --max_train_samples 1000 \
     --use_peft True \

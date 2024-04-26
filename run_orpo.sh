@@ -9,12 +9,12 @@ CUDA_VISIBLE_DEVICES=0,1 python orpo_training.py \
     --do_eval \
     --use_peft True \
     --max_train_samples 1000 \
-    --max_eval_samples 100 \
+    --max_eval_samples 50 \
     --max_steps 100 \
     --eval_steps 20 \
     --save_steps 50 \
-    --max_source_length 128 \
-    --max_target_length 128 \
+    --max_source_length 2028 \
+    --max_target_length 1028 \
     --output_dir outputs-orpo-qwen-v1 \
     --target_modules all \
     --lora_rank 8 \
