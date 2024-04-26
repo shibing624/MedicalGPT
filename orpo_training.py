@@ -311,7 +311,7 @@ def main():
         prompts = []
         for system, history, question in zip(examples["system"], examples["history"], examples["question"]):
             system_prompt = system or ""
-            history_with_question = history + [question, ''] if history else [question, '']
+            history_with_question = history + [[question, '']] if history else [[question, '']]
             prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
         return {
             "prompt": prompts,
