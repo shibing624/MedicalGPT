@@ -29,6 +29,8 @@ from transformers import (
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 from trl import DPOTrainer
 
+from supervised_finetuning import get_conv_template
+
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -210,26 +212,6 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
     return sorted(lora_module_names)
 
 
-def return_prompt_and_responses(examples) -> Dict[str, str]:
-    """Load the paired dataset and convert it to the necessary format.
-
-    The dataset is converted to a dictionary with the following structure:
-    {
-        'prompt': List[str],
-        'chosen': List[str],
-        'rejected': List[str],
-    }
-
-    Prompts are structured as follows:
-      "Question: " + <prompt> + "\n\nAnswer: "
-    """
-    return {
-        "prompt": ["Question: " + question + "\n\nAnswer: " for question in examples["question"]],
-        "chosen": examples["response_chosen"],
-        "rejected": examples["response_rejected"],
-    }
-
-
 def main():
     parser = HfArgumentParser(ScriptArguments)
     args = parser.parse_args_into_dataclasses()[0]
@@ -252,6 +234,7 @@ def main():
         tokenizer.pad_token_id = 0  # set as the <unk> token
 
     # Get datasets
+    prompt_template = get_conv_template(args.template_name)
     if args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
@@ -309,6 +292,26 @@ def main():
     max_source_length = args.max_source_length
     max_target_length = args.max_target_length
     full_max_length = max_source_length + max_target_length
+
+    def return_prompt_and_responses(examples) -> Dict[str, str]:
+        """Load the paired dataset and convert it to the necessary format.
+
+        The dataset is converted to a dictionary with the following structure:
+        {
+            'prompt': List[str],
+            'chosen': List[str],
+            'rejected': List[str],
+        }
+
+        Prompts are structured as follows:
+          "Question: " + <prompt> + "\n\nAnswer: "
+        """
+        return {
+            "prompt": [prompt_template.get_prompt(messages=history.append([question, '']), system_prompt=system) for
+                       system, history, question in zip(examples["system"], examples["history"], examples["question"])],
+            "chosen": examples["response_chosen"],
+            "rejected": examples["response_rejected"],
+        }
 
     # Preprocess the dataset
     train_dataset = None
