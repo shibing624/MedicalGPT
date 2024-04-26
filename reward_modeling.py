@@ -125,8 +125,8 @@ class DataArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The input jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."}, )
-    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
-    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
+    max_source_length: Optional[int] = field(default=2048, metadata={"help": "Max length of prompt input text"})
+    max_target_length: Optional[int] = field(default=512, metadata={"help": "Max length of output text"})
     max_train_samples: Optional[int] = field(
         default=None,
         metadata={

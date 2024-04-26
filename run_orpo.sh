@@ -9,7 +9,7 @@ CUDA_VISIBLE_DEVICES=0,1 python orpo_training.py \
     --do_eval \
     --use_peft True \
     --max_train_samples 1000 \
-    --max_eval_samples 10 \
+    --max_eval_samples 100 \
     --max_steps 100 \
     --eval_steps 20 \
     --save_steps 50 \
