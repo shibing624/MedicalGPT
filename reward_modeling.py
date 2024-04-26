@@ -419,7 +419,7 @@ def main():
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = get_conv_template(script_args.template_name)
     if tokenizer.eos_token_id is None:
-        tokenizer.eos_token = prompt_template.stop_str  # eos token is required for SFT
+        tokenizer.eos_token = prompt_template.stop_str  # eos token is required
         logger.info("Add eos token: {}".format(tokenizer.eos_token))
     if tokenizer.pad_token_id is None:
         if tokenizer.unk_token_id is not None:
@@ -427,6 +427,7 @@ def main():
         else:
             tokenizer.pad_token = tokenizer.eos_token
         logger.info("Add pad token: {}".format(tokenizer.pad_token))
+    logger.debug(f"Tokenizer: {tokenizer}")
 
     if script_args.use_peft:
         logger.info("Fine-tuning method: LoRA(PEFT)")

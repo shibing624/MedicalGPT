@@ -237,12 +237,17 @@ def main():
         tokenizer.eos_token = prompt_template.stop_str  # eos token is required
         tokenizer.add_special_tokens({"eos_token": tokenizer.eos_token})
         logger.info(f"Add eos_token: {tokenizer.eos_token}, eos_token_id: {tokenizer.eos_token_id}")
+    if tokenizer.bos_token_id is None:
+        tokenizer.add_special_tokens({"bos_token": tokenizer.eos_token})
+        tokenizer.bos_token_id = tokenizer.eos_token_id
+        logger.info(f"Add bos_token: {tokenizer.bos_token}, bos_token_id: {tokenizer.bos_token_id}")
     if tokenizer.pad_token_id is None:
         if tokenizer.unk_token_id is not None:
             tokenizer.pad_token = tokenizer.unk_token
         else:
             tokenizer.pad_token = tokenizer.eos_token
         logger.info(f"Add pad_token: {tokenizer.pad_token}, pad_token_id: {tokenizer.pad_token_id}")
+    logger.debug(f"Tokenizer: {tokenizer}")
 
     # Get datasets
     if args.dataset_name is not None:
