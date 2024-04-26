@@ -14,8 +14,8 @@ CUDA_VISIBLE_DEVICES=0,1 python dpo_training.py \
     --max_steps 100 \
     --eval_steps 20 \
     --save_steps 50 \
-    --max_source_length 1028 \
-    --max_target_length 1028 \
+    --max_source_length 1024 \
+    --max_target_length 512 \
     --output_dir outputs-dpo-qwen-v1 \
     --target_modules all \
     --lora_rank 8 \
