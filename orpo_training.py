@@ -306,11 +306,15 @@ def main():
         }
 
         Prompts are structured as follows:
-          "Question: " + <prompt> + "\n\nAnswer: "
+          system_prompt + history[[q,a], [q,a]...] + question
         """
+        prompts = []
+        for system, history, question in zip(examples["system"], examples["history"], examples["question"]):
+            system_prompt = system or ""
+            history_with_question = history + [question, ''] if history else [question, '']
+            prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
         return {
-            "prompt": [prompt_template.get_prompt(messages=history.append([question, '']), system_prompt=system) for
-                       system, history, question in zip(examples["system"], examples["history"], examples["question"])],
+            "prompt": prompts,
             "chosen": examples["response_chosen"],
             "rejected": examples["response_rejected"],
         }

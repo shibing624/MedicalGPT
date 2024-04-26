@@ -2,6 +2,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 ppo_training.py \
     --model_type auto \
     --model_name_or_path Qwen/Qwen1.5-0.5B-Chat \
     --reward_model_name_or_path OpenAssistant/reward-model-deberta-v3-large-v2 \
+    --template_name qwen \
     --torch_dtype float16 \
     --device_map auto \
     --train_file_dir ./data/finetune \
