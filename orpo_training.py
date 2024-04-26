@@ -341,7 +341,10 @@ def main():
         )
         logger.debug(f"Num train_samples: {len(train_dataset)}")
         logger.debug("First train example:")
-        logger.debug(train_dataset[0]['prompt'] + train_dataset[0]['chosen'])
+        first_example = train_dataset[0]
+        logger.debug(f"prompt:\n{first_example['prompt']}")
+        logger.debug(f"chosen:\n{first_example['chosen']}")
+        logger.debug(f"rejected:\n{first_example['rejected']}")
 
     eval_dataset = None
     max_eval_samples = 0
@@ -368,7 +371,10 @@ def main():
         )
         logger.debug(f"Num eval_samples: {len(eval_dataset)}")
         logger.debug("First eval example:")
-        logger.debug(eval_dataset[0]['prompt'] + eval_dataset[0]['chosen'])
+        first_example = eval_dataset[0]
+        logger.debug(f"prompt:\n{first_example['prompt']}")
+        logger.debug(f"chosen:\n{first_example['chosen']}")
+        logger.debug(f"rejected:\n{first_example['rejected']}")
 
     # Load model
     torch_dtype = (
