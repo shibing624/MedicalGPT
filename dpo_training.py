@@ -29,7 +29,7 @@ from transformers import (
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 from trl import DPOTrainer
 
-from supervised_finetuning import get_conv_template
+from template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -230,11 +230,18 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    prompt_template = get_conv_template(args.template_name)
+    if tokenizer.eos_token_id is None:
+        tokenizer.eos_token = prompt_template.stop_str  # eos token is required for SFT
+        logger.info("Add eos token: {}".format(tokenizer.eos_token))
     if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = 0  # set as the <unk> token
+        if tokenizer.unk_token_id is not None:
+            tokenizer.pad_token = tokenizer.unk_token
+        else:
+            tokenizer.pad_token = tokenizer.eos_token
+        logger.info("Add pad token: {}".format(tokenizer.pad_token))
 
     # Get datasets
-    prompt_template = get_conv_template(args.template_name)
     if args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
@@ -304,11 +311,15 @@ def main():
         }
 
         Prompts are structured as follows:
-          "Question: " + <prompt> + "\n\nAnswer: "
+          system_prompt + history[[q,a], [q,a]...] + question
         """
+        prompts = []
+        for system, history, question in zip(examples["system"], examples["history"], examples["question"]):
+            system_prompt = system or ""
+            history_with_question = history + [[question, '']] if history else [[question, '']]
+            prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
         return {
-            "prompt": [prompt_template.get_prompt(messages=history.append([question, '']), system_prompt=system) for
-                       system, history, question in zip(examples["system"], examples["history"], examples["question"])],
+            "prompt": prompts,
             "chosen": examples["response_chosen"],
             "rejected": examples["response_rejected"],
         }

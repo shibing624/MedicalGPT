@@ -28,8 +28,7 @@ from transformers import (
 )
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
 
-from supervised_finetuning import get_conv_template
-
+from template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -237,8 +236,16 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    prompt_template = get_conv_template(args.template_name)
+    if tokenizer.eos_token_id is None:
+        tokenizer.eos_token = prompt_template.stop_str  # eos token is required for SFT
+        logger.info("Add eos token: {}".format(tokenizer.eos_token))
     if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = 0  # set as the <unk> token
+        if tokenizer.unk_token_id is not None:
+            tokenizer.pad_token = tokenizer.unk_token
+        else:
+            tokenizer.pad_token = tokenizer.eos_token
+        logger.info("Add pad token: {}".format(tokenizer.pad_token))
 
     # Load model
     peft_config = None
@@ -359,7 +366,6 @@ def main():
     # Preprocessing the datasets
     max_source_length = args.max_source_length
     max_target_length = args.max_target_length
-    prompt_template = get_conv_template(args.template_name)
 
     def preprocess_function(examples):
         new_examples = {

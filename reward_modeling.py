@@ -37,6 +37,8 @@ from transformers import (
 )
 from transformers.trainer import TRAINING_ARGS_NAME
 
+from template import get_conv_template
+
 MODEL_CLASSES = {
     "bert": (AutoConfig, BertForSequenceClassification, BertTokenizer),
     "roberta": (AutoConfig, RobertaForSequenceClassification, RobertaTokenizer),
@@ -169,6 +171,7 @@ class ScriptArguments:
     lora_alpha: Optional[float] = field(default=32.0)
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
+    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The prompt template name."})
 
 
 def compute_metrics(eval_preds):
@@ -414,8 +417,16 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    prompt_template = get_conv_template(script_args.template_name)
+    if tokenizer.eos_token_id is None:
+        tokenizer.eos_token = prompt_template.stop_str  # eos token is required for SFT
+        logger.info("Add eos token: {}".format(tokenizer.eos_token))
     if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = 0
+        if tokenizer.unk_token_id is not None:
+            tokenizer.pad_token = tokenizer.unk_token
+        else:
+            tokenizer.pad_token = tokenizer.eos_token
+        logger.info("Add pad token: {}".format(tokenizer.pad_token))
 
     if script_args.use_peft:
         logger.info("Fine-tuning method: LoRA(PEFT)")
@@ -518,16 +529,26 @@ def main():
             "input_ids_rejected": [],
             "attention_mask_rejected": [],
         }
-        for question, chosen, rejected in zip(examples["question"], examples["response_chosen"],
-                                              examples["response_rejected"]):
-            tokenized_chosen = tokenizer("Question: " + question + "\n\nAnswer: " + chosen)
-            tokenized_rejected = tokenizer("Question: " + question + "\n\nAnswer: " + rejected)
+        for system, history, question, chosen, rejected in zip(
+                examples["system"],
+                examples["history"],
+                examples["question"],
+                examples["response_chosen"],
+                examples["response_rejected"]
+        ):
+            system_prompt = system or ""
+            chosen_messages = history + [[question, chosen]] if history else [[question, chosen]]
+            chosen_prompt = prompt_template.get_prompt(messages=chosen_messages, system_prompt=system_prompt)
+            rejected_messages = history + [[question, rejected]] if history else [[question, rejected]]
+            rejected_prompt = prompt_template.get_prompt(messages=rejected_messages, system_prompt=system_prompt)
+
+            tokenized_chosen = tokenizer(chosen_prompt)
+            tokenized_rejected = tokenizer(rejected_prompt)
 
             new_examples["input_ids_chosen"].append(tokenized_chosen["input_ids"])
             new_examples["attention_mask_chosen"].append(tokenized_chosen["attention_mask"])
             new_examples["input_ids_rejected"].append(tokenized_rejected["input_ids"])
             new_examples["attention_mask_rejected"].append(tokenized_rejected["attention_mask"])
-
         return new_examples
 
     train_dataset = None

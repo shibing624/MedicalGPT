@@ -29,7 +29,7 @@ from transformers import (
     BitsAndBytesConfig,
 )
 
-from supervised_finetuning import get_conv_template
+from template import get_conv_template
 
 MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
