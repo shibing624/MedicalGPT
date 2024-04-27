@@ -335,7 +335,7 @@ register_conv_template(
         name="llama3",
         system_prompt=(
             "<|start_header_id|>system<|end_header_id|>\n\n"
-            "You are a helpful, excellent and smart assistant.<|eot_id|>"
+            "You are a helpful, excellent and smart assistant."
         ),
         messages=[],
         roles=("user", "assistant"),
