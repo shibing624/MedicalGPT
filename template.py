@@ -343,7 +343,7 @@ register_conv_template(
             "<|start_header_id|>user<|end_header_id|>\n\n{query}<|eot_id|>"
             "<|start_header_id|>assistant<|end_header_id|>\n\n"
         ),
-        sep="<|eot_id|>\n",
+        sep="<|eot_id|>",
         stop_str="<|eot_id|>",
     )
 )
