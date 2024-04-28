@@ -47,6 +47,8 @@ def main():
                         help="Please specify LoRA model to be merged.")
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--output_dir', default='./merged', type=str)
+    parser.add_argument('--hf_hub_model_id', default='', type=str)
+    parser.add_argument('--hf_hub_token', default=None, type=str)
     args = parser.parse_args()
     print(args)
 
@@ -101,8 +103,20 @@ def main():
 
     print("Saving to Hugging Face format...")
     tokenizer.save_pretrained(output_dir)
-    base_model.save_pretrained(output_dir)  # max_shard_size='10GB'
+    base_model.save_pretrained(output_dir, max_shard_size='10GB')
     print(f"Done! model saved to {output_dir}")
+    if args.hf_hub_model_id:
+        print(f"Pushing to Hugging Face Hub...")
+        base_model.push_to_hub(
+            args.hf_hub_model_id,
+            token=args.hf_hub_token,
+            max_shard_size="10GB",
+        )
+        tokenizer.push_to_hub(
+            args.hf_hub_model_id,
+            token=args.hf_hub_token,
+        )
+        print(f"Done! model pushed to Hugging Face Hub: {args.hf_hub_model_id}")
 
 
 if __name__ == '__main__':
