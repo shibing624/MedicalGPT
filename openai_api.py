@@ -96,8 +96,8 @@ class ModelList(BaseModel):
 
 class ChatMessage(BaseModel):
     role: Literal['user', 'assistant', 'system', 'function']
-    content: Optional[str]
-    function_call: Optional[Dict] = None
+    content: Optional[str] = None
+    tool_calls: Optional[Dict] = None
 
 
 class DeltaMessage(BaseModel):
@@ -108,7 +108,7 @@ class DeltaMessage(BaseModel):
 class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[ChatMessage]
-    functions: Optional[List[Dict]] = None
+    tools: Optional[List[Dict]] = None
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     top_k: Optional[int] = None
@@ -120,21 +120,36 @@ class ChatCompletionRequest(BaseModel):
 class ChatCompletionResponseChoice(BaseModel):
     index: int
     message: Union[ChatMessage]
-    finish_reason: Literal['stop', 'length', 'function_call']
+    finish_reason: Literal['stop', 'length', 'tool_calls']
 
 
 class ChatCompletionResponseStreamChoice(BaseModel):
     index: int
     delta: DeltaMessage
-    finish_reason: Optional[Literal['stop', 'length']]
+    finish_reason: Optional[Literal['stop', 'length']] = None
+
+
+class ChatCompletionResponseUsage(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
 
 
 class ChatCompletionResponse(BaseModel):
+    id: Literal["chatcmpl-default"] = "chatcmpl-default"
+    object: Literal["chat.completion"] = "chat.completion"
+    created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    object: Literal['chat.completion', 'chat.completion.chunk']
-    choices: List[Union[ChatCompletionResponseChoice,
-    ChatCompletionResponseStreamChoice]]
-    created: Optional[int] = Field(default_factory=lambda: int(time.time()))
+    choices: List[ChatCompletionResponseChoice]
+    usage: ChatCompletionResponseUsage
+
+
+class ChatCompletionStreamResponse(BaseModel):
+    id: Literal["chatcmpl-default"] = "chatcmpl-default"
+    object: Literal["chat.completion.chunk"] = "chat.completion.chunk"
+    created: int = Field(default_factory=lambda: int(time.time()))
+    model: str
+    choices: List[ChatCompletionResponseStreamChoice]
 
 
 @app.get('/v1/models', response_model=ModelList)
@@ -190,7 +205,7 @@ Begin!"""
 _TEXT_COMPLETION_CMD = object()
 
 
-def parse_messages(messages, functions):
+def parse_messages(messages, tools):
     if all(m.role != 'user' for m in messages):
         raise HTTPException(
             status_code=400,
@@ -203,16 +218,16 @@ def parse_messages(messages, functions):
     else:
         system = 'You are a helpful assistant.'
 
-    if functions:
+    if tools:
         tools_text = []
         tools_name_text = []
-        for func_info in functions:
-            name = func_info.get('name', '')
-            name_m = func_info.get('name_for_model', name)
-            name_h = func_info.get('name_for_human', name)
-            desc = func_info.get('description', '')
-            desc_m = func_info.get('description_for_model', desc)
-            params = func_info.get('parameters', {})
+        for tool_info in tools:
+            name = tool_info.get('name', '')
+            name_m = tool_info.get('name_for_model', name)
+            name_h = tool_info.get('name_for_human', name)
+            desc = tool_info.get('description', '')
+            desc_m = tool_info.get('description_for_model', desc)
+            params = tool_info.get('parameters', {})
             tool = TOOL_DESC.format(
                 name_for_model=name_m,
                 name_for_human=name_h,
@@ -257,7 +272,7 @@ def parse_messages(messages, functions):
                     'Invalid request: Expecting role user before role assistant.',
                 )
             if func_call is None:
-                if functions:
+                if tools:
                     content = f'Thought: I now know the final answer.\nFinal Answer: {content}'
             else:
                 f_name, f_args = func_call['name'], func_call['arguments']
@@ -332,12 +347,12 @@ def parse_response(response):
             message=ChatMessage(
                 role='assistant',
                 content=response,
-                function_call={
+                tool_calls={
                     'name': func_name,
                     'arguments': func_args
                 },
             ),
-            finish_reason='function_call',
+            finish_reason='tool_calls',
         )
         return choice_data
 
@@ -384,7 +399,9 @@ def model_chat(model, tokenizer, query, history, gen_kwargs, system):
         output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
     ]
     response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-    return response
+    prompt_length = len(model_inputs.input_ids[0])
+    response_length = len(generated_ids[0])
+    return response, prompt_length, response_length
 
 
 def stream_model_chat(model, tokenizer, query, history, gen_kwargs, system):
@@ -420,15 +437,15 @@ async def create_chat_completion(request: ChatCompletionRequest):
         gen_kwargs['max_length'] = request.max_length
 
     stop_words = add_extra_stop_words(request.stop)
-    if request.functions:
+    if request.tools:
         stop_words = stop_words or []
         if 'Observation:' not in stop_words:
             stop_words.append('Observation:')
 
-    query, history, system = parse_messages(request.messages, request.functions)
+    query, history, system = parse_messages(request.messages, request.tools)
 
     if request.stream:
-        if request.functions:
+        if request.tools:
             raise HTTPException(
                 status_code=400,
                 detail='Invalid request: Function calling is not yet implemented for stream mode.',
@@ -443,7 +460,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
         )
         return StreamingResponse(generate, media_type='text/event-stream')
 
-    response = model_chat(
+    response, prompt_length, response_length = model_chat(
         model,
         tokenizer,
         query,
@@ -456,7 +473,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
     _gc()
 
     response = trim_stop_words(response, stop_words)
-    if request.functions:
+    if request.tools:
         choice_data = parse_response(response)
     else:
         choice_data = ChatCompletionResponseChoice(
@@ -464,7 +481,13 @@ async def create_chat_completion(request: ChatCompletionRequest):
             message=ChatMessage(role='assistant', content=response),
             finish_reason='stop',
         )
-    return ChatCompletionResponse(model=request.model, choices=[choice_data])
+
+    usage = ChatCompletionResponseUsage(
+        prompt_tokens=prompt_length,
+        completion_tokens=response_length,
+        total_tokens=prompt_length + response_length,
+    )
+    return ChatCompletionResponse(model=request.model, choices=[choice_data], usage=usage)
 
 
 def dictify(data: BaseModel) -> Dict[str, Any]:
@@ -493,7 +516,7 @@ async def stream_chat_completion(
     global model, tokenizer
     choice_data = ChatCompletionResponseStreamChoice(
         index=0, delta=DeltaMessage(role='assistant', content=""), finish_reason=None)
-    chunk = ChatCompletionResponse(model=model_id, choices=[choice_data])
+    chunk = ChatCompletionStreamResponse(model=model_id, choices=[choice_data])
     yield jsonify(chunk)
 
     stop_words = [x for x in stop_words if x]
@@ -513,13 +536,13 @@ async def stream_chat_completion(
         # Send the current token as part of the response
         choice_data = ChatCompletionResponseStreamChoice(
             index=0, delta=DeltaMessage(content=token_output), finish_reason=None)
-        chunk = ChatCompletionResponse(model=model_id, choices=[choice_data])
+        chunk = ChatCompletionStreamResponse(model=model_id, choices=[choice_data])
         yield jsonify(chunk)
 
     choice_data = ChatCompletionResponseStreamChoice(
         index=0, delta=DeltaMessage(), finish_reason='stop'
     )
-    chunk = ChatCompletionResponse(model=model_id, choices=[choice_data])
+    chunk = ChatCompletionStreamResponse(model=model_id, choices=[choice_data])
     yield jsonify(chunk)
     yield '[DONE]'
 
