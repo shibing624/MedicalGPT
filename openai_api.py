@@ -251,7 +251,7 @@ def parse_messages(messages, tools):
     messages_with_fncall = messages
     messages = []
     for m_idx, m in enumerate(messages_with_fncall):
-        role, content, func_call = m.role, m.content, m.function_call
+        role, content, tool_calls = m.role, m.content, m.tool_calls
         content = content or ''
         content = content.lstrip('\n').rstrip()
         if role == 'function':
@@ -271,11 +271,11 @@ def parse_messages(messages, tools):
                     detail=
                     'Invalid request: Expecting role user before role assistant.',
                 )
-            if func_call is None:
+            if tool_calls is None:
                 if tools:
                     content = f'Thought: I now know the final answer.\nFinal Answer: {content}'
             else:
-                f_name, f_args = func_call['name'], func_call['arguments']
+                f_name, f_args = tool_calls['name'], tool_calls['arguments']
                 if not content.startswith('Thought:'):
                     content = f'Thought: {content}'
                 content = f'{content}\nAction: {f_name}\nAction Input: {f_args}'
