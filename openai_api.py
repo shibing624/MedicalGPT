@@ -95,7 +95,7 @@ class ModelList(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    role: Literal['user', 'assistant', 'system', 'function']
+    role: Literal['user', 'assistant', 'system', 'function', 'tool']
     content: Optional[str] = None
     tool_calls: Optional[Dict] = None
 
@@ -216,7 +216,7 @@ def parse_messages(messages, tools):
     if messages[0].role == 'system':
         system = messages.pop(0).content.lstrip('\n').rstrip()
     else:
-        system = 'You are a helpful assistant.'
+        system = ''
 
     if tools:
         tools_text = []
@@ -371,7 +371,7 @@ def prepare_chat(tokenizer, query, history, system):
     """Prepare model inputs for chat completion."""
     if prompt_template:
         history_messages = history + [[query, ""]]
-        prompt = prompt_template.get_prompt(messages=history_messages)
+        prompt = prompt_template.get_prompt(messages=history_messages, system_prompt=system)
     else:
         messages = [
             {"role": "system", "content": system}
