@@ -26,6 +26,8 @@ from starlette.responses import Response
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers import GenerationConfig, TextIteratorStreamer
 
+from template import get_conv_template
+
 
 class BasicAuthMiddleware(BaseHTTPMiddleware):
 
@@ -350,22 +352,33 @@ def parse_response(response):
     return choice_data
 
 
+def prepare_chat(tokenizer, query, history, system):
+    """Prepare model inputs for chat completion."""
+    if prompt_template:
+        history_messages = history + [[query, ""]]
+        prompt = prompt_template.get_prompt(messages=history_messages)
+    else:
+        messages = [
+            {"role": "system", "content": system}
+        ]
+        for i, (question, response) in enumerate(history):
+            question = question.lstrip('\n').rstrip()
+            response = response.lstrip('\n').rstrip()
+            messages.append({"role": "user", "content": question})
+            messages.append({"role": "assistant", "content": response})
+        messages.append({"role": "user", "content": query})
+        prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True
+        )
+    model_inputs = tokenizer([prompt], return_tensors='pt')
+    return model_inputs
+
+
 def model_chat(model, tokenizer, query, history, gen_kwargs, system):
-    messages = [
-        {"role": "system", "content": system}
-    ]
-    for i, (question, response) in enumerate(history):
-        question = question.lstrip('\n').rstrip()
-        response = response.lstrip('\n').rstrip()
-        messages.append({"role": "user", "content": question})
-        messages.append({"role": "assistant", "content": response})
-    messages.append({"role": "user", "content": query})
-    text = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-    )
-    model_inputs = tokenizer([text], return_tensors='pt').to(model.device)
+    """Generate chat completion from the model."""
+    model_inputs = prepare_chat(tokenizer, query, history, system).to(model.device)
     generated_ids = model.generate(model_inputs.input_ids, **gen_kwargs)
     generated_ids = [
         output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
@@ -375,22 +388,8 @@ def model_chat(model, tokenizer, query, history, gen_kwargs, system):
 
 
 def stream_model_chat(model, tokenizer, query, history, gen_kwargs, system):
-    messages = [
-        {"role": "system", "content": system}
-    ]
-    for i, (question, response) in enumerate(history):
-        question = question.lstrip('\n').rstrip()
-        response = response.lstrip('\n').rstrip()
-        messages.append({"role": "user", "content": question})
-        messages.append({"role": "assistant", "content": response})
-    messages.append({"role": "user", "content": query})
-
-    text = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=True
-    )
-    model_inputs = tokenizer([text], return_tensors='pt').to(model.device)
+    """Generate chat completion from the model in stream mode."""
+    model_inputs = prepare_chat(tokenizer, query, history, system).to(model.device)
     gen_kwargs['inputs'] = model_inputs.input_ids
 
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
@@ -403,6 +402,7 @@ def stream_model_chat(model, tokenizer, query, history, gen_kwargs, system):
 
 @app.post('/v1/chat/completions', response_model=ChatCompletionResponse)
 async def create_chat_completion(request: ChatCompletionRequest):
+    """Generate chat completion."""
     global model, tokenizer
 
     gen_kwargs = {}
@@ -489,6 +489,7 @@ async def stream_chat_completion(
         gen_kwargs: Dict,
         system: str,
 ):
+    """Generate chat completion in stream mode."""
     global model, tokenizer
     choice_data = ChatCompletionResponseStreamChoice(
         index=0, delta=DeltaMessage(role='assistant', content=""), finish_reason=None)
@@ -529,7 +530,7 @@ def _get_args():
     parser = ArgumentParser()
     parser.add_argument('--base_model', type=str, default='Qwen/Qwen-7B-Chat', help='Model name or path')
     parser.add_argument('--lora_model', default=None, type=str, help="If None, perform inference on the base model")
-    parser.add_argument('--template_name', default="vicuna", type=str,
+    parser.add_argument('--template_name', default=None, type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
     parser.add_argument('--api_auth', help='API authentication credentials')
     parser.add_argument('--cpu_only', action='store_true', help='Run demo with CPU only')
@@ -583,5 +584,9 @@ if __name__ == '__main__':
         trust_remote_code=True,
         resume_download=True,
     )
+    if args.template_name:
+        prompt_template = get_conv_template(args.template_name)
+    else:
+        prompt_template = None
 
     uvicorn.run(app, host=args.server_name, port=args.server_port, workers=1)
