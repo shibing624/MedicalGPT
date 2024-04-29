@@ -542,7 +542,7 @@ if __name__ == '__main__':
     parser.add_argument('--disable_gc', action='store_true', help='Disable GC after each response generated.')
 
     args = parser.parse_args()
-    print(args)
+    logger.info(args)
 
     if args.api_auth:
         app.add_middleware(
@@ -571,7 +571,7 @@ if __name__ == '__main__':
         from peft import PeftModel
 
         model = PeftModel.from_pretrained(model, args.lora_model, device_map=device_map)
-        print(f'Loaded LORA model: {args.lora_model}')
+        logger.debug(f'Loaded LORA model: {args.lora_model}')
 
     model = model.eval()
     model.generation_config = GenerationConfig.from_pretrained(
