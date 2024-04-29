@@ -526,7 +526,7 @@ async def stream_chat_completion(
     _gc()
 
 
-def _get_args():
+if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--base_model', type=str, default='Qwen/Qwen-7B-Chat', help='Model name or path')
     parser.add_argument('--lora_model', default=None, type=str, help="If None, perform inference on the base model")
@@ -542,11 +542,6 @@ def _get_args():
     parser.add_argument('--disable_gc', action='store_true', help='Disable GC after each response generated.')
 
     args = parser.parse_args()
-    return args
-
-
-if __name__ == '__main__':
-    args = _get_args()
     print(args)
 
     if args.api_auth:
