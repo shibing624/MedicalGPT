@@ -380,7 +380,7 @@ def main():
         }
         roles = ["human", "gpt"]
 
-        def get_prompt(examples):
+        def get_dialog(examples):
             for i, source in enumerate(examples['conversations']):
                 if len(source) < 2:
                     continue
@@ -402,11 +402,11 @@ def main():
                     continue
                 # Convert the list to pairs of elements
                 history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
-                yield prompt_template.get_prompt(history_messages)
+                yield prompt_template.get_dialog(history_messages)
 
-        for prompt in get_prompt(examples):
-            for i in range(len(prompt) // 2):
-                source_txt = prompt[2 * i]
+        for dialog in get_dialog(examples):
+            for i in range(len(dialog) // 2):
+                source_txt = dialog[2 * i]
                 tokenized_question = tokenizer(
                     source_txt, truncation=True, max_length=max_source_length, padding="max_length",
                     return_tensors="pt"
