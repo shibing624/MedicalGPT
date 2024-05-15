@@ -12,19 +12,32 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--in_file", type=str)
     parser.add_argument("--out_file", type=str)
-    parser.add_argument("--data_type", type=str, default='alpaca')
+    parser.add_argument("--data_type", type=str, default='alpaca', help="alpaca, qa, or sharegpt")
     parser.add_argument("--file_type", type=str, default='json')
     args = parser.parse_args()
     print(args)
     data_files = {"train": args.in_file}
     if args.file_type == 'csv':
-        raw_datasets = load_dataset('csv', data_files=data_files, column_names=['instruction', 'input', 'output'],
-                                    delimiter='\t')
+        if args.data_type in ['qa']:
+            column_names = ['input', 'output']
+        else:
+            column_names = ['instruction', 'input', 'output']
+        raw_datasets = load_dataset('csv', data_files=data_files, column_names=column_names, delimiter='\t')
     elif args.file_type in ['json', 'jsonl']:
         raw_datasets = load_dataset('json', data_files=data_files)
     else:
         raise ValueError("File type not supported")
     ds = raw_datasets['train']
+
+
+    def process_qa(examples):
+        convs = []
+        for q, a in zip(examples['input'], examples['output']):
+            convs.append([
+                {"from": "human", "value": q},
+                {"from": "gpt", "value": a}
+            ])
+        return {"conversations": convs}
 
 
     def process_alpaca(examples):
@@ -43,6 +56,8 @@ if __name__ == "__main__":
 
     if args.data_type in ['alpaca']:
         ds = ds.map(process_alpaca, batched=True, remove_columns=ds.column_names, desc="Running process")
+    elif args.data_type in ['qa']:
+        ds = ds.map(process_qa, batched=True, remove_columns=ds.column_names, desc="Running process")
     else:
         # Other sharegpt dataset, need rename to conversations and remove unused columns
         if "items" in ds.column_names:
