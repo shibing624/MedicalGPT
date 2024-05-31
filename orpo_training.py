@@ -133,7 +133,7 @@ class ScriptArguments:
     # Training arguments
     use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
     qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
-    target_modules: Optional[str] = field(default=None)
+    target_modules: Optional[str] = field(default="all", metadata={"help": "The target modules for peft"})
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
     lora_alpha: Optional[float] = field(default=16.0)

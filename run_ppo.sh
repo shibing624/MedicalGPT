@@ -12,6 +12,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 ppo_training.py \
     --max_target_length 256 \
     --max_train_samples 1000 \
     --use_peft True \
+    --target_modules q_proj,v_proj \
     --lora_rank 8 \
     --lora_alpha 16 \
     --lora_dropout 0.05 \

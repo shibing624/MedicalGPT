@@ -135,7 +135,7 @@ class ScriptArguments:
     )
     # Training arguments
     use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
-    target_modules: Optional[str] = field(default=None)
+    target_modules: Optional[str] = field(default=None, metadata={"help": "The target modules for peft"})
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
     lora_alpha: Optional[float] = field(default=32.0)
@@ -257,6 +257,8 @@ def main():
     peft_config = None
     if args.use_peft:
         logger.info("Fine-tuning method: LoRA(PEFT)")
+        target_modules = args.target_modules.split(',') if args.target_modules else None
+        logger.info(f"Peft target_modules: {target_modules}")
         peft_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             target_modules=args.target_modules,

@@ -281,6 +281,21 @@ register_conv_template(
     )
 )
 
+"""intern2 template
+Supports: https://huggingface.co/internlm/internlm2-1_8b
+"""
+register_conv_template(
+    Conversation(
+        name="intern2",
+        system_prompt="<|im_start|>system\nYou are an AI assistant whose name is InternLM (书生·浦语).\n<|im_end|>\n",
+        messages=[],
+        roles=("user", "assistant"),
+        prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
+        sep="<|im_end|>\n",
+        stop_str="<|im_end|>",
+    )
+)
+
 """StarChat template
 Supports: https://huggingface.co/HuggingFaceH4/starchat-alpha
           https://huggingface.co/HuggingFaceH4/starchat-beta
