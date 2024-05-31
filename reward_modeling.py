@@ -21,7 +21,6 @@ from transformers import (
     PreTrainedTokenizerBase,
     BloomForSequenceClassification,
     LlamaForSequenceClassification,
-    LlamaTokenizer,
     BloomTokenizerFast,
     AlbertForSequenceClassification,
     BertForSequenceClassification,
@@ -44,7 +43,7 @@ MODEL_CLASSES = {
     "roberta": (AutoConfig, RobertaForSequenceClassification, RobertaTokenizer),
     "albert": (AutoConfig, AlbertForSequenceClassification, AutoTokenizer),
     "bloom": (AutoConfig, BloomForSequenceClassification, BloomTokenizerFast),
-    "llama": (AutoConfig, LlamaForSequenceClassification, LlamaTokenizer),
+    "llama": (AutoConfig, LlamaForSequenceClassification, AutoTokenizer),
     "auto": (AutoConfig, AutoModelForSequenceClassification, AutoTokenizer),
 }
 

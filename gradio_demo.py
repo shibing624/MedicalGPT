@@ -17,7 +17,6 @@ from transformers import (
     AutoModelForCausalLM,
     BloomForCausalLM,
     BloomTokenizerFast,
-    LlamaTokenizer,
     LlamaForCausalLM,
     GenerationConfig,
     TextIteratorStreamer,
@@ -28,7 +27,7 @@ from template import get_conv_template
 MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, LlamaTokenizer),
+    "llama": (LlamaForCausalLM, AutoTokenizer),
     "baichuan": (AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoModelForCausalLM, AutoTokenizer),
 }

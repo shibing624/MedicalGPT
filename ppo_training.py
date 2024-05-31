@@ -20,7 +20,6 @@ from transformers import (
     BloomForCausalLM,
     AutoModelForCausalLM,
     AutoModel,
-    LlamaTokenizer,
     LlamaForCausalLM,
     BloomTokenizerFast,
     AutoTokenizer,

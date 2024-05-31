@@ -18,7 +18,6 @@ from transformers import (
     BloomForCausalLM,
     AutoModelForCausalLM,
     AutoModel,
-    LlamaTokenizer,
     LlamaForCausalLM,
     BloomTokenizerFast,
     AutoTokenizer,
@@ -37,7 +36,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 MODEL_CLASSES = {
     "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
-    "llama": (AutoConfig, LlamaForCausalLM, LlamaTokenizer),
+    "llama": (AutoConfig, LlamaForCausalLM, AutoTokenizer),
     "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
 }
