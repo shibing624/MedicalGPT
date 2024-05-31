@@ -76,7 +76,7 @@ from template import get_conv_template
 MODEL_CLASSES = {
     "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
-    "llama": (AutoConfig, LlamaForCausalLM, LlamaTokenizer),
+    "llama": (AutoConfig, LlamaForCausalLM, AutoTokenizer),
     "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
 }
