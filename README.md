@@ -32,7 +32,7 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 ## 🔥 News
 [2024/06/11] v2.1版本：支持了 **[Qwen-2](https://qwenlm.github.io/blog/qwen2/)** 系列模型，详见[Release-v2.1](https://github.com/shibing624/MedicalGPT/releases/tag/2.1.0)
 
-[2024/04/24] v2.0版本：支持了 **Meta Llama 3** 系列模型，详见[Release-v2.0](https://github.com/shibing624/MedicalGPT/releases/tag/2.0.0)
+[2024/04/24] v2.0版本：支持了 **[Llama-3](https://huggingface.co/meta-llama)** 系列模型，详见[Release-v2.0](https://github.com/shibing624/MedicalGPT/releases/tag/2.0.0)
 
 [2024/04/17] v1.9版本：支持了 **[ORPO](https://arxiv.org/abs/2403.07691)**，详细用法请参照 `run_orpo.sh`。详见[Release-v1.9](https://github.com/shibing624/MedicalGPT/releases/tag/1.9.0)
 
