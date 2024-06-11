@@ -515,6 +515,9 @@ register_conv_template(
 """Qwen template
 source: https://huggingface.co/Qwen/CodeQwen1.5-7B-Chat/blob/main/tokenizer_config.json#L18
 Supports: https://huggingface.co/Qwen/CodeQwen1.5-7B-Chat
+          https://huggingface.co/Qwen/Qwen1.5-72B-Chat
+          https://huggingface.co/Qwen/Qwen2-72B
+          https://huggingface.co/Qwen/Qwen2-0.5B
 """
 register_conv_template(
     Conversation(

@@ -30,6 +30,8 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - DPO方法来自论文[Direct Preference Optimization:Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
 - ORPO方法来自论文[ORPO: Monolithic Preference Optimization without Reference Model](https://arxiv.org/abs/2403.07691)
 ## 🔥 News
+[2024/06/11] v2.1版本：支持了 **[Qwen-2](https://qwenlm.github.io/blog/qwen2/)** 系列模型，详见[Release-v2.1](https://github.com/shibing624/MedicalGPT/releases/tag/2.1.0)
+
 [2024/04/24] v2.0版本：支持了 **Meta Llama 3** 系列模型，详见[Release-v2.0](https://github.com/shibing624/MedicalGPT/releases/tag/2.0.0)
 
 [2024/04/17] v1.9版本：支持了 **[ORPO](https://arxiv.org/abs/2403.07691)**，详细用法请参照 `run_orpo.sh`。详见[Release-v1.9](https://github.com/shibing624/MedicalGPT/releases/tag/1.9.0)
@@ -152,26 +154,27 @@ Training Stage:
 
 #### Supported Models
 
-| Model Name                                                           | Model Size                  | Target Modules  | Template  |
-|----------------------------------------------------------------------|-----------------------------|-----------------|-----------|
-| [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                      | W_pack          | baichuan  |
-| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                      | W_pack          | baichuan2 |
-| [BLOOMZ](https://huggingface.co/bigscience/bloomz)                   | 560M/1.1B/1.7B/3B/7.1B/176B | query_key_value | vicuna    |
-| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                       | 6B                          | query_key_value | chatglm   |
-| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                          | query_key_value | chatglm2  |
-| [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                          | query_key_value | chatglm3  |
-| [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)     | 104B                        | q_proj,v_proj   | cohere    |
-| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/16B/67B                  | q_proj,v_proj   | deepseek  |
-| [InternLM2](https://github.com/InternLM/InternLM)                    | 7B/20B                      | wqkv            | intern2    |
-| [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B              | q_proj,v_proj   | alpaca    |
-| [LLaMA2](https://huggingface.co/meta-llama)                          | 7B/13B/70B                  | q_proj,v_proj   | llama2    |
-| [LLaMA3](https://huggingface.co/meta-llama)                          | 8B/70B                      | q_proj,v_proj   | llama3    |
-| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B/8x7B                     | q_proj,v_proj   | mistral   |
-| [Orion](https://github.com/OrionStarAI/Orion)                        | 14B                         | q_proj,v_proj   | orion     |
-| [Qwen](https://github.com/QwenLM/Qwen)                               | 1.8B/7B/14B/72B             | c_attn          | chatml    |
-| [Qwen1.5](https://github.com/QwenLM/Qwen1.5)                         | 0.5B/1.8B/4B/14B/72B        | q_proj,v_proj   | qwen      |
-| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                         | query_key_value | xverse    |
-| [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                      | q_proj,v_proj   | yi        |
+| Model Name                                                           | Model Size                    | Target Modules  | Template  |
+|----------------------------------------------------------------------|-------------------------------|-----------------|-----------|
+| [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                        | W_pack          | baichuan  |
+| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                        | W_pack          | baichuan2 |
+| [BLOOMZ](https://huggingface.co/bigscience/bloomz)                   | 560M/1.1B/1.7B/3B/7.1B/176B   | query_key_value | vicuna    |
+| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                       | 6B                            | query_key_value | chatglm   |
+| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                            | query_key_value | chatglm2  |
+| [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                            | query_key_value | chatglm3  |
+| [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)     | 104B                          | q_proj,v_proj   | cohere    |
+| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/16B/67B                    | q_proj,v_proj   | deepseek  |
+| [InternLM2](https://github.com/InternLM/InternLM)                    | 7B/20B                        | wqkv            | intern2   |
+| [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B                | q_proj,v_proj   | alpaca    |
+| [LLaMA2](https://huggingface.co/meta-llama)                          | 7B/13B/70B                    | q_proj,v_proj   | llama2    |
+| [LLaMA3](https://huggingface.co/meta-llama)                          | 8B/70B                        | q_proj,v_proj   | llama3    |
+| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B/8x7B                       | q_proj,v_proj   | mistral   |
+| [Orion](https://github.com/OrionStarAI/Orion)                        | 14B                           | q_proj,v_proj   | orion     |
+| [Qwen](https://github.com/QwenLM/Qwen)                               | 1.8B/7B/14B/72B               | c_attn          | qwen      |
+| [Qwen1.5](https://huggingface.co/Qwen/Qwen1.5-72B)                   | 0.5B/1.8B/4B/14B/32B/72B/110B | q_proj,v_proj   | qwen      |
+| [Qwen2](https://github.com/QwenLM/Qwen2)                             | 0.5B/1.5B/7B/72B              | q_proj,v_proj   | qwen      |
+| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                           | query_key_value | xverse    |
+| [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                        | q_proj,v_proj   | yi        |
 
 
 
