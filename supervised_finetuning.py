@@ -600,6 +600,7 @@ def main():
         roles = ["human", "gpt"]
 
         def get_dialog(examples):
+            system_prompts = examples.get("system_prompt", "")
             for i, source in enumerate(examples['conversations']):
                 if len(source) < 2:
                     continue
@@ -621,7 +622,8 @@ def main():
                     continue
                 # Convert the list to pairs of elements
                 history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
-                yield prompt_template.get_dialog(history_messages)
+                system_prompt = system_prompts[i] if system_prompts else None
+                yield prompt_template.get_dialog(history_messages, system_prompt=system_prompt)
 
         for dialog in get_dialog(examples):
             input_ids, labels = [], []
