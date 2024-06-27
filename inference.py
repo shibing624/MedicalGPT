@@ -86,6 +86,7 @@ def batch_generate_answer(
         model,
         tokenizer,
         prompt_template,
+        system_prompt,
         device,
         max_new_tokens=512,
         temperature=0.7,
@@ -100,7 +101,8 @@ def batch_generate_answer(
         do_sample=True if temperature > 0.0 else False,
         repetition_penalty=repetition_penalty,
     )
-    prompts = [prompt_template.get_prompt(messages=[[s, '']]) for s in sentences]
+    messages = [[s, ''] for s in sentences]
+    prompts = [prompt_template.get_prompt(messages=messages, system_prompt=system_prompt)]
     inputs_tokens = tokenizer(prompts, return_tensors="pt", padding=True)
     input_ids = inputs_tokens['input_ids'].to(device)
     outputs = model.generate(input_ids=input_ids, **generation_kwargs)
@@ -119,12 +121,13 @@ def batch_generate_answer(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', default=None, type=str, required=True)
+    parser.add_argument('--model_type', default='auto', type=str)
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
+    parser.add_argument('--system_prompt', default="", type=str)
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
     parser.add_argument("--max_new_tokens", type=int, default=512)
     parser.add_argument('--data_file', default=None, type=str,
@@ -191,6 +194,7 @@ def main():
 
     # Chat
     prompt_template = get_conv_template(args.template_name)
+    system_prompt = args.system_prompt
     stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
 
     if args.interactive:
@@ -220,7 +224,7 @@ def main():
                 history = []
 
             history.append([query, ''])
-            prompt = prompt_template.get_prompt(messages=history)
+            prompt = prompt_template.get_prompt(messages=history, system_prompt=system_prompt)
             response = stream_generate_answer(
                 model,
                 tokenizer,
@@ -252,6 +256,7 @@ def main():
                 model,
                 tokenizer,
                 prompt_template,
+                system_prompt,
                 model.device,
                 max_new_tokens=args.max_new_tokens,
                 temperature=args.temperature,

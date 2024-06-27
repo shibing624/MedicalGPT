@@ -410,8 +410,7 @@ register_conv_template(
     )
 )
 
-"""Qwen template
-Supports: https://huggingface.co/Qwen/Qwen-7B-Chat
+"""chatml template
 chatml: https://xbot123.com/645a461b922f176d7cfdbc2d/
 """
 register_conv_template(

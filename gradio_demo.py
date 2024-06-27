@@ -35,12 +35,13 @@ MODEL_CLASSES = {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', default=None, type=str, required=True)
+    parser.add_argument('--model_type', default='auto', type=str)
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan2, chatglm2 etc.")
+    parser.add_argument('--system_prompt', default="", type=str)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--share', action='store_true', help='Share gradio')
@@ -85,12 +86,13 @@ def main():
         model.float()
     model.eval()
     prompt_template = get_conv_template(args.template_name)
+    system_prompt = args.system_prompt
     stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
 
     def predict(message, history):
         """Generate answer from prompt with GPT and stream the output"""
         history_messages = history + [[message, ""]]
-        prompt = prompt_template.get_prompt(messages=history_messages)
+        prompt = prompt_template.get_prompt(messages=history_messages, system_prompt=system_prompt)
         streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
         input_ids = tokenizer(prompt).input_ids
         context_len = 2048

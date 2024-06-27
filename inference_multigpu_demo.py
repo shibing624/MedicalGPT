@@ -58,6 +58,7 @@ def main():
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
+    parser.add_argument('--system_prompt', default="", type=str)
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
     parser.add_argument('--temperature', type=float, default=0.7)
     parser.add_argument("--max_new_tokens", type=int, default=128)
@@ -165,7 +166,8 @@ def main():
         inputs = []
         for texts in data_loader:
             inputs.extend(texts)
-            prompted_texts = [prompt_template.get_prompt(messages=[[s, '']]) for s in texts]
+            messages = [[s, ''] for s in texts]
+            prompted_texts = [prompt_template.get_prompt(messages=messages, system_prompt=args.system_prompt)]
             logger.debug(f'local_rank: {local_rank}, inputs size:{len(prompted_texts)}, top3: {prompted_texts[:3]}')
             inputs_tokens = tokenizer(prompted_texts, return_tensors="pt", padding=True)
             input_ids = inputs_tokens['input_ids'].to(local_rank)

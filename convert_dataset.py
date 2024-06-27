@@ -10,10 +10,10 @@ from datasets import load_dataset
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--in_file", type=str)
-    parser.add_argument("--out_file", type=str)
+    parser.add_argument("--in_file", type=str, required=True)
+    parser.add_argument("--out_file", type=str, required=True)
     parser.add_argument("--data_type", type=str, default='alpaca', help="alpaca, qa, or sharegpt")
-    parser.add_argument("--file_type", type=str, default='json')
+    parser.add_argument("--file_type", type=str, default='json', help='input file type, json or csv')
     args = parser.parse_args()
     print(args)
     data_files = {"train": args.in_file}
