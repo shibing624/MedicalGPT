@@ -75,8 +75,7 @@ def main():
         print("Loading LoRA for causal language model")
         base_model = model_class.from_pretrained(
             base_model_path,
-            load_in_8bit=False,
-            torch_dtype=torch.float16,
+            torch_dtype='auto',
             trust_remote_code=True,
             device_map="auto",
         )
@@ -94,7 +93,7 @@ def main():
         base_model,
         lora_model_path,
         device_map="auto",
-        torch_dtype=torch.float16,
+        torch_dtype='auto',
     )
     new_model.eval()
     print(f"Merging with merge_and_unload...")

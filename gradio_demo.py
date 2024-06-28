@@ -48,7 +48,7 @@ def main():
     parser.add_argument('--port', default=8081, type=int, help='Port of gradio demo')
     args = parser.parse_args()
     print(args)
-    load_type = torch.float16
+    load_type = 'auto'
     if torch.cuda.is_available() and not args.only_cpu:
         device = torch.device(0)
     else:

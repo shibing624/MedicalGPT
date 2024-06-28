@@ -116,7 +116,7 @@ def main():
         if args.only_cpu is True:
             args.gpus = ""
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
-        load_type = torch.float16
+        load_type = 'auto'
         if torch.cuda.is_available():
             device = torch.device(0)
         else:

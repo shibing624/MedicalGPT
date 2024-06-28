@@ -142,7 +142,7 @@ def main():
     parser.add_argument('--load_in_4bit', action='store_true', help='Whether to load model in 4bit')
     args = parser.parse_args()
     print(args)
-    load_type = torch.float16
+    load_type = 'auto'
     if args.tokenizer_path is None:
         args.tokenizer_path = args.base_model
 
