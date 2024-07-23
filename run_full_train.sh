@@ -1,0 +1,35 @@
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 full_supersived_finetuning.py \
+    --model_type auto \
+    --cache_dir ./model \
+    --model_name_or_path ./model/glm-4-9b-chat \
+    --train_file_dir ./ \
+    --validation_file_dir ./ \
+    --per_device_train_batch_size 2 \
+    --do_train \
+    --num_train_epochs 15 \
+    --per_device_eval_batch_size 2 \
+    --max_train_samples -1 \
+    --learning_rate 3e-5 \
+    --warmup_ratio 0.2 \
+    --model_max_length 2048 \
+    --weight_decay 0.01 \
+    --logging_strategy steps \
+    --logging_steps 1 \
+    --save_steps 400 \
+    --save_strategy steps \
+    --save_total_limit 3 \
+    --gradient_accumulation_steps 1 \
+    --preprocessing_num_workers 128 \
+    --output_dir GLM4-sft-med \
+    --overwrite_output_dir \
+    --ddp_timeout 30000 \
+    --logging_first_step True \
+    --target_modules all \
+    --torch_dtype bfloat16 \
+    --report_to tensorboard \
+    --neft_alpha 8 \
+    --ddp_find_unused_parameters False \
+    --gradient_checkpointing True \
+    --template_name chatglm3 \
+    --deepspeed ds_zero_2.json \
+    --fp16
