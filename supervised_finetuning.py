@@ -824,8 +824,8 @@ def main():
             **config_kwargs,
         )
 
-        # Fix ChatGLM2 and ChatGLM3 LM head
-        if getattr(config, "model_type", None) == "chatglm":
+        # Fix ChatGLM2 and ChatGLM3 and internlm2 LM head
+        if getattr(config, "model_type", None) == "chatglm" or getattr(config, "model_type", None) == "internlm2":
             setattr(model, "lm_head", model.transformer.output_layer)
             setattr(model, "_keys_to_ignore_on_save", ["lm_head.weight"])
 

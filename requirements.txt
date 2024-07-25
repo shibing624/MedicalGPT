@@ -1,4 +1,3 @@
-# GLM4 transformers==4.40.2
 accelerate~=0.27.2
 datasets>=2.14.6
 loguru
@@ -7,6 +6,6 @@ sentencepiece
 scikit-learn
 tensorboard
 tqdm>=4.47.0
-transformers>=4.39.3
+transformers>=4.39.3 # GLM4 transformers==4.40.2
 trl~=0.8.3
 tiktoken
