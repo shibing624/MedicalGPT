@@ -11,7 +11,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --use_peft True \
     --max_train_samples 1000 \
     --max_eval_samples 10 \
-    --model_max_length 1024 \
+    --model_max_length 4096 \
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
     --warmup_ratio 0.05 \

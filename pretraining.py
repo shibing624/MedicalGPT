@@ -35,7 +35,6 @@ from transformers import (
     BloomForCausalLM,
     AutoModelForCausalLM,
     AutoModel,
-    LlamaTokenizer,
     LlamaForCausalLM,
     BloomTokenizerFast,
     AutoTokenizer,
@@ -57,7 +56,7 @@ except ImportError:  # https://github.com/huggingface/transformers/releases/tag/
 MODEL_CLASSES = {
     "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
-    "llama": (AutoConfig, LlamaForCausalLM, LlamaTokenizer),
+    "llama": (AutoConfig, LlamaForCausalLM, AutoTokenizer),
     "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
 }

@@ -20,7 +20,6 @@ from transformers import (
     BloomForCausalLM,
     AutoModelForCausalLM,
     AutoModel,
-    LlamaTokenizer,
     LlamaForCausalLM,
     BloomTokenizerFast,
     AutoTokenizer,
@@ -28,7 +27,7 @@ from transformers import (
 )
 from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
 
-from supervised_finetuning import get_conv_template
+from template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -36,7 +35,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 MODEL_CLASSES = {
     "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
-    "llama": (AutoConfig, LlamaForCausalLM, LlamaTokenizer),
+    "llama": (AutoConfig, LlamaForCausalLM, AutoTokenizer),
     "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
 }
@@ -100,8 +99,8 @@ class ScriptArguments:
     template_name: Optional[str] = field(default="vicuna", metadata={"help": "The template name."})
     batch_size: Optional[int] = field(default=8, metadata={"help": "Batch size"})
     mini_batch_size: Optional[int] = field(default=1, metadata={"help": "PPO minibatch size"})
-    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
-    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
+    max_source_length: Optional[int] = field(default=2048, metadata={"help": "Max length of prompt input text"})
+    max_target_length: Optional[int] = field(default=512, metadata={"help": "Max length of output text"})
     min_target_length: Optional[int] = field(default=4, metadata={"help": "Min length of output text"})
     max_train_samples: Optional[int] = field(
         default=None,
@@ -135,7 +134,7 @@ class ScriptArguments:
     )
     # Training arguments
     use_peft: bool = field(default=True, metadata={"help": "Whether to use peft"})
-    target_modules: Optional[str] = field(default=None)
+    target_modules: Optional[str] = field(default=None, metadata={"help": "The target modules for peft"})
     lora_rank: Optional[int] = field(default=8)
     lora_dropout: Optional[float] = field(default=0.05)
     lora_alpha: Optional[float] = field(default=32.0)
@@ -236,13 +235,29 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    prompt_template = get_conv_template(args.template_name)
+    if tokenizer.eos_token_id is None:
+        tokenizer.eos_token = prompt_template.stop_str  # eos token is required
+        tokenizer.add_special_tokens({"eos_token": tokenizer.eos_token})
+        logger.info(f"Add eos_token: {tokenizer.eos_token}, eos_token_id: {tokenizer.eos_token_id}")
+    if tokenizer.bos_token_id is None:
+        tokenizer.add_special_tokens({"bos_token": tokenizer.eos_token})
+        tokenizer.bos_token_id = tokenizer.eos_token_id
+        logger.info(f"Add bos_token: {tokenizer.bos_token}, bos_token_id: {tokenizer.bos_token_id}")
     if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = 0  # set as the <unk> token
+        if tokenizer.unk_token_id is not None:
+            tokenizer.pad_token = tokenizer.unk_token
+        else:
+            tokenizer.pad_token = tokenizer.eos_token
+        logger.info(f"Add pad_token: {tokenizer.pad_token}, pad_token_id: {tokenizer.pad_token_id}")
+    logger.debug(f"Tokenizer: {tokenizer}")
 
     # Load model
     peft_config = None
     if args.use_peft:
         logger.info("Fine-tuning method: LoRA(PEFT)")
+        target_modules = args.target_modules.split(',') if args.target_modules else None
+        logger.info(f"Peft target_modules: {target_modules}")
         peft_config = LoraConfig(
             task_type=TaskType.CAUSAL_LM,
             target_modules=args.target_modules,
@@ -358,7 +373,6 @@ def main():
     # Preprocessing the datasets
     max_source_length = args.max_source_length
     max_target_length = args.max_target_length
-    prompt_template = get_conv_template(args.template_name)
 
     def preprocess_function(examples):
         new_examples = {
@@ -367,7 +381,8 @@ def main():
         }
         roles = ["human", "gpt"]
 
-        def get_prompt(examples):
+        def get_dialog(examples):
+            system_prompts = examples.get("system_prompt", "")
             for i, source in enumerate(examples['conversations']):
                 if len(source) < 2:
                     continue
@@ -389,11 +404,12 @@ def main():
                     continue
                 # Convert the list to pairs of elements
                 history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
-                yield prompt_template.get_prompt(history_messages)
+                system_prompt = system_prompts[i] if system_prompts else None
+                yield prompt_template.get_dialog(history_messages, system_prompt=system_prompt)
 
-        for prompt in get_prompt(examples):
-            for i in range(len(prompt) // 2):
-                source_txt = prompt[2 * i]
+        for dialog in get_dialog(examples):
+            for i in range(len(dialog) // 2):
+                source_txt = dialog[2 * i]
                 tokenized_question = tokenizer(
                     source_txt, truncation=True, max_length=max_source_length, padding="max_length",
                     return_tensors="pt"

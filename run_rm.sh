@@ -21,7 +21,7 @@ CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --save_steps 500 \
     --save_strategy steps \
     --save_total_limit 3 \
-    --max_source_length 256 \
+    --max_source_length 1024 \
     --max_target_length 256 \
     --output_dir outputs-rm-qwen-v1 \
     --overwrite_output_dir \

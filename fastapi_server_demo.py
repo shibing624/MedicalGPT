@@ -31,18 +31,17 @@ from transformers import (
     AutoTokenizer,
     BloomForCausalLM,
     BloomTokenizerFast,
-    LlamaTokenizer,
     LlamaForCausalLM,
     TextIteratorStreamer,
     GenerationConfig,
 )
 
-from supervised_finetuning import get_conv_template
+from template import get_conv_template
 
 MODEL_CLASSES = {
     "bloom": (BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, LlamaTokenizer),
+    "llama": (LlamaForCausalLM, AutoTokenizer),
     "baichuan": (AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoModelForCausalLM, AutoTokenizer),
 }
@@ -103,6 +102,7 @@ def main():
     parser.add_argument('--tokenizer_path', default=None, type=str)
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
+    parser.add_argument('--system_prompt', default="", type=str)
     parser.add_argument("--repetition_penalty", default=1.0, type=float)
     parser.add_argument("--max_new_tokens", default=512, type=int)
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
@@ -116,7 +116,7 @@ def main():
         if args.only_cpu is True:
             args.gpus = ""
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
-        load_type = torch.float16
+        load_type = 'auto'
         if torch.cuda.is_available():
             device = torch.device(0)
         else:
@@ -172,7 +172,7 @@ def main():
 
     def predict(sentence):
         history = [[sentence, '']]
-        prompt = prompt_template.get_prompt(messages=history)
+        prompt = prompt_template.get_prompt(messages=history, system_prompt=args.system_prompt)
         response = stream_generate_answer(
             model,
             tokenizer,

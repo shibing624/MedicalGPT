@@ -18,7 +18,6 @@ from transformers import (
     BloomForCausalLM,
     AutoModelForCausalLM,
     AutoModel,
-    LlamaTokenizer,
     LlamaForCausalLM,
     BloomTokenizerFast,
     AutoTokenizer,
@@ -29,13 +28,15 @@ from transformers import (
 from transformers.deepspeed import is_deepspeed_zero3_enabled
 from trl import DPOTrainer
 
+from template import get_conv_template
+
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 MODEL_CLASSES = {
     "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
     "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
-    "llama": (AutoConfig, LlamaForCausalLM, LlamaTokenizer),
+    "llama": (AutoConfig, LlamaForCausalLM, AutoTokenizer),
     "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
     "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
 }
@@ -97,8 +98,8 @@ class ScriptArguments:
     template_name: Optional[str] = field(default="vicuna", metadata={"help": "The prompt template name."})
     per_device_train_batch_size: Optional[int] = field(default=4, metadata={"help": "Train batch size per device"})
     per_device_eval_batch_size: Optional[int] = field(default=1, metadata={"help": "Eval batch size per device"})
-    max_source_length: Optional[int] = field(default=256, metadata={"help": "Max length of prompt input text"})
-    max_target_length: Optional[int] = field(default=256, metadata={"help": "Max length of output text"})
+    max_source_length: Optional[int] = field(default=2048, metadata={"help": "Max length of prompt input text"})
+    max_target_length: Optional[int] = field(default=512, metadata={"help": "Max length of output text"})
     min_target_length: Optional[int] = field(default=4, metadata={"help": "Min length of output text"})
     max_train_samples: Optional[int] = field(
         default=None,
@@ -210,26 +211,6 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
     return sorted(lora_module_names)
 
 
-def return_prompt_and_responses(examples) -> Dict[str, str]:
-    """Load the paired dataset and convert it to the necessary format.
-
-    The dataset is converted to a dictionary with the following structure:
-    {
-        'prompt': List[str],
-        'chosen': List[str],
-        'rejected': List[str],
-    }
-
-    Prompts are structured as follows:
-      "Question: " + <prompt> + "\n\nAnswer: "
-    """
-    return {
-        "prompt": ["Question: " + question + "\n\nAnswer: " for question in examples["question"]],
-        "chosen": examples["response_chosen"],
-        "rejected": examples["response_rejected"],
-    }
-
-
 def main():
     parser = HfArgumentParser(ScriptArguments)
     args = parser.parse_args_into_dataclasses()[0]
@@ -248,8 +229,22 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = args.model_name_or_path
     tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    prompt_template = get_conv_template(args.template_name)
+    if tokenizer.eos_token_id is None:
+        tokenizer.eos_token = prompt_template.stop_str  # eos token is required
+        tokenizer.add_special_tokens({"eos_token": tokenizer.eos_token})
+        logger.info(f"Add eos_token: {tokenizer.eos_token}, eos_token_id: {tokenizer.eos_token_id}")
+    if tokenizer.bos_token_id is None:
+        tokenizer.add_special_tokens({"bos_token": tokenizer.eos_token})
+        tokenizer.bos_token_id = tokenizer.eos_token_id
+        logger.info(f"Add bos_token: {tokenizer.bos_token}, bos_token_id: {tokenizer.bos_token_id}")
     if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = 0  # set as the <unk> token
+        if tokenizer.unk_token_id is not None:
+            tokenizer.pad_token = tokenizer.unk_token
+        else:
+            tokenizer.pad_token = tokenizer.eos_token
+        logger.info(f"Add pad_token: {tokenizer.pad_token}, pad_token_id: {tokenizer.pad_token_id}")
+    logger.debug(f"Tokenizer: {tokenizer}")
 
     # Get datasets
     if args.dataset_name is not None:
@@ -310,6 +305,30 @@ def main():
     max_target_length = args.max_target_length
     full_max_length = max_source_length + max_target_length
 
+    def return_prompt_and_responses(examples) -> Dict[str, str]:
+        """Load the paired dataset and convert it to the necessary format.
+
+        The dataset is converted to a dictionary with the following structure:
+        {
+            'prompt': List[str],
+            'chosen': List[str],
+            'rejected': List[str],
+        }
+
+        Prompts are structured as follows:
+          system_prompt + history[[q,a], [q,a]...] + question
+        """
+        prompts = []
+        for system, history, question in zip(examples["system"], examples["history"], examples["question"]):
+            system_prompt = system or ""
+            history_with_question = history + [[question, '']] if history else [[question, '']]
+            prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
+        return {
+            "prompt": prompts,
+            "chosen": examples["response_chosen"],
+            "rejected": examples["response_rejected"],
+        }
+
     # Preprocess the dataset
     train_dataset = None
     max_train_samples = 0
@@ -336,7 +355,10 @@ def main():
         )
         logger.debug(f"Num train_samples: {len(train_dataset)}")
         logger.debug("First train example:")
-        logger.debug(train_dataset[0]['prompt'] + train_dataset[0]['chosen'])
+        first_example = train_dataset[0]
+        logger.debug(f"prompt:\n{first_example['prompt']}")
+        logger.debug(f"chosen:\n{first_example['chosen']}")
+        logger.debug(f"rejected:\n{first_example['rejected']}")
 
     eval_dataset = None
     max_eval_samples = 0
@@ -363,7 +385,10 @@ def main():
         )
         logger.debug(f"Num eval_samples: {len(eval_dataset)}")
         logger.debug("First eval example:")
-        logger.debug(eval_dataset[0]['prompt'] + eval_dataset[0]['chosen'])
+        first_example = eval_dataset[0]
+        logger.debug(f"prompt:\n{first_example['prompt']}")
+        logger.debug(f"chosen:\n{first_example['chosen']}")
+        logger.debug(f"rejected:\n{first_example['rejected']}")
 
     # Load model
     torch_dtype = (

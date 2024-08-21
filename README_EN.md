@@ -119,26 +119,28 @@ sh run_ppo.sh
 
 #### Supported Models
 
-| Model Name                                                           | Model Size                  | Template  |
-|----------------------------------------------------------------------|-----------------------------|-----------|
-| [BLOOMZ](https://huggingface.co/bigscience/bloomz)                   | 560M/1.1B/1.7B/3B/7.1B/176B | vicuna    |
-| [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B              | alpaca    |
-| [LLaMA2](https://huggingface.co/meta-llama)                          | 7B/13B/70B                  | llama2    |
-| [LLaMA3](https://huggingface.co/meta-llama)                          | 8B/70B                      | llama3   |
-| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B/8x7B                     | mistral   |
-| [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                      | baichuan  |
-| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                      | baichuan2 |
-| [InternLM](https://github.com/InternLM/InternLM)                     | 7B                          | intern    |
-| [Qwen](https://github.com/QwenLM/Qwen)                               | 1.8B/7B/14B/72B             | chatml    |
-| [Qwen1.5](https://github.com/QwenLM/Qwen1.5)                         | 0.5B/1.8B/4B/14B/72B        | qwen      |
-| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                         | xverse    |
-| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                       | 6B                          | chatglm   |
-| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                          | chatglm2  |
-| [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                          | chatglm3  |
-| [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                      | yi        |
-| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/16B/67B                  | deepseek  |
-| [Orion](https://github.com/OrionStarAI/Orion)                        | 14B                         | orion     |
-| [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)     | 104B                        | cohere    |
+
+| Model Name                                                           | Model Size                  | Target Modules  | Template  |
+|----------------------------------------------------------------------|-----------------------------|-----------------|-----------|
+| [Baichuan](https://github.com/baichuan-inc/baichuan-13B)             | 7B/13B                      | W_pack          | baichuan  |
+| [Baichuan2](https://github.com/baichuan-inc/Baichuan2)               | 7B/13B                      | W_pack          | baichuan2 |
+| [BLOOMZ](https://huggingface.co/bigscience/bloomz)                   | 560M/1.1B/1.7B/3B/7.1B/176B | query_key_value | vicuna    |
+| [ChatGLM](https://github.com/THUDM/ChatGLM-6B)                       | 6B                          | query_key_value | chatglm   |
+| [ChatGLM2](https://github.com/THUDM/ChatGLM2-6B)                     | 6B                          | query_key_value | chatglm2  |
+| [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                          | query_key_value | chatglm3  |
+| [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)     | 104B                        | q_proj,v_proj   | cohere    |
+| [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/16B/67B                  | q_proj,v_proj   | deepseek  |
+| [InternLM2](https://github.com/InternLM/InternLM)                    | 7B/20B                      | wqkv            | intern2    |
+| [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B              | q_proj,v_proj   | alpaca    |
+| [LLaMA2](https://huggingface.co/meta-llama)                          | 7B/13B/70B                  | q_proj,v_proj   | llama2    |
+| [LLaMA3](https://huggingface.co/meta-llama)                          | 8B/70B                      | q_proj,v_proj   | llama3    |
+| [Mistral](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1) | 7B/8x7B                     | q_proj,v_proj   | mistral   |
+| [Orion](https://github.com/OrionStarAI/Orion)                        | 14B                         | q_proj,v_proj   | orion     |
+| [Qwen](https://github.com/QwenLM/Qwen)                               | 1.8B/7B/14B/72B             | c_attn          | chatml    |
+| [Qwen1.5](https://github.com/QwenLM/Qwen1.5)                         | 0.5B/1.8B/4B/14B/72B        | q_proj,v_proj   | qwen      |
+| [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                         | query_key_value | xverse    |
+| [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                      | q_proj,v_proj   | yi        |
+
 
 ## 💾 Install
 #### Updating the requirements
@@ -152,12 +154,16 @@ pip install -r requirements.txt --upgrade
 
 ### Hardware Requirement (VRAM)
 
-| Train Method | Bits |   7B  |  13B  |  30B  |   65B  |   8x7B |
-|--------------| ---- | ----- | ----- | ----- | ------ | ------ |
-| Full         |  16  | 160GB | 320GB | 600GB | 1200GB |  900GB |
-| LoRA         |  16  |  16GB |  32GB |  80GB |  160GB |  120GB |
-| QLoRA        |   8  |  10GB |  16GB |  40GB |   80GB |   80GB |
-| QLoRA        |   4  |   6GB |  12GB |  24GB |   48GB |   32GB |
+
+| Train Method  | Bits |   7B  |  13B  |  30B  |   70B  |  110B  |  8x7B |  8x22B |
+|-------|------| ----- | ----- | ----- | ------ | ------ | ----- | ------ |
+| Full   | AMP  | 120GB | 240GB | 600GB | 1200GB | 2000GB | 900GB | 2400GB |
+| Full   | 16   |  60GB | 120GB | 300GB |  600GB |  900GB | 400GB | 1200GB |
+| LoRA  | 16   |  16GB |  32GB |  64GB |  160GB |  240GB | 120GB |  320GB |
+| QLoRA | 8    |  10GB |  20GB |  40GB |   80GB |  140GB |  60GB |  160GB |
+| QLoRA | 4    |   6GB |  12GB |  24GB |   48GB |   72GB |  30GB |   96GB |
+| QLoRA | 2    |   4GB |   8GB |  16GB |   24GB |   48GB |  18GB |   48GB |
+
 
 ## 🔥 Inference
 After the training is complete, now we load the trained model to verify the effect of the model generating text.
