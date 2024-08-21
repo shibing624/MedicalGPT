@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+@author:ZhuangXialie(1832963123@qq.com)
+@description: model quantify
+
+usage:
+python model_quant.py --unquantized_model_path /path/to/unquantized/model --quantized_model_output_path /path/to/save/quantized/model --input_text "Your input text here"
+"""
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import time
