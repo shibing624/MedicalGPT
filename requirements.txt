@@ -8,3 +8,4 @@ tensorboard
 tqdm>=4.47.0
 transformers>=4.39.3
 trl~=0.8.3
+bitsandbytes=0.43.3
