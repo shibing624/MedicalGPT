@@ -79,7 +79,11 @@ def evaluate_perplexity(model, tokenizer, conversation_pairs):
 
     model = model.eval()
     nlls = []
+    # 获取设备
+    device = get_device()
 
+    # 确保 tokenizer 和 model 使用相同的设备
+    model = model.to(device)
     # 遍历每个对话，基于 human 部分生成并与 gpt 部分计算困惑度
     for input_text, target_text in tqdm(conversation_pairs, desc="Perplexity Evaluation"):
         # Tokenize input and target
