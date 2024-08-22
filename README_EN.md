@@ -19,9 +19,15 @@
 
 ## 📖 Introduction
 
-**MedicalGPT** training medical GPT model with ChatGPT training pipeline, implemantation of Pretraining,
-Supervised Finetuning, Reward Modeling and Reinforcement Learning.
+**MedicalGPT** trains a medical large language model using the ChatGPT training pipeline, implementing pretraining, supervised finetuning, RLHF (Reward Modeling and Reinforcement Learning), and DPO (Direct Preference Optimization).
 
+**MedicalGPT** trains medical large models, implementing incremental pretraining, supervised fine-tuning, RLHF (reward modeling, reinforcement learning training), and DPO (direct preference optimization).
+
+![DPO](https://github.com/shibing624/MedicalGPT/blob/main/docs/dpo.jpg)
+
+- The RLHF training pipeline is from Andrej Karpathy's presentation PDF [State of GPT](https://karpathy.ai/stateofgpt.pdf), video [Video](https://build.microsoft.com/en-US/sessions/db3f4859-cd30-4445-a0cd-553c3304f8e2)
+- The DPO method is from the paper [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
+- The ORPO method is from the paper [ORPO: Monolithic Preference Optimization without Reference Model](https://arxiv.org/abs/2403.07691)
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/GPT_Training.jpg" width="860" />
 
@@ -32,6 +38,33 @@ Training MedicalGPT model：
 - Stage 3: RM (Reward Model) reward model modeling, constructing a human preference ranking data set, training the reward model to align human preferences, mainly the "HHH" principle, specifically "helpful, honest, harmless"
 - Stage 4: RL (Reinforcement Learning) is based on human feedback reinforcement learning (RLHF), using the reward model to train the SFT model, and the generation model uses rewards or penalties to update its strategy in order to generate higher quality, more in line with human preferences text
 
+## 🔥 News
+
+- **[2024/08/02] v2.2 Release**: Supports role-playing model training, adds new scripts for generating patient-doctor dialogue SFT data [role_play_data](https://github.com/shibing624/MedicalGPT/blob/main/role_play_data/README.md). See [Release-v2.2](https://github.com/shibing624/MedicalGPT/releases/tag/2.2.0).
+  
+- **[2024/06/11] v2.1 Release**: Supports the **[Qwen-2](https://qwenlm.github.io/blog/qwen2/)** series of models. See [Release-v2.1](https://github.com/shibing624/MedicalGPT/releases/tag/2.1.0).
+
+- **[2024/04/24] v2.0 Release**: Supports the **[Llama-3](https://huggingface.co/meta-llama)** series of models. See [Release-v2.0](https://github.com/shibing624/MedicalGPT/releases/tag/2.0.0).
+
+- **[2024/04/17] v1.9 Release**: Supports **[ORPO](https://arxiv.org/abs/2403.07691)**. For detailed usage, refer to `run_orpo.sh`. See [Release-v1.9](https://github.com/shibing624/MedicalGPT/releases/tag/1.9.0).
+
+- **[2024/01/26] v1.8 Release**: Supports fine-tuning the Mixtral Mixture-of-Experts (MoE) model **[Mixtral 8x7B](https://huggingface.co/mistralai/Mixtral-8x7B-v0.1)**. See [Release-v1.8](https://github.com/shibing624/MedicalGPT/releases/tag/1.8.0).
+
+- **[2024/01/14] v1.7 Release**: Adds retrieval-augmented generation (RAG) based file question answering [ChatPDF](https://github.com/shibing624/ChatPDF) functionality, code `chatpdf.py`, which can improve industry-specific Q&A accuracy by combining fine-tuned LLMs with knowledge base files. See [Release-v1.7](https://github.com/shibing624/MedicalGPT/releases/tag/1.7.0).
+
+- **[2023/10/23] v1.6 Release**: Adds RoPE interpolation to extend the context length of GPT models; supports **$S^2$-Attn** proposed by [FlashAttention-2](https://github.com/Dao-AILab/flash-attention) and [LongLoRA](https://github.com/dvlab-research/LongLoRA) for LLaMA models; supports the embedding noise training method [NEFTune](https://github.com/neelsjain/NEFTune). See [Release-v1.6](https://github.com/shibing624/MedicalGPT/releases/tag/1.6.0).
+
+- **[2023/08/28] v1.5 Release**: Adds the **DPO (Direct Preference Optimization)** method, which directly optimizes the behavior of language models to precisely align with human preferences. See [Release-v1.5](https://github.com/shibing624/MedicalGPT/releases/tag/1.5.0).
+
+- **[2023/08/08] v1.4 Release**: Releases the Chinese-English Vicuna-13B model fine-tuned on the ShareGPT4 dataset [shibing624/vicuna-baichuan-13b-chat](https://huggingface.co/shibing624/vicuna-baichuan-13b-chat), and the corresponding LoRA model [shibing624/vicuna-baichuan-13b-chat-lora](https://huggingface.co/shibing624/vicuna-baichuan-13b-chat-lora). See [Release-v1.4](https://github.com/shibing624/MedicalGPT/releases/tag/1.4.0).
+
+- **[2023/08/02] v1.3 Release**: Adds multi-turn dialogue finetuning for LLAMA, LLAMA2, Bloom, ChatGLM, ChatGLM2, and Baichuan models; adds domain vocabulary expansion functionality; adds Chinese pre-training datasets and Chinese ShareGPT finetuning datasets. See [Release-v1.3](https://github.com/shibing624/MedicalGPT/releases/tag/1.3.0).
+
+- **[2023/07/13] v1.1 Release**: Releases the Chinese medical LLAMA-13B model [shibing624/ziya-llama-13b-medical-merged](https://huggingface.co/shibing624/ziya-llama-13b-medical-merged), based on the Ziya-LLAMA-13B-v1 model, SFT fine-tunes a medical model, improving medical QA performance. See [Release-v1.1](https://github.com/shibing624/MedicalGPT/releases/tag/1.1).
+
+- **[2023/06/15] v1.0 Release**: Releases the Chinese medical LoRA model [shibing624/ziya-llama-13b-medical-lora](https://huggingface.co/shibing624/ziya-llama-13b-medical-lora), based on the Ziya-LLaMA-13B-v1 model, SFT fine-tunes a medical model, improving medical QA performance. See [Release-v1.0](https://github.com/shibing624/MedicalGPT/releases/tag/1.0.0).
+
+- **[2023/06/05] v0.2 Release**: Trains domain-specific large models using medicine as an example, implementing four stages of training: secondary pretraining, supervised fine-tuning, reward modeling, and reinforcement learning training. See [Release-v0.2](https://github.com/shibing624/MedicalGPT/releases/tag/0.2.0).
 ## ▶️ Demo
 
 - Hugging Face Demo: doing
