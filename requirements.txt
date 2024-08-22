@@ -10,3 +10,4 @@ transformers>=4.39.3 # GLM4 transformers==4.40.2
 trl~=0.8.3
 bitsandbytes=0.43.3
 tiktoken
+GPUtil
