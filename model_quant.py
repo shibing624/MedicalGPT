@@ -24,7 +24,7 @@ def get_model_memory_usage(device):
     return torch.cuda.memory_allocated(device) / (1024 ** 3)  # 转换为GB
 
 # 定义一个函数来进行推理，并计算推理时间
-def perform_inference(model, tokenizer, device, question):
+def perform_inference(model, tokenizer, devic, question):
     inputs = tokenizer(question, return_tensors="pt", padding=True, truncation=True).to(device)
     attention_mask = inputs["attention_mask"]
     
@@ -97,12 +97,12 @@ def main():
     print(f"推理生成的文本（量化模型）: {generated_text_quantized}")
     print(f"推理时间（量化模型）: {time_quantized:.2f} 秒")
 
-    # 保存量化模型
+    # 保存量化模型和tokenizer
     quantized_model.save_pretrained(args.quantized_model_output_path)
-    print(f"量化模型已保存到 {args.quantized_model_output_path}")
+    tokenizer.save_pretrained(args.quantized_model_output_path)
+    print(f"量化模型和tokenizer已保存到 {args.quantized_model_output_path}")
 
     # 输出对比
-
     print("\n====== 内容对比结果 ======")
     print(f"未量化模型生成文本:\n {generated_text_unquantized}")
     print(f"量化模型生成文本:\n {generated_text_quantized}")
@@ -110,7 +110,6 @@ def main():
     print("\n====== 时间对比结果 ======")
     print(f"未量化模型推理时间: {time_unquantized:.2f} 秒")
     print(f"量化模型推理时间: {time_quantized:.2f} 秒")
-
 
 
 if __name__ == "__main__":
