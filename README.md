@@ -213,6 +213,10 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 ```shell
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py --model_type baichuan --base_model shibing624/vicuna-baichuan-13b-chat
 ```
+#### Vllm多卡部署
+```shell
+bash run_Multi-GPUs-deployment.sh
+```
 
 
 #### Inference Examples
