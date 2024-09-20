@@ -2,11 +2,11 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 full_supersived
     --model_type auto \
     --cache_dir ./model \
     --model_name_or_path ./model/glm-4-9b-chat \
-    --train_file_dir ./ \
-    --validation_file_dir ./ \
+    --train_file_dir ./data/finetune \
+    --validation_file_dir ./data/finetune \
     --per_device_train_batch_size 2 \
     --do_train \
-    --num_train_epochs 15 \
+    --num_train_epochs 3 \
     --per_device_eval_batch_size 2 \
     --max_train_samples -1 \
     --learning_rate 3e-5 \
@@ -31,5 +31,5 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 full_supersived
     --ddp_find_unused_parameters False \
     --gradient_checkpointing True \
     --template_name chatglm3 \
-    --deepspeed ds_zero_2.json \
+    --deepspeed ./deepspeed_zero_stage2_config.json \
     --fp16
