@@ -40,6 +40,8 @@ Training MedicalGPT model：
 
 ## 🔥 News
 
+- **[2024/09/21] v2.2 Release**: Supports the **[Qwen-2.5](https://qwenlm.github.io/zh/blog/qwen2.5/)** series of models. See [Release-v2.3](https://github.com/shibing624/MedicalGPT/releases/tag/2.3.0)
+
 - **[2024/08/02] v2.2 Release**: Supports role-playing model training, adds new scripts for generating patient-doctor dialogue SFT data [role_play_data](https://github.com/shibing624/MedicalGPT/blob/main/role_play_data/README.md). See [Release-v2.2](https://github.com/shibing624/MedicalGPT/releases/tag/2.2.0).
   
 - **[2024/06/11] v2.1 Release**: Supports the **[Qwen-2](https://qwenlm.github.io/blog/qwen2/)** series of models. See [Release-v2.1](https://github.com/shibing624/MedicalGPT/releases/tag/2.1.0).
