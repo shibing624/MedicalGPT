@@ -602,9 +602,15 @@ def main():
         def get_dialog(examples):
             system_prompts = examples.get("system_prompt", "")
             for i, source in enumerate(examples['conversations']):
+                system_prompt = ""
                 if len(source) < 2:
                     continue
                 data_role = source[0].get("from", "")
+                if data_role == "system":
+                    # Skip the first one if it is from system
+                    system_prompt = source[0]["value"]
+                    source = source[1:]
+                    data_role = source[0].get("from", "")
                 if data_role not in roles or data_role != roles[0]:
                     # Skip the first one if it is not from human
                     source = source[1:]
@@ -622,7 +628,8 @@ def main():
                     continue
                 # Convert the list to pairs of elements
                 history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
-                system_prompt = system_prompts[i] if system_prompts else None
+                if not system_prompt:
+                    system_prompt = system_prompts[i] if system_prompts else ""
                 yield prompt_template.get_dialog(history_messages, system_prompt=system_prompt)
 
         for dialog in get_dialog(examples):
@@ -819,7 +826,6 @@ def main():
             model_args.model_name_or_path,
             config=config,
             torch_dtype=torch_dtype,
-            low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
             device_map=model_args.device_map,
             **config_kwargs,
         )

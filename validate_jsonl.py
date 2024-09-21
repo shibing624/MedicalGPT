@@ -2,9 +2,10 @@
 """
 @author:ZhuangXialie(1832963123@qq.com)
 @description: validata the dataset
-# example : file_path = "sharegpt_jsonl_computer_cn_26k_continue.jsonl"
 """
 import json
+
+
 def validate_jsonl(file_path):
     print("开始验证 JSONL 文件格式...\n")
 
@@ -39,7 +40,7 @@ def validate_jsonl(file_path):
                         continue
 
                     # 检查 'from' 字段的值是否为 'human' 或 'gpt'
-                    if conv['from'] not in ['human', 'gpt']:
+                    if conv['from'] not in ['system', 'human', 'gpt']:
                         print(f"第 {line_number} 行: 'from' 字段的值无效，应为 'human' 或 'gpt'。\n")
                         conversation_valid = False
 
@@ -61,7 +62,7 @@ def validate_jsonl(file_path):
 
 if __name__ == "__main__":
     # 输入文件路径
-    file_path = "sharegpt_jsonl_computer_cn_26k_continue.jsonl"
-    print(f"\n正在检查文件: {file_path}")
+    file_path = "./data/finetune/sharegpt_zh_1K_format.jsonl"
+    print(f"正在检查文件: {file_path}")
 
     validate_jsonl(file_path)

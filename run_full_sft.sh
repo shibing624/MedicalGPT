@@ -1,9 +1,11 @@
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 full_supersived_finetuning.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 supersived_finetuning.py \
     --model_type auto \
-    --cache_dir ./model \
     --model_name_or_path ./model/glm-4-9b-chat \
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \
+    --cache_dir ./model \
+    --device_map None \
+    --use_peft False \
     --per_device_train_batch_size 2 \
     --do_train \
     --num_train_epochs 3 \
