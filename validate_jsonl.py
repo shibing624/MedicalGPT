@@ -5,6 +5,8 @@
 """
 import json
 
+import argparse
+
 
 def validate_jsonl(file_path):
     print("开始验证 JSONL 文件格式...\n")
@@ -61,8 +63,11 @@ def validate_jsonl(file_path):
 
 
 if __name__ == "__main__":
-    # 输入文件路径
-    file_path = "./data/finetune/sharegpt_zh_1K_format.jsonl"
+    parser = argparse.ArgumentParser(description='Validate JSONL file format.')
+    parser.add_argument('--file_path', type=str, help='Path to JSONL file',
+                        default="./data/finetune/sharegpt_zh_1K_format.jsonl")
+    args = parser.parse_args()
+    file_path = args.file_path
     print(f"正在检查文件: {file_path}")
 
     validate_jsonl(file_path)
