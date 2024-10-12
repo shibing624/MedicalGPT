@@ -516,7 +516,7 @@ source: https://huggingface.co/Qwen/CodeQwen1.5-7B-Chat/blob/main/tokenizer_conf
 Supports: https://huggingface.co/Qwen/CodeQwen1.5-7B-Chat
           https://huggingface.co/Qwen/Qwen1.5-72B-Chat
           https://huggingface.co/Qwen/Qwen2-72B
-          https://huggingface.co/Qwen/Qwen2-0.5B
+          https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct
 """
 register_conv_template(
     Conversation(
