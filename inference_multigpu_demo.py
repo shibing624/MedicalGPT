@@ -166,8 +166,7 @@ def main():
         inputs = []
         for texts in data_loader:
             inputs.extend(texts)
-            messages = [[s, ''] for s in texts]
-            prompted_texts = [prompt_template.get_prompt(messages=messages, system_prompt=args.system_prompt)]
+            prompted_texts = [prompt_template.get_prompt(messages=[[s, '']], system_prompt=args.system_prompt) for s in texts]
             logger.debug(f'local_rank: {local_rank}, inputs size:{len(prompted_texts)}, top3: {prompted_texts[:3]}')
             inputs_tokens = tokenizer(prompted_texts, return_tensors="pt", padding=True)
             input_ids = inputs_tokens['input_ids'].to(local_rank)

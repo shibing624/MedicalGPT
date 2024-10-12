@@ -101,8 +101,7 @@ def batch_generate_answer(
         do_sample=True if temperature > 0.0 else False,
         repetition_penalty=repetition_penalty,
     )
-    messages = [[s, ''] for s in sentences]
-    prompts = [prompt_template.get_prompt(messages=messages, system_prompt=system_prompt)]
+    prompts = [prompt_template.get_prompt(messages=[[s, '']], system_prompt=system_prompt) for s in sentences]
     inputs_tokens = tokenizer(prompts, return_tensors="pt", padding=True)
     input_ids = inputs_tokens['input_ids'].to(device)
     outputs = model.generate(input_ids=input_ids, **generation_kwargs)
