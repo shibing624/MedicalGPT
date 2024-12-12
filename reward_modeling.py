@@ -11,11 +11,11 @@ from glob import glob
 from typing import Any, List, Union, Optional, Dict
 
 import torch
+from torch.utils.data import Dataset
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_kbit_training
 from sklearn.metrics import mean_squared_error, mean_absolute_error
-from torch.utils.data import Dataset
 from transformers import (
     AutoConfig,
     PreTrainedTokenizerBase,
@@ -243,11 +243,12 @@ class RewardTrainer(Trainer):
         Define how to compute the reward loss. Use the InstructGPT pairwise logloss: https://arxiv.org/abs/2203.02155
     """
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         rewards_chosen = model(input_ids=inputs["input_ids_chosen"],
                                attention_mask=inputs["attention_mask_chosen"])[0]
         rewards_rejected = model(input_ids=inputs["input_ids_rejected"],
                                  attention_mask=inputs["attention_mask_rejected"])[0]
+        # 计算损失：InstructGPT中的pairwise logloss
         loss = -torch.nn.functional.logsigmoid(rewards_chosen - rewards_rejected).mean()
         if return_outputs:
             return loss, {"rewards_chosen": rewards_chosen, "rewards_rejected": rewards_rejected}
