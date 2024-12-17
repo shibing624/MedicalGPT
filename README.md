@@ -72,7 +72,7 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
     - RM(Reward Model)奖励模型建模，构造人类偏好排序数据集，训练奖励模型，用来建模人类偏好，主要是"HHH"原则，具体是"helpful, honest, harmless"
     - RL(Reinforcement Learning)强化学习，用奖励模型来训练SFT模型，生成模型使用奖励或惩罚来更新其策略，以便生成更高质量、更符合人类偏好的文本
   - [DPO(Direct Preference Optimization)](https://arxiv.org/pdf/2305.18290.pdf)直接偏好优化方法，DPO通过直接优化语言模型来实现对其行为的精确控制，而无需使用复杂的强化学习，也可以有效学习到人类偏好，DPO相较于RLHF更容易实现且易于训练，效果更好
-  - [ORPO](https://arxiv.org/abs/2403.07691)不需要参考模型的优化方法，通过ORPO，LLM可以同时学习指令遵循和满足人类偏好
+  - [ORPO](https://arxiv.org/abs/2403.07691)比值比偏好优化，不需要参考模型（ref_model）的优化方法，通过ORPO，LLM可以同时学习SFT和对齐，将两个过程整合为单一步骤，缓解模型灾难性遗忘问题
 
 
 ### Release Models
