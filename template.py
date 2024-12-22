@@ -58,6 +58,8 @@ class Conversation:
         system_prompt = system_prompt + self.sep if system_prompt else ""  # add separator for non-empty system prompt
         messages = messages or self.messages
         convs = []
+        if not messages:
+            messages = []
         for turn_idx, [user_query, bot_resp] in enumerate(messages):
             if turn_idx == 0:
                 convs.append(system_prompt + self.prompt.format(query=user_query))
