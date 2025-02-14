@@ -122,7 +122,7 @@ def equation_reward_func(completions, target, nums, **kwargs):
                         f.write(completion)
             else:
                 rewards.append(0.0)
-        except Exception:
+        except Exception as e:
             # If evaluation fails, reward is 0
             rewards.append(0.0)
     return rewards
@@ -192,7 +192,6 @@ def grpo_function(
 
     # split the dataset into train and test
     train_test_split = dataset.train_test_split(test_size=0.1)
-
     train_dataset = train_test_split["train"]
     test_dataset = train_test_split["test"]
 
@@ -218,7 +217,8 @@ def grpo_function(
 
     # Train the model
     logger.info(
-        f'*** Starting training {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} for {training_args.num_train_epochs} epochs***'
+        f'*** Starting training {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} for '
+        f'{training_args.num_train_epochs} epochs ***'
     )
     train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
     # Log and save metrics
