@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --num_processes 7 --config_file ./zero3.yaml grpo_training.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --num_processes 8 --config_file ./zero1.yaml grpo_training.py \
     --model_name_or_path Qwen/Qwen2.5-3B-Instruct \
     --dataset_name Jiayi-Pan/Countdown-Tasks-3to4 \
     --per_device_train_batch_size 1 \
@@ -18,5 +18,5 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --num_processes 7 --confi
     --learning_rate 5.0e-7 \
     --lr_scheduler_type cosine \
     --warmup_ratio 0.03 \
-    --push_to_hub false \
-    --use_vllm false > x_r1_0.5B_sampling.log 2>&1
+    --push_to_hub False \
+    --use_vllm False > x_r1_0.5B_sampling.log 2>&1
