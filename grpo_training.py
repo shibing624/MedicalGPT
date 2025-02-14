@@ -163,7 +163,7 @@ def grpo_function(
     # Load datasets
     ###############
     # Load dataset from Hugging Face Hub
-    dataset = load_dataset(script_args.dataset_id_or_path, split=script_args.dataset_splits)
+    dataset = load_dataset(script_args.dataset_name, split=script_args.dataset_splits)
     # select a random subset of 50k samples
     dataset = dataset.shuffle(seed=42).select(range(50000))
 
