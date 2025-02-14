@@ -24,10 +24,6 @@ class ScriptArguments:
     """
     The name of the Casual LM model we wish to fine with DPO
     """
-    # Model arguments
-    model_name_or_path: Optional[str] = field(
-        default=None, metadata={"help": "The model checkpoint for weights initialization."}
-    )
     tokenizer_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "The tokenizer for weights initialization."}
     )
