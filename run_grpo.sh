@@ -1,12 +1,13 @@
 CUDA_VISIBLE_DEVICES=0 python grpo_training.py \
     --model_name_or_path Qwen/Qwen2.5-3B-Instruct \
-    --dataset_name Jiayi-Pan/Countdown-Tasks-3to4 \
+    --dataset_name openai/gsm8k \
     --per_device_train_batch_size 1 \
     --max_steps 500 \
     --save_steps 50 \
     --save_strategy steps \
     --max_prompt_length 256 \
     --max_completion_length 512 \
+    --num_generations 6 \
     --output_dir outputs-grpo-qwen-v1 \
     --torch_dtype float16 \
     --fp16 True \

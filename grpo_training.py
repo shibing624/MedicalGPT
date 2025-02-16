@@ -29,10 +29,12 @@ class ScriptArguments:
     )
     # Dataset arguments
     dataset_name: Optional[str] = field(
-        default="Jiayi-Pan/Countdown-Tasks-3to4",
+        default="openai/gsm8k",
         metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
-    dataset_splits: str = "train"
+    train_samples: Optional[int] = field(default=2000, metadata={"help": "Number of samples to train on, -1 for all"})
+    subset_name: Optional[str] = field(default="main", metadata={"help": "Subset name"})
+    dataset_splits: Optional[str] = field(default="train", metadata={"help": "Split name"})
 
 
 def format_reward_func(completions, target, **kwargs):
@@ -114,7 +116,7 @@ def equation_reward_func(completions, target, nums, **kwargs):
             # Check if the equation is correct and matches the ground truth
             if abs(float(result) - float(gt)) < 1e-5:
                 rewards.append(1.0)
-                if random.random() < 0.10:  # 10% chance to write fully successful samples into a file
+                if random.random() < 0.1:  # 10% chance to write fully successful samples into a file
                     os.makedirs("completion_samples", exist_ok=True)
                     log_file = os.path.join("completion_samples", "success_completion_samples.txt")
                     with open(log_file, "a") as f:
@@ -126,6 +128,88 @@ def equation_reward_func(completions, target, nums, **kwargs):
             # If evaluation fails, reward is 0
             rewards.append(0.0)
     return rewards
+
+
+# Load and prep dataset
+SYSTEM_PROMPT = """
+Respond in the following format:
+<think>
+...
+</think>
+<answer>
+...
+</answer>
+"""
+
+
+def extract_xml_answer(text: str) -> str:
+    answer = text.split("<answer>")[-1]
+    answer = answer.split("</answer>")[0]
+    return answer.strip()
+
+
+def extract_final_answer(text: str):
+    if "####" not in text:
+        return None
+    return text.split("####")[1].strip()
+
+
+# Reward functions
+def correctness_reward_func(prompts, completions, answer, **kwargs) -> list[float]:
+    responses = [completion[0]['content'] for completion in completions]
+    q = prompts[0][-1]['content']
+    extracted_responses = [extract_xml_answer(r) for r in responses]
+    completion = f"Question:\n{q}\nAnswer:\n{answer[0]}\nResponse:\n{responses[0]}\nExtracted:\n{extracted_responses[0]}"
+    logger.debug(completion)
+    if random.random() < 0.1:  # 1% chance to write samples into a file
+        os.makedirs("grpo_training_samples", exist_ok=True)
+        log_file = os.path.join("completion_samples", "completion_samples.txt")
+        with open(log_file, "a") as f:
+            f.write(f"\n\n==============\n")
+            f.write(completion)
+    return [2.0 if r == a else 0.0 for r, a in zip(extracted_responses, answer)]
+
+
+def int_reward_func(completions, **kwargs) -> list[float]:
+    responses = [completion[0]['content'] for completion in completions]
+    extracted_responses = [extract_xml_answer(r) for r in responses]
+    return [0.5 if r.isdigit() else 0.0 for r in extracted_responses]
+
+
+def strict_format_reward_func(completions, **kwargs) -> list[float]:
+    """Reward function that checks if the completion has a specific format."""
+    pattern = r"^<think>\n.*?\n</think>\n<answer>\n.*?\n</answer>\n$"
+    responses = [completion[0]["content"] for completion in completions]
+    matches = [re.match(pattern, r) for r in responses]
+    return [0.5 if match else 0.0 for match in matches]
+
+
+def soft_format_reward_func(completions, **kwargs) -> list[float]:
+    """Reward function that checks if the completion has a specific format."""
+    pattern = r"<think>.*?</think>\s*<answer>.*?</answer>"
+    responses = [completion[0]["content"] for completion in completions]
+    matches = [re.match(pattern, r) for r in responses]
+    return [0.5 if match else 0.0 for match in matches]
+
+
+def count_xml(text) -> float:
+    count = 0.0
+    if text.count("<think>\n") == 1:
+        count += 0.125
+    if text.count("\n</think>\n") == 1:
+        count += 0.125
+    if text.count("\n<answer>\n") == 1:
+        count += 0.125
+        count -= len(text.split("\n</answer>\n")[-1]) * 0.001
+    if text.count("\n</answer>") == 1:
+        count += 0.125
+        count -= (len(text.split("\n</answer>")[-1]) - 1) * 0.001
+    return count
+
+
+def xmlcount_reward_func(completions, **kwargs) -> list[float]:
+    contents = [completion[0]["content"] for completion in completions]
+    return [count_xml(c) for c in contents]
 
 
 def get_checkpoint(training_args: GRPOConfig):
@@ -141,8 +225,13 @@ def grpo_function(
     #########################
     # Log parameters
     #########################
+    logger.warning(
+        f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
+        + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
+    )
     logger.info(f"Model parameters {model_args}")
-    logger.info(f"Training/evaluation parameters {training_args}")
+    logger.info(f"Script parameters {script_args}")
+    logger.info(f"Training parameters {training_args}")
 
     ################
     # Load tokenizer
@@ -162,48 +251,56 @@ def grpo_function(
     ###############
     # Load datasets
     ###############
-    # Load dataset from Hugging Face Hub
-    dataset = load_dataset(script_args.dataset_name, split=script_args.dataset_splits)
-    # select a random subset of 50k samples
-    dataset = dataset.shuffle(seed=42).select(range(50000))
+    dataset = load_dataset(script_args.dataset_name, script_args.subset_name, split=script_args.dataset_splits)
+    if script_args.train_samples > 0:
+        dataset = dataset.shuffle(seed=42).select(range(script_args.train_samples))
 
     #####################
     # Prepare and format dataset
     #####################
-    # r1 prompt with a prefix for the model to already start with the thinking process
-    def generate_r1_prompt(numbers, target):
-        r1_prefix = [{
-            "role": "system",
-            "content": "You are a helpful assistant. You first thinks about the reasoning process in the mind and then provides the user with the answer."
-        },
-            {
-                "role": "user",
-                "content": f"Using the numbers {numbers}, create an equation that equals {target}. You can use basic arithmetic operations (+, -, *, /) one or multiple times but each number can only be used once. Show your work in <think> </think> tags. And return the final equation in <answer> </answer> tags, for example <answer> (1 + 2) / 3 </answer>. Think step by step inside <think> tags."
-            },
-            {
-                "role": "assistant",
-                "content": "Let me solve this step by step.\n<think>"
-            }]
-        return {"prompt": tokenizer.apply_chat_template(r1_prefix, tokenize=False, continue_final_message=True),
-                "target": target, "nums": numbers}
-
     # convert our dataset to the r1 prompt
-    dataset = dataset.map(lambda x: generate_r1_prompt(x["nums"], x["target"]))
+    dataset = dataset.map(lambda x: {  # type: ignore
+        'prompt': [
+            {'role': 'system', 'content': SYSTEM_PROMPT},
+            {'role': 'user', 'content': x['question']}
+        ],
+        'answer': extract_final_answer(x['answer'])
+    })
 
     # split the dataset into train and test
     train_test_split = dataset.train_test_split(test_size=0.1)
     train_dataset = train_test_split["train"]
     test_dataset = train_test_split["test"]
 
+    logger.info("*** Initializing model kwargs ***")
+    torch_dtype = (
+        model_args.torch_dtype if model_args.torch_dtype in ["auto", None] else getattr(torch, model_args.torch_dtype)
+    )
+    model_kwargs = dict(
+        revision=model_args.model_revision,
+        trust_remote_code=model_args.trust_remote_code,
+        attn_implementation=model_args.attn_implementation,
+        torch_dtype=torch_dtype,
+        use_cache=False if training_args.gradient_checkpointing else True,
+    )
+    training_args.model_init_kwargs = model_kwargs
+
     #########################
     # Instantiate DPO trainer
     #########################
     trainer = GRPOTrainer(
         model=model_args.model_name_or_path,
-        reward_funcs=[format_reward_func, equation_reward_func],
+        processing_class=tokenizer,
+        reward_funcs=[
+            xmlcount_reward_func,
+            soft_format_reward_func,
+            strict_format_reward_func,
+            int_reward_func,
+            correctness_reward_func,
+        ],
         args=training_args,
         train_dataset=train_dataset,
-        eval_dataset=test_dataset,
+        eval_dataset=test_dataset if training_args.eval_strategy != "no" else None,
         peft_config=get_peft_config(model_args),
     )
 
@@ -243,12 +340,25 @@ def grpo_function(
     logger.info(f"Tokenizer saved to {training_args.output_dir}")
 
     # Save everything else on main process
+    kwargs = {
+        "dataset_name": script_args.dataset_name,
+        "tags": ["r1"],
+    }
     if trainer.accelerator.is_main_process:
-        trainer.create_model_card({"tags": ["rl", "grpo"]})
-    # push to hub if needed
-    if training_args.push_to_hub is True:
-        logger.info("Pushing to hub...")
-        trainer.push_to_hub()
+        trainer.create_model_card(**kwargs)
+        # Restore k,v cache for fast inference
+        trainer.model.config.use_cache = True
+        trainer.model.config.save_pretrained(training_args.output_dir)
+
+    ##########
+    # Evaluate
+    ##########
+    if training_args.do_eval:
+        logger.info("*** Evaluate ***")
+        metrics = trainer.evaluate()
+        metrics["eval_samples"] = len(test_dataset)
+        trainer.log_metrics("eval", metrics)
+        trainer.save_metrics("eval", metrics)
 
     logger.info("*** Training complete! ***")
 

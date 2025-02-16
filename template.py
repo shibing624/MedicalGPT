@@ -442,6 +442,21 @@ register_conv_template(
     )
 )
 
+
+"""deepseek3 template
+Supports: https://huggingface.co/deepseek-ai/DeepSeek-V3
+"""
+register_conv_template(
+    Conversation(
+        name="deepseek3",
+        system_prompt="",
+        messages=[],
+        roles=("<｜User｜>", "<｜Assistant｜>"),
+        prompt="<｜User｜>{query}<｜Assistant｜>",
+        sep="</s>",
+    )
+)
+
 """deepseekcoder template
 Supports: https://huggingface.co/deepseek-ai/deepseek-coder-33b-instruct
 """
@@ -529,6 +544,21 @@ register_conv_template(
         prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
         sep="\n",
         stop_str="<|im_end|>",
+    )
+)
+
+
+register_conv_template(
+    Conversation(
+        name="deepseek",
+        system_prompt="<BOS_TOKEN>",
+        messages=[],
+        roles=("User", "Assistant"),
+        prompt=(
+            "<|START_OF_TURN_TOKEN|><|USER_TOKEN|>{query}<|END_OF_TURN_TOKEN|>"
+            "<|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>"
+        ),
+        sep="</s>",
     )
 )
 
