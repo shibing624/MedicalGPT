@@ -160,9 +160,9 @@ def correctness_reward_func(prompts, completions, answer, **kwargs) -> list[floa
     responses = [completion[0]['content'] for completion in completions]
     q = prompts[0][-1]['content']
     extracted_responses = [extract_xml_answer(r) for r in responses]
-    completion = f"Question:\n{q}\nAnswer:\n{answer[0]}\nResponse:\n{responses[0]}\nExtracted:\n{extracted_responses[0]}"
-    logger.debug(completion)
     if random.random() < 0.1:  # 1% chance to write samples into a file
+        completion = f"Question:\n{q}\nAnswer:\n{answer[0]}\nResponse:\n{responses[0]}\nExtracted:\n{extracted_responses[0]}"
+        logger.debug(completion)
         os.makedirs("grpo_training_samples", exist_ok=True)
         log_file = os.path.join("grpo_training_samples", "completion_samples.txt")
         with open(log_file, "a") as f:
