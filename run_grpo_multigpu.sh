@@ -6,6 +6,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --num_processes 8 --confi
     --max_steps 1000 \
     --save_steps 100 \
     --save_strategy steps \
+    --num_generations 6 \
     --max_prompt_length 512 \
     --max_completion_length 1012 \
     --output_dir outputs-grpo-qwen-v2 \

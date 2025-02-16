@@ -33,7 +33,7 @@ class ScriptArguments:
         default="openai/gsm8k",
         metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
-    train_samples: Optional[int] = field(default=2000, metadata={"help": "Number of samples to train on, -1 for all"})
+    train_samples: Optional[int] = field(default=-1, metadata={"help": "Number of samples to train on, -1 for all"})
     subset_name: Optional[str] = field(default="main", metadata={"help": "Subset name"})
     dataset_splits: Optional[str] = field(default="train", metadata={"help": "Split name"})
 
@@ -283,6 +283,7 @@ def grpo_function(
         attn_implementation=model_args.attn_implementation,
         torch_dtype=torch_dtype,
         use_cache=False if training_args.gradient_checkpointing else True,
+        load_in_4bit=model_args.load_in_4bit
     )
     training_args.model_init_kwargs = model_kwargs
 
