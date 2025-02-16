@@ -164,7 +164,7 @@ def correctness_reward_func(prompts, completions, answer, **kwargs) -> list[floa
     logger.debug(completion)
     if random.random() < 0.1:  # 1% chance to write samples into a file
         os.makedirs("grpo_training_samples", exist_ok=True)
-        log_file = os.path.join("completion_samples", "completion_samples.txt")
+        log_file = os.path.join("grpo_training_samples", "completion_samples.txt")
         with open(log_file, "a") as f:
             f.write(f"\n\n==============\n")
             f.write(completion)

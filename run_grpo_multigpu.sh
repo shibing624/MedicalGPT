@@ -1,11 +1,12 @@
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --num_processes 8 --config_file ./zero1.yaml grpo_training.py \
     --model_name_or_path Qwen/Qwen2.5-3B-Instruct \
-    --dataset_name Jiayi-Pan/Countdown-Tasks-3to4 \
+    --dataset_name openai/gsm8k \
+    --train_samples -1 \
     --per_device_train_batch_size 1 \
-    --max_steps 500 \
+    --max_steps 1000 \
     --save_steps 100 \
     --save_strategy steps \
-    --max_prompt_length 256 \
+    --max_prompt_length 512 \
     --max_completion_length 1012 \
     --output_dir outputs-grpo-qwen-v2 \
     --torch_dtype bfloat16 \
@@ -19,4 +20,4 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --num_processes 8 --confi
     --lr_scheduler_type cosine \
     --warmup_ratio 0.03 \
     --push_to_hub False \
-    --use_vllm False > x_r1_0.5B_sampling.log 2>&1
+    --use_vllm False > x_r1_gpus.log 2>&1
