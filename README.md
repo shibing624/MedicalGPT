@@ -30,9 +30,13 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - DPO方法来自论文[Direct Preference Optimization:Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
 - ORPO方法来自论文[ORPO: Monolithic Preference Optimization without Reference Model](https://arxiv.org/abs/2403.07691)
 ## 🔥 News
+[2025/02/17] v2.4版本: 新增GRPO训练方法，GRPO通过纯RL方法可以体验`aha moment`，支持了 **[DeepSeek-R1](https://huggingface.co/deepseek-ai/DeepSeek-R1)** 模型，详见[Release-v2.4](https://github.com/shibing624/MedicalGPT/releases/tag/2.4.0)
+
 [2024/09/21] v2.3版本: 支持了 **[Qwen-2.5](https://qwenlm.github.io/zh/blog/qwen2.5/)** 系列模型，详见[Release-v2.3](https://github.com/shibing624/MedicalGPT/releases/tag/2.3.0)
 
 [2024/08/02] v2.2版本：支持了角色扮演模型训练，新增了医患对话SFT数据生成脚本[role_play_data](https://github.com/shibing624/MedicalGPT/blob/main/role_play_data/README.md)，详见[Release-v2.2](https://github.com/shibing624/MedicalGPT/releases/tag/2.2.0)
+
+<details><summary>展开日志</summary>
 
 [2024/06/11] v2.1版本：支持了 **[Qwen-2](https://qwenlm.github.io/blog/qwen2/)** 系列模型，详见[Release-v2.1](https://github.com/shibing624/MedicalGPT/releases/tag/2.1.0)
 
@@ -57,6 +61,8 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 [2023/06/15] v1.0版本: 发布中文医疗LoRA模型[shibing624/ziya-llama-13b-medical-lora](https://huggingface.co/shibing624/ziya-llama-13b-medical-lora)，基于Ziya-LLaMA-13B-v1模型，SFT微调了一版医疗模型，医疗问答效果有提升，发布微调后的LoRA权重，详见[Release-v1.0](https://github.com/shibing624/MedicalGPT/releases/tag/1.0.0)
 
 [2023/06/05] v0.2版本: 以医疗为例，训练领域大模型，实现了四阶段训练：包括二次预训练、有监督微调、奖励建模、强化学习训练。详见[Release-v0.2](https://github.com/shibing624/MedicalGPT/releases/tag/0.2.0)
+
+</details>
 
 
 ## 😊 Features
