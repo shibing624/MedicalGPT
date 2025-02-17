@@ -10,7 +10,6 @@
 
 # MedicalGPT: Training Medical GPT Model
 [![HF Models](https://img.shields.io/badge/Hugging%20Face-shibing624-green)](https://huggingface.co/shibing624)
-[![Github Stars](https://img.shields.io/github/stars/shibing624/MedicalGPT?color=yellow)](https://star-history.com/#shibing624/MedicalGPT&Timeline)
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](CONTRIBUTING.md)
 [![License Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![python_version](https://img.shields.io/badge/Python-3.8%2B-green.svg)](requirements.txt)
@@ -165,7 +164,8 @@ sh run_ppo.sh
 | [ChatGLM3](https://github.com/THUDM/ChatGLM3)                        | 6B                          | query_key_value | chatglm3  |
 | [Cohere](https://huggingface.co/CohereForAI/c4ai-command-r-plus)     | 104B                        | q_proj,v_proj   | cohere    |
 | [DeepSeek](https://github.com/deepseek-ai/DeepSeek-LLM)              | 7B/16B/67B                  | q_proj,v_proj   | deepseek  |
-| [InternLM2](https://github.com/InternLM/InternLM)                    | 7B/20B                      | wqkv            | intern2    |
+| [DeepSeek3](https://github.com/deepseek-ai/DeepSeek-V3)              | 671B                         | q_proj,v_proj   | deepseek3 |
+| [InternLM2](https://github.com/InternLM/InternLM)                    | 7B/20B                      | wqkv            | intern2   |
 | [LLaMA](https://github.com/facebookresearch/llama)                   | 7B/13B/33B/65B              | q_proj,v_proj   | alpaca    |
 | [LLaMA2](https://huggingface.co/meta-llama)                          | 7B/13B/70B                  | q_proj,v_proj   | llama2    |
 | [LLaMA3](https://huggingface.co/meta-llama)                          | 8B/70B                      | q_proj,v_proj   | llama3    |
@@ -173,6 +173,7 @@ sh run_ppo.sh
 | [Orion](https://github.com/OrionStarAI/Orion)                        | 14B                         | q_proj,v_proj   | orion     |
 | [Qwen](https://github.com/QwenLM/Qwen)                               | 1.8B/7B/14B/72B             | c_attn          | chatml    |
 | [Qwen1.5](https://github.com/QwenLM/Qwen1.5)                         | 0.5B/1.8B/4B/14B/72B        | q_proj,v_proj   | qwen      |
+| [Qwen2.5](https://github.com/QwenLM/Qwen2.5)                         | 0.5B/1.8B/4B/14B/72B        | q_proj,v_proj   | qwen      |
 | [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                         | query_key_value | xverse    |
 | [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                      | q_proj,v_proj   | yi        |
 

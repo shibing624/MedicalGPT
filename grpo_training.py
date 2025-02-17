@@ -132,13 +132,13 @@ def equation_reward_func(completions, target, nums, **kwargs):
 
 
 # Load and prep dataset
-SYSTEM_PROMPT = """
+SYSTEM_PROMPT = """You are a helpful assistant. You first thinks about the reasoning process in the mind and then provides the user with the answer.
 Respond in the following format:
 <think>
-...
+reasoning process here
 </think>
 <answer>
-...
+answer here
 </answer>
 """
 
@@ -163,8 +163,8 @@ def correctness_reward_func(prompts, completions, answer, **kwargs) -> list[floa
     if random.random() < 0.1:  # 1% chance to write samples into a file
         completion = f"Question:\n{q}\nAnswer:\n{answer[0]}\nResponse:\n{responses[0]}\nExtracted:\n{extracted_responses[0]}"
         logger.debug(completion)
-        os.makedirs("grpo_training_samples", exist_ok=True)
-        log_file = os.path.join("grpo_training_samples", "completion_samples.txt")
+        os.makedirs("completion_samples", exist_ok=True)
+        log_file = os.path.join("completion_samples", "completion_samples.txt")
         with open(log_file, "a") as f:
             f.write(f"\n\n==============\n")
             f.write(completion)
