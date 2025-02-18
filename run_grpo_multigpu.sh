@@ -3,7 +3,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --num_processes 8 --confi
     --dataset_name openai/gsm8k \
     --train_samples -1 \
     --per_device_train_batch_size 1 \
-    --max_steps 1000 \
+    --max_steps -1 --num_train_epochs 3 \
     --save_steps 100 \
     --save_strategy steps \
     --num_generations 6 \

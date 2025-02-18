@@ -18,5 +18,4 @@ CUDA_VISIBLE_DEVICES=0 python grpo_training.py \
     --beta 0.001 \
     --learning_rate 5.0e-7 \
     --lr_scheduler_type cosine \
-    --warmup_ratio 0.03 \
-    --use_peft True --lora_target_modules q_proj v_proj k_proj embed_tokens
+    --warmup_ratio 0.03
