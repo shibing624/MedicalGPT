@@ -592,7 +592,7 @@ def main():
         logger.debug(tokenizer.decode(eval_dataset[0]['input_ids']))
 
     # Load model
-    if model_args.model_type and model_args.model_name_or_path:
+    if model_args.model_name_or_path:
         torch_dtype = (
             model_args.torch_dtype
             if model_args.torch_dtype in ["auto", None]
