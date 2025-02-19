@@ -435,7 +435,7 @@ def main():
         bf16=args.bf16,
         fp16=args.fp16,
         remove_unused_columns=args.remove_unused_columns,
-        run_name=f"dpo_{args.model_type}",
+        run_name=f"dpo_v1",
     )
 
     # Initialize DPO trainer

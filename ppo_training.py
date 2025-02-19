@@ -29,7 +29,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
-
 @dataclass
 class ScriptArguments:
     """
@@ -201,17 +200,12 @@ def calculate_rewards(reward_score_outputs, reward_baseline=0):
 
 
 def main():
-    # Add distributed training initialization
-    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
-        torch.distributed.init_process_group(backend="nccl")
-        torch.cuda.set_device(local_rank)
-        is_main_process = local_rank == 0
-    else:
-        is_main_process = True
-
     parser = HfArgumentParser(ScriptArguments)
     args = parser.parse_args_into_dataclasses()[0]
+    # Add distributed training initialization
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    is_main_process = local_rank == 0
+
     # Only log on main process
     if is_main_process:
         logger.info(f"Parse args: {args}")
@@ -422,10 +416,10 @@ def main():
         if args.max_train_samples is not None and args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
-        
+
         if is_main_process:
             logger.debug(f"Example train_dataset[0]: {train_dataset[0]}")
-            
+
         tokenized_dataset = train_dataset.map(
             preprocess_function,
             batched=True,
@@ -437,7 +431,7 @@ def main():
         train_dataset = tokenized_dataset.filter(
             lambda x: len(x['input_ids']) > 0
         )
-        
+
         if is_main_process:
             logger.debug(f"Num train_samples: {len(train_dataset)}")
 
@@ -488,9 +482,9 @@ def main():
         if is_main_process:
             logger.info("*** Train ***")
         total_steps = config.total_ppo_epochs
-        
+
         for step, batch in tqdm(enumerate(trainer.dataloader),
-                              disable=not is_main_process):  # Only show progress bar on main process
+                                disable=not is_main_process):  # Only show progress bar on main process
             if step >= total_steps:
                 break
             question_tensors = batch["input_ids"]
@@ -527,14 +521,10 @@ def main():
             if is_main_process and step and step % args.save_steps == 0:
                 save_dir = os.path.join(output_dir, f"checkpoint-{step}")
                 trainer.save_pretrained(save_dir)
-                
+
         # Save final model only on main process
         if is_main_process:
             trainer.save_pretrained(output_dir)
-
-    # Cleanup distributed
-    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
-        torch.distributed.destroy_process_group()
 
 
 if __name__ == "__main__":

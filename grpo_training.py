@@ -246,14 +246,7 @@ def grpo_function(
         model_args: ModelConfig, script_args: ScriptArguments, training_args: GRPOConfig
 ):
     # Add distributed training initialization
-    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
-        torch.distributed.init_process_group(backend="nccl")
-        local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-        torch.cuda.set_device(local_rank)
-        is_main_process = local_rank == 0
-    else:
-        is_main_process = True
-        local_rank = 0
+    is_main_process = training_args.local_rank in [-1, 0]
 
     # Only log on main process
     if is_main_process:
@@ -415,10 +408,6 @@ def grpo_function(
         metrics["eval_samples"] = len(test_dataset)
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
-
-    # Cleanup distributed
-    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
-        torch.distributed.destroy_process_group()
 
     if is_main_process:
         logger.info("*** Training complete! ***")
