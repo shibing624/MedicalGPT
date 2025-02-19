@@ -1,25 +1,18 @@
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 ppo_training.py \
-    --model_name_or_path Qwen/Qwen2.5-0.5B-Instruct \
-    --reward_model_name_or_path OpenAssistant/reward-model-deberta-v3-large-v2 \
+    --sft_model_path Qwen/Qwen2.5-0.5B-Instruct \
+    --reward_model_path OpenAssistant/reward-model-deberta-v3-large-v2 \
     --template_name qwen \
     --torch_dtype float16 \
     --device_map auto \
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \
-    --batch_size 8 \
     --max_source_length 1024 \
-    --max_target_length 256 \
-    --max_train_samples 1000 \
-    --use_peft True \
-    --target_modules q_proj,v_proj \
-    --lora_rank 8 \
-    --lora_alpha 16 \
-    --lora_dropout 0.05 \
+    --response_length 1000 \
+    --per_device_train_batch_size 1 \
+    --gradient_accumulation_steps 64 \
     --do_train \
-    --max_steps 100 \
-    --learning_rate 1e-5 \
-    --save_steps 50 \
+    --total_episodes 30000 \
     --output_dir outputs-rl-qwen-v1 \
-    --early_stopping True \
-    --target_kl 0.1 \
-    --reward_baseline 0.0
+    --missing_eos_penalty 1.0 \
+    --eval_strategy steps \
+    --eval_steps 100
