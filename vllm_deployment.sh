@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # 安装vllm库
-pip install vllm
+# pip install vllm
 
-# 指定运行程序的GPU设备编号为3，选择使用编号为3的GPU,与tp对应
-export CUDA_VISIBLE_DEVICES=3
+# 指定运行程序的GPU设备编号为0，选择使用编号为0的GPU,tp对应GPU卡数
+export CUDA_VISIBLE_DEVICES=0
 
 # 启动VLLM API服务器，以下为相关参数说明：
 # - --model: 指定要加载的模型的路径
@@ -20,8 +20,21 @@ python -m vllm.entrypoints.openai.api_server \
     --model medical-model \
     --served-model-name doctor \
     --dtype=auto \
-    --port 8024 \
+    --port 8000 \
     --host 0.0.0.0 \
     --gpu-memory-utilization 0.9 \
     --max-model-len 512 \
-    -tp 1
+    -tp 1 &
+
+
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+      "model": "doctor",
+      "messages": [
+          {"role": "system", "content": "You are a helpful assistant."},
+          {"role": "user", "content": "介绍北京"}
+      ],
+      "max_tokens": 20,
+      "temperature": 0
+  }'
