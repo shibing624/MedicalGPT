@@ -43,7 +43,6 @@ from transformers import (
 )
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.utils.versions import require_version
-
 from transformers.integrations import is_deepspeed_zero3_enabled
 
 
@@ -351,14 +350,9 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, Seq2SeqTrainingArguments, ScriptArguments))
     model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses()
 
-    # Add distributed training initialization
-    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
-        torch.distributed.init_process_group(backend="nccl")
-        local_rank = int(os.environ.get("LOCAL_RANK", "0"))
-        torch.cuda.set_device(local_rank)
-        is_main_process = local_rank == 0
-    else:
-        is_main_process = True
+    # Remove the explicit distributed initialization and simplify the process check
+    # The Trainer will handle distributed training setup
+    is_main_process = training_args.local_rank in [-1, 0]
 
     # Only log on main process
     if is_main_process:
@@ -607,7 +601,7 @@ def main():
         world_size = int(os.environ.get("WORLD_SIZE", "1"))
         ddp = world_size != 1
         if ddp:
-            model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
+            model_args.device_map = {"": training_args.local_rank}
         if script_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and DeepSpeed ZeRO-3 are both currently incompatible with QLoRA.")
 
@@ -759,10 +753,6 @@ def main():
         trainer.save_metrics("eval", metrics)
         if trainer.is_world_process_zero():
             logger.debug(f"Eval metrics: {metrics}")
-
-    # Cleanup distributed
-    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
-        torch.distributed.destroy_process_group()
 
 
 if __name__ == "__main__":
