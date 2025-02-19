@@ -1,11 +1,11 @@
-accelerate~=0.27.2
+accelerate
 datasets>=2.14.6
 loguru
-peft~=0.10.0
+peft~=0.14.0
 sentencepiece
 scikit-learn
 tensorboard
 tqdm>=4.47.0
 transformers>=4.39.3
-trl~=0.8.3
+trl~=0.14.0
 bitsandbytes
