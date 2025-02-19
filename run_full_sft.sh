@@ -19,9 +19,9 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 supersived_fine
     --save_steps 400 \
     --save_strategy steps \
     --save_total_limit 3 \
-    --gradient_accumulation_steps 1 \
-    --preprocessing_num_workers 128 \
-    --output_dir GLM4-sft-med \
+    --gradient_accumulation_steps 8 \
+    --preprocessing_num_workers 10 \
+    --output_dir outputs-full-sft-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \

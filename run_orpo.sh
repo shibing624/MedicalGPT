@@ -4,6 +4,7 @@ CUDA_VISIBLE_DEVICES=0,1 python orpo_training.py \
     --train_file_dir ./data/reward \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 2 \
+    --gradient_accumulation_steps 8 \
     --do_train \
     --do_eval \
     --use_peft True \

@@ -4,6 +4,7 @@ CUDA_VISIBLE_DEVICES=0,1 python dpo_training.py \
     --train_file_dir ./data/reward \
     --validation_file_dir ./data/reward \
     --per_device_train_batch_size 4 \
+    --gradient_accumulation_steps 8 \
     --per_device_eval_batch_size 1 \
     --do_train \
     --do_eval \

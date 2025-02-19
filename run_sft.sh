@@ -22,7 +22,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --save_steps 500 \
     --save_strategy steps \
     --save_total_limit 13 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps 8 \
     --preprocessing_num_workers 4 \
     --output_dir outputs-sft-qwen-v1 \
     --overwrite_output_dir \
