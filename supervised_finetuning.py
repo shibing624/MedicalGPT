@@ -508,16 +508,6 @@ def main():
                                    for label in list(train_dataset[0]['labels'])]
                 logger.debug(f"Decode labels[0]:\n{tokenizer.decode(replaced_labels)}")
 
-            # Add DistributedSampler for training
-            if int(os.environ.get("WORLD_SIZE", "1")) > 1:
-                train_sampler = torch.utils.data.DistributedSampler(
-                    train_dataset,
-                    num_replicas=int(os.environ.get("WORLD_SIZE", "1")),
-                    rank=local_rank
-                )
-            else:
-                train_sampler = None
-
     eval_dataset = None
     max_eval_samples = 0
     if training_args.do_eval:
@@ -748,13 +738,12 @@ def main():
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        data_sampler=train_sampler if int(os.environ.get("WORLD_SIZE", "1")) > 1 else None,
     )
 
     # Training
     if training_args.do_train:
-        logger.info("*** Train ***")
         if trainer.is_world_process_zero():
+            logger.info("*** Train ***")
             sample = next(iter(trainer.get_train_dataloader()))
             logger.debug(f"Train dataloader example: {sample}")
             logger.debug(f"input_ids:\n{list(sample['input_ids'])[:3]}, \nlabels:\n{list(sample['labels'])[:3]}")
@@ -787,7 +776,8 @@ def main():
 
     # Evaluation
     if training_args.do_eval:
-        logger.info("*** Evaluate ***")
+        if trainer.is_world_process_zero():
+            logger.info("*** Evaluate ***")
         metrics = trainer.evaluate(metric_key_prefix="eval")
 
         metrics["eval_samples"] = max_eval_samples
