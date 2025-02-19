@@ -9,35 +9,24 @@ from glob import glob
 from typing import Dict, Optional
 
 import torch
+import torch.utils.data
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType
 from transformers import (
     AutoConfig,
-    BloomForCausalLM,
     AutoModelForCausalLM,
-    AutoModel,
-    LlamaForCausalLM,
-    BloomTokenizerFast,
     AutoTokenizer,
     HfArgumentParser,
     BitsAndBytesConfig,
 )
-from transformers.deepspeed import is_deepspeed_zero3_enabled
+from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import ORPOConfig, ORPOTrainer
 
 from template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-MODEL_CLASSES = {
-    "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
-    "llama": (AutoConfig, LlamaForCausalLM, AutoTokenizer),
-    "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
-}
 
 
 @dataclass
@@ -46,10 +35,6 @@ class ScriptArguments:
     The name of the Casual LM model we wish to fine with DPO
     """
     # Model arguments
-    model_type: str = field(
-        default=None,
-        metadata={"help": "Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys())}
-    )
     model_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "The model checkpoint for weights initialization."}
     )
@@ -170,8 +155,6 @@ class ScriptArguments:
     )
 
     def __post_init__(self):
-        if self.model_type is None:
-            raise ValueError("You must specify a valid model_type to run training.")
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
 
@@ -186,7 +169,7 @@ def print_trainable_parameters(model):
         all_param += param.numel()
         if param.requires_grad:
             trainable_params += param.numel()
-    print(
+    logger.info(
         f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
     )
 
@@ -216,11 +199,21 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
 def main():
     parser = HfArgumentParser(ScriptArguments)
     args = parser.parse_args_into_dataclasses()[0]
-    logger.info(f"Parse args: {args}")
 
-    config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    if args.model_type == 'bloom':
-        args.use_fast_tokenizer = True
+    # Add distributed training initialization
+    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
+        torch.distributed.init_process_group(backend="nccl")
+        local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+        torch.cuda.set_device(local_rank)
+        is_main_process = local_rank == 0
+    else:
+        is_main_process = True
+        local_rank = 0
+
+    # Only log on main process
+    if is_main_process:
+        logger.info(f"Parse args: {args}")
+
     # Load tokenizer
     tokenizer_kwargs = {
         "cache_dir": args.cache_dir,
@@ -230,7 +223,7 @@ def main():
     tokenizer_name_or_path = args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = args.model_name_or_path
-    tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = get_conv_template(args.template_name)
     if tokenizer.eos_token_id is None:
         tokenizer.eos_token = prompt_template.stop_str  # eos token is required
@@ -274,12 +267,14 @@ def main():
         if args.train_file_dir is not None and os.path.exists(args.train_file_dir):
             train_data_files = glob(f'{args.train_file_dir}/**/*.json', recursive=True) + glob(
                 f'{args.train_file_dir}/**/*.jsonl', recursive=True)
-            logger.info(f"train files: {', '.join(train_data_files)}")
+            if is_main_process:
+                logger.info(f"train files: {', '.join(train_data_files)}")
             data_files["train"] = train_data_files
         if args.validation_file_dir is not None and os.path.exists(args.validation_file_dir):
             eval_data_files = glob(f'{args.validation_file_dir}/**/*.json', recursive=True) + glob(
                 f'{args.validation_file_dir}/**/*.jsonl', recursive=True)
-            logger.info(f"eval files: {', '.join(eval_data_files)}")
+            if is_main_process:
+                logger.info(f"eval files: {', '.join(eval_data_files)}")
             data_files["validation"] = eval_data_files
         raw_datasets = load_dataset(
             'json',
@@ -300,7 +295,8 @@ def main():
                 split=f"train[{args.validation_split_percentage}%:]",
                 cache_dir=args.cache_dir,
             )
-    logger.info(f"Raw datasets: {raw_datasets}")
+    if is_main_process:
+        logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets
     max_source_length = args.max_source_length
@@ -337,30 +333,35 @@ def main():
     if args.do_train:
         if "train" not in raw_datasets:
             raise ValueError("--do_train requires a train dataset")
-        train_dataset = raw_datasets['train']
+        train_dataset = raw_datasets['train'].shuffle(seed=42)  # Add shuffle with fixed seed
         max_train_samples = len(train_dataset)
         if args.max_train_samples is not None and args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
-        logger.debug(f"Example train_dataset[0]: {train_dataset[0]}")
-        tokenized_dataset = train_dataset.shuffle().map(
+        
+        if is_main_process:
+            logger.debug(f"Example train_dataset[0]: {train_dataset[0]}")
+            
+        tokenized_dataset = train_dataset.map(
             return_prompt_and_responses,
             batched=True,
             num_proc=args.preprocessing_num_workers,
             remove_columns=train_dataset.column_names,
             load_from_cache_file=not args.overwrite_cache,
-            desc="Running tokenizer on dataset",
+            desc="Running tokenizer on dataset" if is_main_process else None,
         )
         train_dataset = tokenized_dataset.filter(
             lambda x: 0 < len(x['prompt'] + x['chosen']) <= full_max_length
                       and 0 < len(x['prompt'] + x['rejected']) <= full_max_length
         )
-        logger.debug(f"Num train_samples: {len(train_dataset)}")
-        logger.debug("First train example:")
-        first_example = train_dataset[0]
-        logger.debug(f"prompt:\n{first_example['prompt']}")
-        logger.debug(f"chosen:\n{first_example['chosen']}")
-        logger.debug(f"rejected:\n{first_example['rejected']}")
+        
+        if is_main_process:
+            logger.debug(f"Num train_samples: {len(train_dataset)}")
+            logger.debug("First train example:")
+            first_example = train_dataset[0]
+            logger.debug(f"prompt:\n{first_example['prompt']}")
+            logger.debug(f"chosen:\n{first_example['chosen']}")
+            logger.debug(f"rejected:\n{first_example['rejected']}")
 
     eval_dataset = None
     max_eval_samples = 0
@@ -402,10 +403,12 @@ def main():
     ddp = world_size != 1
     if ddp:
         args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
-    logger.info(f"Device map: {args.device_map}")
+        args.gradient_accumulation_steps = args.gradient_accumulation_steps // world_size
+    if is_main_process:
+        logger.info(f"Device map: {args.device_map}")
     if args.qlora and is_deepspeed_zero3_enabled():
         logger.warning("ZeRO3 are both currently incompatible with QLoRA.")
-    config = config_class.from_pretrained(
+    config = AutoConfig.from_pretrained(
         args.model_name_or_path,
         trust_remote_code=args.trust_remote_code,
         torch_dtype=torch_dtype,
@@ -413,7 +416,7 @@ def main():
     )
     if args.load_in_4bit or args.load_in_8bit:
         logger.info(f"Quantizing model, load_in_4bit: {args.load_in_4bit}, load_in_8bit: {args.load_in_8bit}")
-    model = model_class.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(
         args.model_name_or_path,
         config=config,
         torch_dtype=torch_dtype,
@@ -460,8 +463,11 @@ def main():
         bf16=args.bf16,
         fp16=args.fp16,
         remove_unused_columns=args.remove_unused_columns,
-        run_name=f"orpo_{args.model_type}",
+        run_name=f"orpo_v1",
         beta=args.orpo_beta,
+        local_rank=local_rank,
+        ddp_backend="nccl",
+        ddp_find_unused_parameters=False if ddp else None,
     )
 
     # Initialize ORPO trainer
@@ -487,14 +493,16 @@ def main():
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         peft_config=peft_config if args.use_peft else None,
     )
-    print_trainable_parameters(trainer.model)
+    if is_main_process:
+        print_trainable_parameters(trainer.model)
 
     # Training
     if args.do_train:
-        logger.info("*** Train ***")
+        if is_main_process:
+            logger.info("*** Train ***")
         train_result = trainer.train()
         metrics = train_result.metrics
         metrics["train_samples"] = max_train_samples
@@ -517,6 +525,10 @@ def main():
         trainer.save_metrics("eval", metrics)
         if trainer.is_world_process_zero():
             logger.debug(f"Eval metrics: {metrics}")
+
+    # Cleanup distributed
+    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
+        torch.distributed.destroy_process_group()
 
 
 if __name__ == "__main__":

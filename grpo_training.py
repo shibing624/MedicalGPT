@@ -14,7 +14,8 @@ import torch
 from loguru import logger
 from transformers import AutoTokenizer
 from transformers.trainer_utils import get_last_checkpoint
-from trl import GRPOConfig, GRPOTrainer, get_peft_config, ModelConfig, TrlParser
+from trl import GRPOConfig, GRPOTrainer, ModelConfig, TrlParser
+from peft import LoraConfig, TaskType
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -36,6 +37,7 @@ class ScriptArguments:
     train_samples: Optional[int] = field(default=-1, metadata={"help": "Number of samples to train on, -1 for all"})
     subset_name: Optional[str] = field(default="main", metadata={"help": "Subset name"})
     dataset_splits: Optional[str] = field(default="train", metadata={"help": "Split name"})
+    preprocessing_num_workers: Optional[int] = field(default=None, metadata={"help": "Number of workers for preprocessing"})
 
 
 def format_reward_func(completions, target, **kwargs):
@@ -219,24 +221,51 @@ def get_checkpoint(training_args: GRPOConfig):
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
     return last_checkpoint
 
+def find_all_linear_names(peft_model, int4=False, int8=False):
+    """Find all linear layer names in the model. reference from qlora paper."""
+    cls = torch.nn.Linear
+    if int4 or int8:
+        import bitsandbytes as bnb
+        if int4:
+            cls = bnb.nn.Linear4bit
+        elif int8:
+            cls = bnb.nn.Linear8bitLt
+    lora_module_names = set()
+    for name, module in peft_model.named_modules():
+        if isinstance(module, cls):
+            # last layer is not add to lora_module_names
+            if 'lm_head' in name:
+                continue
+            if 'output_layer' in name:
+                continue
+            names = name.split('.')
+            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
+    return sorted(lora_module_names)
 
 def grpo_function(
         model_args: ModelConfig, script_args: ScriptArguments, training_args: GRPOConfig
 ):
-    #########################
-    # Log parameters
-    #########################
-    logger.warning(
-        f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
-        + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
-    )
-    logger.info(f"Model parameters {model_args}")
-    logger.info(f"Script parameters {script_args}")
-    logger.info(f"Training parameters {training_args}")
+    # Add distributed training initialization
+    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
+        torch.distributed.init_process_group(backend="nccl")
+        local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+        torch.cuda.set_device(local_rank)
+        is_main_process = local_rank == 0
+    else:
+        is_main_process = True
+        local_rank = 0
 
-    ################
+    # Only log on main process
+    if is_main_process:
+        logger.warning(
+            f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
+            + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
+        )
+        logger.info(f"Model parameters {model_args}")
+        logger.info(f"Script parameters {script_args}")
+        logger.info(f"Training parameters {training_args}")
+
     # Load tokenizer
-    ################
     tokenizer = AutoTokenizer.from_pretrained(
         (
             script_args.tokenizer_name_or_path
@@ -249,47 +278,75 @@ def grpo_function(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    ###############
     # Load datasets
-    ###############
     dataset = load_dataset(script_args.dataset_name, script_args.subset_name, split=script_args.dataset_splits)
     if script_args.train_samples > 0:
         dataset = dataset.shuffle(seed=42).select(range(script_args.train_samples))
 
-    #####################
-    # Prepare and format dataset
-    #####################
-    # convert our dataset to the r1 prompt
-    dataset = dataset.map(lambda x: {  # type: ignore
-        'prompt': [
-            {'role': 'system', 'content': SYSTEM_PROMPT},
-            {'role': 'user', 'content': x['question']}
-        ],
-        'answer': extract_final_answer(x['answer'])
-    })
+    # Prepare dataset
+    with training_args.main_process_first(desc="Dataset preparation"):
+        dataset = dataset.map(
+            lambda x: {
+                'prompt': [
+                    {'role': 'system', 'content': SYSTEM_PROMPT},
+                    {'role': 'user', 'content': x['question']}
+                ],
+                'answer': extract_final_answer(x['answer'])
+            },
+            num_proc=script_args.preprocessing_num_workers,
+            desc="Processing dataset" if is_main_process else None,
+        )
 
-    # split the dataset into train and test
+    # Split dataset
     train_test_split = dataset.train_test_split(test_size=0.1)
     train_dataset = train_test_split["train"]
     test_dataset = train_test_split["test"]
 
-    logger.info("*** Initializing model kwargs ***")
+    if is_main_process:
+        logger.info("*** Initializing model kwargs ***")
+    
+    # Model initialization
     torch_dtype = (
         model_args.torch_dtype if model_args.torch_dtype in ["auto", None] else getattr(torch, model_args.torch_dtype)
     )
+    
+    # Set up distributed training config
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    ddp = world_size != 1
+    if ddp:
+        training_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
+        training_args.gradient_accumulation_steps = training_args.gradient_accumulation_steps // world_size
+
     model_kwargs = dict(
         revision=model_args.model_revision,
         trust_remote_code=model_args.trust_remote_code,
         attn_implementation=model_args.attn_implementation,
         torch_dtype=torch_dtype,
         use_cache=False if training_args.gradient_checkpointing else True,
-        load_in_4bit=model_args.load_in_4bit
+        device_map=training_args.device_map if ddp else "auto",
     )
     training_args.model_init_kwargs = model_kwargs
 
-    #########################
-    # Instantiate DPO trainer
-    #########################
+    # Configure LoRA if enabled
+    peft_config = None
+    if model_args.use_peft:
+        if is_main_process:
+            logger.info("Fine-tuning method: LoRA(PEFT)")
+        target_modules = model_args.lora_target_modules  if model_args.lora_target_modules else None
+        if is_main_process:
+            logger.info(f"Peft target_modules: {target_modules}")
+        peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            target_modules=target_modules,
+            inference_mode=False,
+            r=model_args.lora_r,
+            lora_alpha=model_args.lora_alpha,
+            lora_dropout=model_args.lora_dropout,
+        )
+    else:
+        logger.info("Fine-tuning method: Full parameters training")
+
+    # Initialize GRPO trainer with distributed training support
     trainer = GRPOTrainer(
         model=model_args.model_name_or_path,
         processing_class=tokenizer,
@@ -303,66 +360,68 @@ def grpo_function(
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=test_dataset if training_args.eval_strategy != "no" else None,
-        peft_config=get_peft_config(model_args),
+        peft_config=peft_config,
     )
 
-    ###############
-    # Training loop
-    ###############
-    # Check for last checkpoint
+    # Training
     last_checkpoint = get_checkpoint(training_args)
     if last_checkpoint is not None and training_args.resume_from_checkpoint is None:
-        logger.info(f"Checkpoint detected, resuming training at {last_checkpoint}.")
+        if is_main_process:
+            logger.info(f"Checkpoint detected, resuming training at {last_checkpoint}.")
 
-    # Train the model
-    logger.info(
-        f'*** Starting training {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} for '
-        f'{training_args.num_train_epochs} epochs ***'
-    )
+    if is_main_process:
+        logger.info(
+            f'*** Starting training {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} for '
+            f'{training_args.num_train_epochs} epochs ***'
+        )
+    
     train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
-    # Log and save metrics
-    metrics = train_result.metrics
-    metrics["train_samples"] = len(train_dataset)
-    trainer.log_metrics("train", metrics)
-    trainer.save_metrics("train", metrics)
-    trainer.save_state()
+    
+    # Log and save metrics on main process
+    if is_main_process:
+        metrics = train_result.metrics
+        metrics["train_samples"] = len(train_dataset)
+        trainer.log_metrics("train", metrics)
+        trainer.save_metrics("train", metrics)
+        trainer.save_state()
+        logger.info("*** Training complete ***")
+        logger.info("*** Save model ***")
 
-    logger.info("*** Training complete ***")
-
-    ##################################
-    # Save model and create model card
-    ##################################
-    logger.info("*** Save model ***")
+    # Save model
     trainer.model.config.use_cache = True
-    trainer.save_model(training_args.output_dir)
-    logger.info(f"Model saved to {training_args.output_dir}")
-    training_args.distributed_state.wait_for_everyone()  # wait for all processes to load
+    if is_main_process:
+        trainer.save_model(training_args.output_dir)
+        logger.info(f"Model saved to {training_args.output_dir}")
+    
+    training_args.distributed_state.wait_for_everyone()
 
-    tokenizer.save_pretrained(training_args.output_dir)
-    logger.info(f"Tokenizer saved to {training_args.output_dir}")
+    if is_main_process:
+        tokenizer.save_pretrained(training_args.output_dir)
+        logger.info(f"Tokenizer saved to {training_args.output_dir}")
 
-    # Save everything else on main process
-    kwargs = {
-        "dataset_name": script_args.dataset_name,
-        "tags": ["r1"],
-    }
-    if trainer.accelerator.is_main_process:
+        # Create model card and save config
+        kwargs = {
+            "dataset_name": script_args.dataset_name,
+            "tags": ["r1"],
+        }
         trainer.create_model_card(**kwargs)
-        # Restore k,v cache for fast inference
         trainer.model.config.use_cache = True
         trainer.model.config.save_pretrained(training_args.output_dir)
 
-    ##########
     # Evaluate
-    ##########
-    if training_args.do_eval:
+    if training_args.do_eval and is_main_process:
         logger.info("*** Evaluate ***")
         metrics = trainer.evaluate()
         metrics["eval_samples"] = len(test_dataset)
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
-    logger.info("*** Training complete! ***")
+    # Cleanup distributed
+    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
+        torch.distributed.destroy_process_group()
+
+    if is_main_process:
+        logger.info("*** Training complete! ***")
 
 
 def main():

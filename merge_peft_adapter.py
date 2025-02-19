@@ -17,27 +17,14 @@ import argparse
 import torch
 from peft import PeftModel, PeftConfig
 from transformers import (
-    AutoModel,
     AutoTokenizer,
-    BloomForCausalLM,
-    BloomTokenizerFast,
     AutoModelForCausalLM,
-    LlamaForCausalLM,
     AutoModelForSequenceClassification,
 )
-
-MODEL_CLASSES = {
-    "bloom": (BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, AutoTokenizer),
-    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoModelForCausalLM, AutoTokenizer),
-}
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', default=None, type=str, required=True)
     parser.add_argument('--base_model', default=None, required=True, type=str,
                         help="Base model name or path")
     parser.add_argument('--tokenizer_path', default=None, type=str,
@@ -58,7 +45,6 @@ def main():
     print(f"LoRA model: {lora_model_path}")
     peft_config = PeftConfig.from_pretrained(lora_model_path)
 
-    model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     if peft_config.task_type == "SEQ_CLS":
         print("Loading LoRA for sequence classification model")
         if args.model_type == "chatglm":
@@ -73,16 +59,16 @@ def main():
         )
     else:
         print("Loading LoRA for causal language model")
-        base_model = model_class.from_pretrained(
+        base_model = AutoModelForCausalLM.from_pretrained(
             base_model_path,
             torch_dtype='auto',
             trust_remote_code=True,
             device_map="auto",
         )
     if args.tokenizer_path:
-        tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path, trust_remote_code=True)
     else:
-        tokenizer = tokenizer_class.from_pretrained(base_model_path, trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(base_model_path, trust_remote_code=True)
     if args.resize_emb:
         base_model_token_size = base_model.get_input_embeddings().weight.size(0)
         if base_model_token_size != len(tokenizer):

@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --model_type auto \
-    --model_name_or_path Qwen/Qwen1.5-0.5B-Chat \
+    --model_name_or_path Qwen/Qwen2.5-0.5B-Instruct \
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \
     --per_device_train_batch_size 4 \

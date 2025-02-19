@@ -1,5 +1,5 @@
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch --num_processes 8 --config_file ./zero1.yaml grpo_training.py \
-    --model_name_or_path Qwen/Qwen2.5-3B-Instruct \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8 grpo_training.py \
+    --model_name_or_path Qwen/Qwen2.5-0.5B-Instruct \
     --dataset_name openai/gsm8k \
     --train_samples -1 \
     --per_device_train_batch_size 1 \

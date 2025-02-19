@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --model_type auto \
-    --model_name_or_path Qwen/Qwen1.5-0.5B-Chat \
+    --model_name_or_path Qwen/Qwen2.5-0.5B-Instruct \
     --train_file_dir ./data/reward \
     --validation_file_dir ./data/reward \
     --per_device_train_batch_size 4 \

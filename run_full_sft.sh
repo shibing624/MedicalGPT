@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 supersived_finetuning.py \
     --model_type auto \
-    --model_name_or_path ./model/glm-4-9b-chat \
+    --model_name_or_path Qwen/Qwen2.5-0.5B-Instruct \
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \
     --cache_dir ./model \

@@ -10,6 +10,7 @@ from glob import glob
 from typing import Optional
 
 import torch
+import torch.utils.data
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType
@@ -17,28 +18,16 @@ from tqdm import tqdm
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
-    BloomForCausalLM,
-    AutoModelForCausalLM,
-    AutoModel,
-    LlamaForCausalLM,
-    BloomTokenizerFast,
     AutoTokenizer,
     HfArgumentParser,
 )
-from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer, set_seed
+from trl import AutoModelForCausalLMWithValueHead, PPOConfig, PPOTrainer
 
 from template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-MODEL_CLASSES = {
-    "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
-    "llama": (AutoConfig, LlamaForCausalLM, AutoTokenizer),
-    "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
-}
 
 
 @dataclass
@@ -47,10 +36,6 @@ class ScriptArguments:
     The name of the Casual LM model we wish to fine with PPO
     """
     # Model arguments
-    model_type: str = field(
-        default=None,
-        metadata={"help": "Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys())}
-    )
     model_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "The model checkpoint for weights initialization."}
     )
@@ -163,8 +148,6 @@ class ScriptArguments:
     report_to: Optional[str] = field(default="tensorboard", metadata={"help": "Report to wandb or tensorboard"})
 
     def __post_init__(self):
-        if self.model_type is None:
-            raise ValueError("You must specify a valid model_type to run training.")
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
         if self.reward_model_name_or_path is None:
@@ -183,7 +166,7 @@ def print_trainable_parameters(model):
         all_param += param.numel()
         if param.requires_grad:
             trainable_params += param.numel()
-    print(
+    logger.info(
         f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
     )
 
@@ -218,13 +201,21 @@ def calculate_rewards(reward_score_outputs, reward_baseline=0):
 
 
 def main():
+    # Add distributed training initialization
+    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
+        torch.distributed.init_process_group(backend="nccl")
+        torch.cuda.set_device(local_rank)
+        is_main_process = local_rank == 0
+    else:
+        is_main_process = True
+
     parser = HfArgumentParser(ScriptArguments)
     args = parser.parse_args_into_dataclasses()[0]
-    logger.info(f"Parse args: {args}")
+    # Only log on main process
+    if is_main_process:
+        logger.info(f"Parse args: {args}")
 
-    config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    if args.model_type == 'bloom':
-        args.use_fast_tokenizer = True
     # Load tokenizer
     tokenizer_kwargs = {
         "cache_dir": args.cache_dir,
@@ -234,7 +225,7 @@ def main():
     tokenizer_name_or_path = args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = args.model_name_or_path
-    tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = get_conv_template(args.template_name)
     if tokenizer.eos_token_id is None:
         tokenizer.eos_token = prompt_template.stop_str  # eos token is required
@@ -276,7 +267,7 @@ def main():
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     if world_size > 1:
         args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
-    config = config_class.from_pretrained(
+    config = AutoConfig.from_pretrained(
         args.model_name_or_path,
         torch_dtype=torch_dtype,
         trust_remote_code=args.trust_remote_code,
@@ -299,7 +290,7 @@ def main():
     # Load reward model
     default_device = "cuda" if torch.cuda.is_available() else "cpu"
     device = args.reward_model_device if args.reward_model_device is not None else default_device
-    reward_config = config_class.from_pretrained(
+    reward_config = AutoConfig.from_pretrained(
         args.reward_model_name_or_path,
         torch_dtype=torch_dtype,
         trust_remote_code=args.trust_remote_code,
@@ -311,7 +302,10 @@ def main():
         load_in_8bit=args.load_in_8bit,
         trust_remote_code=args.trust_remote_code,
     )
-    reward_model.to(device)
+    # Move reward model to appropriate device
+    if is_main_process:
+        reward_model = reward_model.to(device)
+
     reward_tokenizer = AutoTokenizer.from_pretrained(
         args.reward_model_name_or_path, **tokenizer_kwargs
     )
@@ -428,19 +422,24 @@ def main():
         if args.max_train_samples is not None and args.max_train_samples > 0:
             max_train_samples = min(len(train_dataset), args.max_train_samples)
             train_dataset = train_dataset.select(range(max_train_samples))
-        logger.debug(f"Example train_dataset[0]: {train_dataset[0]}")
-        tokenized_dataset = train_dataset.shuffle().map(
+        
+        if is_main_process:
+            logger.debug(f"Example train_dataset[0]: {train_dataset[0]}")
+            
+        tokenized_dataset = train_dataset.map(
             preprocess_function,
             batched=True,
             num_proc=args.preprocessing_num_workers,
             remove_columns=train_dataset.column_names,
             load_from_cache_file=not args.overwrite_cache,
-            desc="Running tokenizer on dataset",
+            desc="Running tokenizer on dataset" if is_main_process else None,
         )
         train_dataset = tokenized_dataset.filter(
             lambda x: len(x['input_ids']) > 0
         )
-        logger.debug(f"Num train_samples: {len(train_dataset)}")
+        
+        if is_main_process:
+            logger.debug(f"Num train_samples: {len(train_dataset)}")
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
@@ -462,17 +461,17 @@ def main():
         adap_kl_ctrl=args.adap_kl_ctrl,
         project_kwargs={"logging_dir": output_dir},
     )
-    # Set seed before initializing value head for deterministic eval
-    set_seed(config.seed)
 
     # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
     trainer = PPOTrainer(
-        config,
-        model,
+        args=config,
+        processing_class=tokenizer,
+        model=model,
         ref_model=None,
-        tokenizer=tokenizer,
-        dataset=train_dataset,
+        reward_model=reward_model,
+        train_dataset=train_dataset,
         data_collator=collator,
+        peft_config=peft_config if args.use_peft else None,
     )
 
     # These arguments are passed to the `generate` function of the PPOTrainer
@@ -486,9 +485,12 @@ def main():
 
     # Training
     if args.do_train:
-        logger.info("*** Train ***")
+        if is_main_process:
+            logger.info("*** Train ***")
         total_steps = config.total_ppo_epochs
-        for step, batch in tqdm(enumerate(trainer.dataloader)):
+        
+        for step, batch in tqdm(enumerate(trainer.dataloader),
+                              disable=not is_main_process):  # Only show progress bar on main process
             if step >= total_steps:
                 break
             question_tensors = batch["input_ids"]
@@ -521,11 +523,18 @@ def main():
             except ValueError as e:
                 logger.warning(f"Failed to log stats for step {step}, because of {e}")
 
-            if step and step % args.save_steps == 0:
+            # Only log on main process
+            if is_main_process and step and step % args.save_steps == 0:
                 save_dir = os.path.join(output_dir, f"checkpoint-{step}")
                 trainer.save_pretrained(save_dir)
-        # Save final model
-        trainer.save_pretrained(output_dir)
+                
+        # Save final model only on main process
+        if is_main_process:
+            trainer.save_pretrained(output_dir)
+
+    # Cleanup distributed
+    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
+        torch.distributed.destroy_process_group()
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 CUDA_VISIBLE_DEVICES=0 python grpo_training.py \
-    --model_name_or_path Qwen/Qwen2.5-3B-Instruct \
+    --model_name_or_path Qwen/Qwen2.5-0.5B-Instruct \
     --dataset_name openai/gsm8k \
     --per_device_train_batch_size 1 \
     --max_steps 500 \

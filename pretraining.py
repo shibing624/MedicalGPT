@@ -32,11 +32,7 @@ from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_
 from sklearn.metrics import accuracy_score
 from transformers import (
     AutoConfig,
-    BloomForCausalLM,
     AutoModelForCausalLM,
-    AutoModel,
-    LlamaForCausalLM,
-    BloomTokenizerFast,
     AutoTokenizer,
     HfArgumentParser,
     Trainer,
@@ -48,18 +44,7 @@ from transformers import (
 from transformers.trainer import TRAINING_ARGS_NAME
 from transformers.utils.versions import require_version
 
-try:
-    from transformers.integrations import is_deepspeed_zero3_enabled
-except ImportError:  # https://github.com/huggingface/transformers/releases/tag/v4.33.1
-    from transformers.deepspeed import is_deepspeed_zero3_enabled
-
-MODEL_CLASSES = {
-    "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
-    "llama": (AutoConfig, LlamaForCausalLM, AutoTokenizer),
-    "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
-}
+from transformers.integrations import is_deepspeed_zero3_enabled
 
 
 @dataclass
@@ -68,10 +53,6 @@ class ModelArguments:
     Arguments pertaining to which model/config/tokenizer we are going to fine-tune, or train from scratch.
     """
 
-    model_type: str = field(
-        default=None,
-        metadata={"help": "Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys())}
-    )
     model_name_or_path: Optional[str] = field(
         default=None,
         metadata={
@@ -123,10 +104,6 @@ class ModelArguments:
     )
 
     def __post_init__(self):
-        if self.model_type is None:
-            raise ValueError(
-                "You must specify a valid model_type to run training. Available model types are " + ", ".join(
-                    MODEL_CLASSES.keys()))
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
 
@@ -343,7 +320,7 @@ def print_trainable_parameters(model):
         all_param += param.numel()
         if param.requires_grad:
             trainable_params += param.numel()
-    print(
+    logger.info(
         f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
     )
 
@@ -374,21 +351,30 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, Seq2SeqTrainingArguments, ScriptArguments))
     model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses()
 
-    logger.info(f"Model args: {model_args}")
-    logger.info(f"Data args: {data_args}")
-    logger.info(f"Training args: {training_args}")
-    logger.info(f"Script args: {script_args}")
-    logger.info(
-        f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
-        + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
-    )
+    # Add distributed training initialization
+    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
+        torch.distributed.init_process_group(backend="nccl")
+        local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+        torch.cuda.set_device(local_rank)
+        is_main_process = local_rank == 0
+    else:
+        is_main_process = True
+
+    # Only log on main process
+    if is_main_process:
+        logger.info(f"Model args: {model_args}")
+        logger.info(f"Data args: {data_args}")
+        logger.info(f"Training args: {training_args}")
+        logger.info(f"Script args: {script_args}")
+        logger.info(
+            f"Process rank: {training_args.local_rank}, device: {training_args.device}, n_gpu: {training_args.n_gpu}"
+            + f" distributed training: {bool(training_args.local_rank != -1)}, 16-bits training: {training_args.fp16}"
+        )
 
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
     # Load tokenizer
-    config_class, model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
-
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
         "use_fast": model_args.use_fast_tokenizer,
@@ -397,7 +383,7 @@ def main():
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
-    tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
 
     if data_args.block_size is None:
         block_size = tokenizer.model_max_length
@@ -547,7 +533,7 @@ def main():
                     num_proc=data_args.preprocessing_num_workers,
                     remove_columns=column_names,
                     load_from_cache_file=not data_args.overwrite_cache,
-                    desc="Running tokenizer on dataset",
+                    desc="Running tokenizer on dataset" if is_main_process else None,
                 )
                 lm_datasets = tokenized_datasets.map(
                     group_text_function,
@@ -563,7 +549,7 @@ def main():
                     num_proc=data_args.preprocessing_num_workers,
                     remove_columns=column_names,
                     load_from_cache_file=not data_args.overwrite_cache,
-                    desc="Running tokenizer on dataset",
+                    desc="Running tokenizer on dataset" if is_main_process else None,
                 )
         else:
             if training_args.group_by_length:
@@ -631,7 +617,7 @@ def main():
             "revision": model_args.model_revision,
             "token": model_args.hf_hub_token,
         }
-        config = config_class.from_pretrained(model_args.model_name_or_path, **config_kwargs)
+        config = AutoConfig.from_pretrained(model_args.model_name_or_path, **config_kwargs)
         load_in_4bit = model_args.load_in_4bit
         load_in_8bit = model_args.load_in_8bit
         if load_in_4bit and load_in_8bit:
@@ -656,7 +642,7 @@ def main():
                         bnb_4bit_compute_dtype=torch_dtype,
                     )
 
-        model = model_class.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(
             model_args.model_name_or_path,
             config=config,
             torch_dtype=torch_dtype,
@@ -773,6 +759,10 @@ def main():
         trainer.save_metrics("eval", metrics)
         if trainer.is_world_process_zero():
             logger.debug(f"Eval metrics: {metrics}")
+
+    # Cleanup distributed
+    if int(os.environ.get("WORLD_SIZE", "1")) > 1:
+        torch.distributed.destroy_process_group()
 
 
 if __name__ == "__main__":

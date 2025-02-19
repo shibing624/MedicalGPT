@@ -15,31 +15,19 @@ from loguru import logger
 from peft import LoraConfig, TaskType
 from transformers import (
     AutoConfig,
-    BloomForCausalLM,
     AutoModelForCausalLM,
-    AutoModel,
-    LlamaForCausalLM,
-    BloomTokenizerFast,
     AutoTokenizer,
     HfArgumentParser,
     TrainingArguments,
     BitsAndBytesConfig,
 )
-from transformers.deepspeed import is_deepspeed_zero3_enabled
+from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import DPOTrainer
 
 from template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-
-MODEL_CLASSES = {
-    "bloom": (AutoConfig, BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoConfig, AutoModel, AutoTokenizer),
-    "llama": (AutoConfig, LlamaForCausalLM, AutoTokenizer),
-    "baichuan": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoConfig, AutoModelForCausalLM, AutoTokenizer),
-}
 
 
 @dataclass
@@ -48,10 +36,6 @@ class ScriptArguments:
     The name of the Casual LM model we wish to fine with DPO
     """
     # Model arguments
-    model_type: str = field(
-        default=None,
-        metadata={"help": "Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys())}
-    )
     model_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "The model checkpoint for weights initialization."}
     )
@@ -168,8 +152,6 @@ class ScriptArguments:
     report_to: Optional[str] = field(default="tensorboard", metadata={"help": "Report to wandb or tensorboard"})
 
     def __post_init__(self):
-        if self.model_type is None:
-            raise ValueError("You must specify a valid model_type to run training.")
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
 
@@ -184,7 +166,7 @@ def print_trainable_parameters(model):
         all_param += param.numel()
         if param.requires_grad:
             trainable_params += param.numel()
-    print(
+    logger.info(
         f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
     )
 
@@ -216,9 +198,6 @@ def main():
     args = parser.parse_args_into_dataclasses()[0]
     logger.info(f"Parse args: {args}")
 
-    config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    if args.model_type == 'bloom':
-        args.use_fast_tokenizer = True
     # Load tokenizer
     tokenizer_kwargs = {
         "cache_dir": args.cache_dir,
@@ -228,7 +207,7 @@ def main():
     tokenizer_name_or_path = args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = args.model_name_or_path
-    tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = get_conv_template(args.template_name)
     if tokenizer.eos_token_id is None:
         tokenizer.eos_token = prompt_template.stop_str  # eos token is required
@@ -403,7 +382,7 @@ def main():
     logger.info(f"Device map: {args.device_map}")
     if args.qlora and is_deepspeed_zero3_enabled():
         logger.warning("ZeRO3 are both currently incompatible with QLoRA.")
-    config = config_class.from_pretrained(
+    config = AutoConfig.from_pretrained(
         args.model_name_or_path,
         trust_remote_code=args.trust_remote_code,
         torch_dtype=torch_dtype,
@@ -411,7 +390,7 @@ def main():
     )
     if args.load_in_4bit or args.load_in_8bit:
         logger.info(f"Quantizing model, load_in_4bit: {args.load_in_4bit}, load_in_8bit: {args.load_in_8bit}")
-    model = model_class.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(
         args.model_name_or_path,
         config=config,
         torch_dtype=torch_dtype,

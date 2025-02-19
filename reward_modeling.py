@@ -19,16 +19,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 from transformers import (
     AutoConfig,
     PreTrainedTokenizerBase,
-    BloomForSequenceClassification,
-    LlamaForSequenceClassification,
-    BloomTokenizerFast,
-    AlbertForSequenceClassification,
-    BertForSequenceClassification,
-    BertTokenizer,
     AutoTokenizer,
-    RobertaForSequenceClassification,
     AutoModelForSequenceClassification,
-    RobertaTokenizer,
     HfArgumentParser,
     Trainer,
     TrainingArguments,
@@ -38,14 +30,6 @@ from transformers.trainer import TRAINING_ARGS_NAME
 
 from template import get_conv_template
 
-MODEL_CLASSES = {
-    "bert": (AutoConfig, BertForSequenceClassification, BertTokenizer),
-    "roberta": (AutoConfig, RobertaForSequenceClassification, RobertaTokenizer),
-    "albert": (AutoConfig, AlbertForSequenceClassification, AutoTokenizer),
-    "bloom": (AutoConfig, BloomForSequenceClassification, BloomTokenizerFast),
-    "llama": (AutoConfig, LlamaForSequenceClassification, AutoTokenizer),
-    "auto": (AutoConfig, AutoModelForSequenceClassification, AutoTokenizer),
-}
 
 
 @dataclass
@@ -53,11 +37,6 @@ class ModelArguments:
     """
     Arguments pertaining to which model/config/tokenizer we are going to fine-tune, or train from scratch.
     """
-
-    model_type: str = field(
-        default=None,
-        metadata={"help": "Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys())}
-    )
     model_name_or_path: Optional[str] = field(
         default=None,
         metadata={
@@ -104,10 +83,6 @@ class ModelArguments:
     )
 
     def __post_init__(self):
-        if self.model_type is None:
-            raise ValueError(
-                "You must specify a valid model_type to run training. Available model types are " + ", ".join(
-                    MODEL_CLASSES.keys()))
         if self.model_name_or_path is None:
             raise ValueError("You must specify a valid model_name_or_path to run training.")
 
@@ -324,7 +299,7 @@ def print_trainable_parameters(model):
         all_param += param.numel()
         if param.requires_grad:
             trainable_params += param.numel()
-    print(
+    logger.info(
         f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
     )
 
@@ -367,7 +342,6 @@ def main():
     set_seed(training_args.seed)
 
     # Load model
-    config_class, model_class, tokenizer_class = MODEL_CLASSES[model_args.model_type]
     if model_args.model_name_or_path:
         torch_dtype = (
             model_args.torch_dtype
@@ -377,37 +351,26 @@ def main():
         world_size = int(os.environ.get("WORLD_SIZE", "1"))
         if world_size > 1:
             model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
-        config = config_class.from_pretrained(
+        config = AutoConfig.from_pretrained(
             model_args.model_name_or_path,
             num_labels=1,
             torch_dtype=torch_dtype,
             trust_remote_code=model_args.trust_remote_code,
             cache_dir=model_args.cache_dir
         )
-        if model_args.model_type in ['bloom', 'llama']:
-            model = model_class.from_pretrained(
-                model_args.model_name_or_path,
-                config=config,
-                torch_dtype=torch_dtype,
-                load_in_4bit=model_args.load_in_4bit,
-                load_in_8bit=model_args.load_in_8bit,
-                device_map=model_args.device_map,
-                trust_remote_code=model_args.trust_remote_code,
-            )
-        else:
-            model = model_class.from_pretrained(
-                model_args.model_name_or_path,
-                config=config,
-                cache_dir=model_args.cache_dir,
-                ignore_mismatched_sizes=True
-            )
-            model.to(training_args.device)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            model_args.model_name_or_path,
+            config=config,
+            torch_dtype=torch_dtype,
+            load_in_4bit=model_args.load_in_4bit,
+            load_in_8bit=model_args.load_in_8bit,
+            device_map=model_args.device_map,
+            trust_remote_code=model_args.trust_remote_code,
+        )
     else:
         raise ValueError(f"Error, model_name_or_path is None, RM must be loaded from a pre-trained model")
 
     # Load tokenizer
-    if model_args.model_type == "bloom":
-        model_args.use_fast_tokenizer = True
     tokenizer_kwargs = {
         "cache_dir": model_args.cache_dir,
         "use_fast": model_args.use_fast_tokenizer,
@@ -416,7 +379,7 @@ def main():
     tokenizer_name_or_path = model_args.tokenizer_name_or_path
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
-    tokenizer = tokenizer_class.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = get_conv_template(script_args.template_name)
     if tokenizer.eos_token_id is None:
         tokenizer.eos_token = prompt_template.stop_str  # eos token is required

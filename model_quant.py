@@ -11,7 +11,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import time
 import argparse
 
-# 定义函数来解析命令行参数
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="量化模型推理对比")
     parser.add_argument("--unquantized_model_path", type=str, required=True, help="未量化模型路径")
@@ -19,15 +21,17 @@ def parse_args():
     parser.add_argument("--input_text", type=str, required=True, help="输入的文本内容")
     return parser.parse_args()
 
+
 # 计算模型相关的显存占用
 def get_model_memory_usage(device):
     return torch.cuda.memory_allocated(device) / (1024 ** 3)  # 转换为GB
+
 
 # 定义一个函数来进行推理，并计算推理时间
 def perform_inference(model, tokenizer, devic, question):
     inputs = tokenizer(question, return_tensors="pt", padding=True, truncation=True).to(device)
     attention_mask = inputs["attention_mask"]
-    
+
     start_time = time.time()
     with torch.no_grad():
         outputs = model.generate(
@@ -45,10 +49,9 @@ def perform_inference(model, tokenizer, devic, question):
     generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
     return generated_text, elapsed_time
 
+
 def main():
     args = parse_args()
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # 1. 未量化模型推理和显存计算
     print("\n====== 未量化模型推理 ======")
@@ -61,14 +64,15 @@ def main():
     model_memory_unquantized = gpu_memory_after_unquantized - gpu_memory_before_unquantized  # 计算模型显存占用
     print(f"未量化模型加载显存占用: {model_memory_unquantized:.2f} GB")
 
-    generated_text_unquantized, time_unquantized = perform_inference(unquantized_model, tokenizer, device, args.input_text)
+    generated_text_unquantized, time_unquantized = perform_inference(unquantized_model, tokenizer, device,
+                                                                     args.input_text)
     print(f"推理生成的文本（未量化模型）: {generated_text_unquantized}")
     print(f"推理时间（未量化模型）: {time_unquantized:.2f} 秒")
 
     # 卸载未量化模型以释放显存
     del unquantized_model
     torch.cuda.empty_cache()
-    
+
     # 重新计算显存基线
     print("\n清理缓存，重新计算显存...")
     time.sleep(2)  # 确保显存释放，等待一段时间
@@ -78,12 +82,12 @@ def main():
     # 2. 量化模型推理和保存
     print("\n====== 量化模型推理和保存 ======")
     quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,               # 开启4bit量化
-        load_in_8bit=False,              # 禁止8bit量化
-        bnb_4bit_compute_dtype=torch.float16,   # 计算数据类型为float16
-        bnb_4bit_quant_storage=torch.uint8,     # 存储数据类型为uint8
-        bnb_4bit_quant_type="nf4",              # 使用nf4量化类型
-        bnb_4bit_use_double_quant=True          # 开启双重量化以优化推理
+        load_in_4bit=True,  # 开启4bit量化
+        load_in_8bit=False,  # 禁止8bit量化
+        bnb_4bit_compute_dtype=torch.float16,  # 计算数据类型为float16
+        bnb_4bit_quant_storage=torch.uint8,  # 存储数据类型为uint8
+        bnb_4bit_quant_type="nf4",  # 使用nf4量化类型
+        bnb_4bit_use_double_quant=True  # 开启双重量化以优化推理
     )
 
     quantized_model = AutoModelForCausalLM.from_pretrained(
@@ -106,7 +110,7 @@ def main():
     print("\n====== 内容对比结果 ======")
     print(f"未量化模型生成文本:\n {generated_text_unquantized}")
     print(f"量化模型生成文本:\n {generated_text_quantized}")
-    
+
     print("\n====== 时间对比结果 ======")
     print(f"未量化模型推理时间: {time_unquantized:.2f} 秒")
     print(f"量化模型推理时间: {time_quantized:.2f} 秒")
