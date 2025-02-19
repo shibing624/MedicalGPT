@@ -22,7 +22,7 @@ from transformers import (
     BitsAndBytesConfig,
 )
 from transformers.integrations import is_deepspeed_zero3_enabled
-from trl import DPOTrainer
+from trl import DPOTrainer, DPOConfig
 
 from template import get_conv_template
 
@@ -125,7 +125,6 @@ class ScriptArguments:
     peft_path: Optional[str] = field(default=None)
     do_train: bool = field(default=False, metadata={"help": "Whether to run training."})
     do_eval: bool = field(default=False, metadata={"help": "Whether to run eval on the validation set."})
-    beta: Optional[float] = field(default=0.1, metadata={"help": "The beta parameter for DPO loss"})
     learning_rate: Optional[float] = field(default=5e-4, metadata={"help": "Learning rate"})
     lr_scheduler_type: Optional[str] = field(default="cosine", metadata={"help": "The lr scheduler type"})
     warmup_steps: Optional[int] = field(default=100, metadata={"help": "The number of warmup steps"})
@@ -416,7 +415,9 @@ def main():
     else:
         model.config.use_cache = True
 
-    training_args = TrainingArguments(
+    training_args = DPOConfig(
+        max_prompt_length=args.max_source_length,
+        max_length=full_max_length,
         per_device_train_batch_size=args.per_device_train_batch_size,
         per_device_eval_batch_size=args.per_device_eval_batch_size,
         max_steps=args.max_steps,
@@ -460,19 +461,17 @@ def main():
         model,
         ref_model=None if args.use_peft else deepcopy(model),
         args=training_args,
-        beta=args.beta,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         peft_config=peft_config if args.use_peft else None,
-        max_prompt_length=args.max_source_length,
-        max_length=full_max_length,
     )
     print_trainable_parameters(trainer.model)
 
     # Training
     if args.do_train:
-        logger.info("*** Train ***")
+        if trainer.is_world_process_zero():
+            logger.info("*** Train ***")
         train_result = trainer.train()
         metrics = train_result.metrics
         metrics["train_samples"] = max_train_samples
@@ -488,7 +487,8 @@ def main():
 
     # Evaluation
     if args.do_eval:
-        logger.info("*** Evaluate ***")
+        if trainer.is_world_process_zero():
+            logger.info("*** Evaluate ***")
         metrics = trainer.evaluate()
         metrics["eval_samples"] = max_eval_samples
         trainer.log_metrics("eval", metrics)
