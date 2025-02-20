@@ -289,10 +289,8 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, Seq2SeqTrainingArguments, ScriptArguments))
     model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses()
 
-    # Add distributed training initialization
     # The Trainer will handle distributed training setup
     is_main_process = training_args.local_rank in [-1, 0]
-    local_rank = int(os.environ.get("LOCAL_RANK", "0"))
 
     # Only log on main process
     if is_main_process:

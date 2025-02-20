@@ -22,7 +22,6 @@ CUDA_VISIBLE_DEVICES=0,1 python orpo_training.py \
     --lora_dropout 0.05 \
     --torch_dtype float16 \
     --fp16 True \
-    --device_map auto \
     --report_to tensorboard \
     --remove_unused_columns False \
     --gradient_checkpointing True \
