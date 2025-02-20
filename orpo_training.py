@@ -396,8 +396,10 @@ def main():
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     ddp = world_size != 1
     if ddp:
-        args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
+        args.device_map = {"": local_rank}
         args.gradient_accumulation_steps = args.gradient_accumulation_steps // world_size
+    else:
+        args.device_map = "auto"
     if is_main_process:
         logger.info(f"Device map: {args.device_map}")
     if args.qlora and is_deepspeed_zero3_enabled():
@@ -459,8 +461,6 @@ def main():
         remove_unused_columns=args.remove_unused_columns,
         run_name=f"orpo_v1",
         beta=args.orpo_beta,
-        local_rank=local_rank,
-        ddp_backend="nccl",
         ddp_find_unused_parameters=False if ddp else None,
     )
 
