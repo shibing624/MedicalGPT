@@ -9,3 +9,5 @@ tqdm>=4.47.0
 transformers>=4.39.3
 trl~=0.14.0
 bitsandbytes
+latex2sympy2_extended
+math-verify==0.5.2

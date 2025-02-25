@@ -7,7 +7,6 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Optional
-import random
 import re
 from datasets import load_dataset
 import torch
@@ -16,6 +15,8 @@ from transformers import AutoTokenizer
 from transformers.trainer_utils import get_last_checkpoint
 from trl import GRPOConfig, GRPOTrainer, ModelConfig, TrlParser
 from peft import LoraConfig, TaskType
+from latex2sympy2_extended import NormalizationConfig
+from math_verify import LatexExtractionConfig, parse, verify
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -31,188 +32,96 @@ class ScriptArguments:
     )
     # Dataset arguments
     dataset_name: Optional[str] = field(
-        default="openai/gsm8k",
+        default="xiaodongguaAIGC/X-R1-750",
         metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
     train_samples: Optional[int] = field(default=-1, metadata={"help": "Number of samples to train on, -1 for all"})
     subset_name: Optional[str] = field(default="main", metadata={"help": "Subset name"})
     dataset_splits: Optional[str] = field(default="train", metadata={"help": "Split name"})
-    preprocessing_num_workers: Optional[int] = field(default=None, metadata={"help": "Number of workers for preprocessing"})
+    preprocessing_num_workers: Optional[int] = field(default=10,
+                                                     metadata={"help": "Number of workers for preprocessing"})
 
 
-def format_reward_func(completions, target, **kwargs):
-    """
-    Format: <think>...</think><answer>...</answer>
-    Args:
-        completions (list[str]): Generated outputs
-        target (list[str]): Expected answers
-
-      Returns:
-          list[float]: Reward scores
-    """
-    rewards = []
-    for completion, gt in zip(completions, target):
-        try:
-            # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
-            completion = "<think>" + completion
-            if random.random() < 0.1:  # 1% chance to write samples into a file
-                os.makedirs("completion_samples", exist_ok=True)
-                log_file = os.path.join("completion_samples", "completion_samples.txt")
-                with open(log_file, "a") as f:
-                    f.write(f"\n\n==============\n")
-                    f.write(completion)
-
-            # Check if the format is correct
-            regex = r"^<think>([^<]*(?:<(?!/?think>)[^<]*)*)<\/think>\n<answer>([\s\S]*?)<\/answer>$"
-
-            match = re.search(regex, completion, re.DOTALL)
-            # if the format is not correct, reward is 0
-            if match is None or len(match.groups()) != 2:
-                rewards.append(0.0)
-            else:
-                rewards.append(1.0)
-        except Exception as e:
-            rewards.append(0.0)
-    return rewards
+def normalize_text(text):
+    """Normalize text by removing extra whitespace, converting to lowercase."""
+    if text is None:
+        return ""
+    # Remove extra whitespace and convert to lowercase
+    text = re.sub(r'\s+', ' ', text.strip().lower())
+    return text
 
 
-def equation_reward_func(completions, target, nums, **kwargs):
-    """
-    Evaluates completions based on:
-    2. Mathematical correctness of the answer
-
-    Args:
-        completions (list[str]): Generated outputs
-        target (list[str]): Expected answers
-        nums (list[str]): Available numbers
-
-    Returns:
-        list[float]: Reward scores
-    """
-    rewards = []
-    for completion, gt, numbers in zip(completions, target, nums):
-        try:
-            # add synthetic <think> as its already part of the prompt and prefilled for the assistant to more easily match the regex
-            completion = "<think>" + completion
-            # Check if the format is correct
-            match = re.search(r"<answer>(.*?)<\/answer>", completion)
-            if match is None:
-                rewards.append(0.0)
-                continue
-            # Extract the "answer" part from the completion
-            equation = match.group(1).strip()
-            # Extract all numbers from the equation
-            used_numbers = [int(n) for n in re.findall(r'\d+', equation)]
-
-            # Check if all numbers are used exactly once
-            if sorted(used_numbers) != sorted(numbers):
-                rewards.append(0.0)
-                continue
-            # Define a regex pattern that only allows numbers, operators, parentheses, and whitespace
-            allowed_pattern = r'^[\d+\-*/().\s]+$'
-            if not re.match(allowed_pattern, equation):
-                rewards.append(0.0)
-                continue
-
-            # Evaluate the equation with restricted globals and locals
-            result = eval(equation, {"__builtins__": None}, {})
-            # Check if the equation is correct and matches the ground truth
-            if abs(float(result) - float(gt)) < 1e-5:
-                rewards.append(1.0)
-                if random.random() < 0.1:  # 10% chance to write fully successful samples into a file
-                    os.makedirs("completion_samples", exist_ok=True)
-                    log_file = os.path.join("completion_samples", "success_completion_samples.txt")
-                    with open(log_file, "a") as f:
-                        f.write(f"\n\n==============\n")
-                        f.write(completion)
-            else:
-                rewards.append(0.0)
-        except Exception as e:
-            # If evaluation fails, reward is 0
-            rewards.append(0.0)
-    return rewards
+def extract_answer(text):
+    """Extract content between <answer> tags."""
+    if text is None:
+        return ""
+    match = re.search(r'<answer>(.*?)</answer>', text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text.strip()
 
 
-# Load and prep dataset
-SYSTEM_PROMPT = """You are a helpful assistant. You first thinks about the reasoning process in the mind and then provides the user with the answer.
-Respond in the following format:
-<think>
-reasoning process here
-</think>
-<answer>
-answer here
-</answer>
-"""
-
-
-def extract_xml_answer(text: str) -> str:
-    answer = text.split("<answer>")[-1]
-    answer = answer.split("</answer>")[0]
-    return answer.strip()
-
-
-def extract_final_answer(text: str):
-    if "####" not in text:
-        return None
-    return text.split("####")[1].strip()
-
-
-# Reward functions
-def correctness_reward_func(prompts, completions, answer, **kwargs) -> list[float]:
-    responses = [completion[0]['content'] for completion in completions]
-    q = prompts[0][-1]['content']
-    extracted_responses = [extract_xml_answer(r) for r in responses]
-    if random.random() < 0.1:  # 1% chance to write samples into a file
-        completion = f"Question:\n{q}\nAnswer:\n{answer[0]}\nResponse:\n{responses[0]}\nExtracted:\n{extracted_responses[0]}"
-        logger.debug(completion)
-        os.makedirs("completion_samples", exist_ok=True)
-        log_file = os.path.join("completion_samples", "completion_samples.txt")
-        with open(log_file, "a") as f:
-            f.write(f"\n\n==============\n")
-            f.write(completion)
-    return [2.0 if r == a else 0.0 for r, a in zip(extracted_responses, answer)]
-
-
-def int_reward_func(completions, **kwargs) -> list[float]:
-    responses = [completion[0]['content'] for completion in completions]
-    extracted_responses = [extract_xml_answer(r) for r in responses]
-    return [0.5 if r.isdigit() else 0.0 for r in extracted_responses]
-
-
-def strict_format_reward_func(completions, **kwargs) -> list[float]:
-    """Reward function that checks if the completion has a specific format."""
-    pattern = r"^<think>\n.*?\n</think>\n<answer>\n.*?\n</answer>\n$"
-    responses = [completion[0]["content"] for completion in completions]
-    matches = [re.match(pattern, r) for r in responses]
-    return [0.5 if match else 0.0 for match in matches]
-
-
-def soft_format_reward_func(completions, **kwargs) -> list[float]:
-    """Reward function that checks if the completion has a specific format."""
-    pattern = r"<think>.*?</think>\s*<answer>.*?</answer>"
-    responses = [completion[0]["content"] for completion in completions]
-    matches = [re.match(pattern, r) for r in responses]
-    return [0.5 if match else 0.0 for match in matches]
-
-
-def count_xml(text) -> float:
-    count = 0.0
-    if text.count("<think>\n") == 1:
-        count += 0.125
-    if text.count("\n</think>\n") == 1:
-        count += 0.125
-    if text.count("\n<answer>\n") == 1:
-        count += 0.125
-        count -= len(text.split("\n</answer>\n")[-1]) * 0.001
-    if text.count("\n</answer>") == 1:
-        count += 0.125
-        count -= (len(text.split("\n</answer>")[-1]) - 1) * 0.001
-    return count
-
-
-def xmlcount_reward_func(completions, **kwargs) -> list[float]:
+def accuracy_reward(completions, solution, **kwargs):
+    """Reward function that checks if the completion is the same as the ground truth."""
     contents = [completion[0]["content"] for completion in completions]
-    return [count_xml(c) for c in contents]
+    rewards = []
+    for content, sol in zip(contents, solution):
+        # First try latex parsing
+        gold_parsed = parse(
+            sol,
+            extraction_mode="first_match",
+            extraction_config=[LatexExtractionConfig()],
+        )
+        if len(gold_parsed) != 0:
+            # We require the answer to be provided in correct latex (no malformed operators)
+            answer_parsed = parse(
+                content,
+                extraction_config=[
+                    LatexExtractionConfig(
+                        normalization_config=NormalizationConfig(
+                            nits=False,
+                            malformed_operators=False,
+                            basic_latex=True,
+                            equations=True,
+                            boxed="all",
+                            units=True,
+                        ),
+                        # Ensures that boxed is tried first
+                        boxed_match_priority=0,
+                        try_extract_without_anchor=False,
+                    )
+                ],
+                extraction_mode="first_match",
+            )
+            # Reward 1 if the content is the same as the ground truth, 0 otherwise
+            reward = float(verify(answer_parsed, gold_parsed))
+            logger.debug(f"answer_parsed: {answer_parsed}, gold_parsed: {gold_parsed}, reward: {reward}")
+        else:
+            # If the gold solution is not parseable, we reward 1 to skip this example
+            reward = 1.0
+            print("Failed to parse gold solution: ", sol)
+        rewards.append(reward)
+    logger.debug(f'accuracy rewards: {rewards}')
+    return rewards
+
+
+def format_reward(completions, **kwargs):
+    """Reward function that checks if the completion has a specific format."""
+    pattern = r"^<think>.*?</think><answer>.*?</answer>$"
+    completion_contents = [completion[0]["content"] for completion in completions]
+    matches = [re.match(pattern, content) for content in completion_contents]
+
+    rewards = [1.0 if match else 0.0 for match in matches]
+    logger.debug(f'format rewards: {rewards}')
+    return rewards
+
+
+SYSTEM_PROMPT = (
+    "A conversation between User and Assistant. The user asks a question, and the Assistant solves it. The assistant "
+    "first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning "
+    "process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e., "
+    "<think> reasoning process here </think><answer> answer here </answer>"
+)
 
 
 def get_checkpoint(training_args: GRPOConfig):
@@ -220,6 +129,7 @@ def get_checkpoint(training_args: GRPOConfig):
     if os.path.isdir(training_args.output_dir):
         last_checkpoint = get_last_checkpoint(training_args.output_dir)
     return last_checkpoint
+
 
 def find_all_linear_names(peft_model, int4=False, int8=False):
     """Find all linear layer names in the model. reference from qlora paper."""
@@ -242,7 +152,8 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
     return sorted(lora_module_names)
 
-def grpo_function(
+
+def grpo_train(
         model_args: ModelConfig, script_args: ScriptArguments, training_args: GRPOConfig
 ):
     # Add distributed training initialization
@@ -282,9 +193,9 @@ def grpo_function(
             lambda x: {
                 'prompt': [
                     {'role': 'system', 'content': SYSTEM_PROMPT},
-                    {'role': 'user', 'content': x['question']}
+                    {'role': 'user', 'content': x['problem']}
                 ],
-                'answer': extract_final_answer(x['answer'])
+                'answer': x['solution']
             },
             num_proc=script_args.preprocessing_num_workers,
             desc="Processing dataset" if is_main_process else None,
@@ -297,12 +208,12 @@ def grpo_function(
 
     if is_main_process:
         logger.info("*** Initializing model kwargs ***")
-    
+
     # Model initialization
     torch_dtype = (
         model_args.torch_dtype if model_args.torch_dtype in ["auto", None] else getattr(torch, model_args.torch_dtype)
     )
-    
+
     # Set up distributed training config
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     ddp = world_size != 1
@@ -325,7 +236,7 @@ def grpo_function(
     if model_args.use_peft:
         if is_main_process:
             logger.info("Fine-tuning method: LoRA(PEFT)")
-        target_modules = model_args.lora_target_modules  if model_args.lora_target_modules else None
+        target_modules = model_args.lora_target_modules if model_args.lora_target_modules else None
         if is_main_process:
             logger.info(f"Peft target_modules: {target_modules}")
         peft_config = LoraConfig(
@@ -344,17 +255,16 @@ def grpo_function(
         model=model_args.model_name_or_path,
         processing_class=tokenizer,
         reward_funcs=[
-            xmlcount_reward_func,
-            soft_format_reward_func,
-            strict_format_reward_func,
-            int_reward_func,
-            correctness_reward_func,
+            accuracy_reward,
+            format_reward
         ],
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=test_dataset if training_args.eval_strategy != "no" else None,
         peft_config=peft_config,
     )
+    logger.info("*** GRPO Trainer initialized ***")
+    logger.debug(f"Trainer: {trainer}")
 
     # Training
     last_checkpoint = get_checkpoint(training_args)
@@ -367,9 +277,9 @@ def grpo_function(
             f'*** Starting training {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} for '
             f'{training_args.num_train_epochs} epochs ***'
         )
-    
+
     train_result = trainer.train(resume_from_checkpoint=last_checkpoint)
-    
+
     # Log and save metrics on main process
     if is_main_process:
         metrics = train_result.metrics
@@ -385,7 +295,7 @@ def grpo_function(
     if is_main_process:
         trainer.save_model(training_args.output_dir)
         logger.info(f"Model saved to {training_args.output_dir}")
-    
+
     training_args.distributed_state.wait_for_everyone()
 
     if is_main_process:
@@ -418,7 +328,7 @@ def main():
     model_args, script_args, training_args = parser.parse_args_and_config()
 
     # Run the main training loop
-    grpo_function(model_args, script_args, training_args)
+    grpo_train(model_args, script_args, training_args)
 
 
 if __name__ == "__main__":
