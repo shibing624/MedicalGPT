@@ -36,7 +36,8 @@ class ScriptArguments:
         metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
     train_samples: Optional[int] = field(default=-1, metadata={"help": "Number of samples to train on, -1 for all"})
-    subset_name: Optional[str] = field(default="main", metadata={"help": "Subset name"})
+    subset_name: Optional[str] = field(default="default",
+                                       metadata={"help": "Subset name, e.g., 'default', 'main'. default is 'default'"})
     dataset_splits: Optional[str] = field(default="train", metadata={"help": "Split name"})
     preprocessing_num_workers: Optional[int] = field(default=10,
                                                      metadata={"help": "Number of workers for preprocessing"})
