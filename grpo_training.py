@@ -96,11 +96,12 @@ def accuracy_reward(completions, solution, **kwargs):
             )
             # Reward 1 if the content is the same as the ground truth, 0 otherwise
             reward = float(verify(answer_parsed, gold_parsed))
-            logger.debug(f"answer_parsed: {answer_parsed}, gold_parsed: {gold_parsed}, reward: {reward}")
+            logger.debug(f"predict_answer: {content}, \nground_truth: {sol}, \n"
+                         f"answer_parsed: {answer_parsed}, gold_parsed: {gold_parsed}, reward: {reward}\n\n")
         else:
             # If the gold solution is not parseable, we reward 1 to skip this example
             reward = 1.0
-            print("Failed to parse gold solution: ", sol)
+            logger.debug(f"Failed to parse ground_truth: {sol}")
         rewards.append(reward)
     logger.debug(f'accuracy rewards: {rewards}')
     return rewards
@@ -306,7 +307,7 @@ def grpo_train(
         # Create model card and save config
         kwargs = {
             "dataset_name": script_args.dataset_name,
-            "tags": ["r1"],
+            "tags": ["r1", "grpo"],
         }
         trainer.create_model_card(**kwargs)
         trainer.model.config.use_cache = True
