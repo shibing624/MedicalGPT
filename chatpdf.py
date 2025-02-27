@@ -23,26 +23,13 @@ from similarities import (
 )
 from similarities.similarity import SimilarityABC
 from transformers import (
-    AutoModel,
     AutoModelForCausalLM,
     AutoTokenizer,
-    BloomForCausalLM,
-    BloomTokenizerFast,
-    LlamaTokenizer,
-    LlamaForCausalLM,
     TextIteratorStreamer,
     GenerationConfig,
 )
 
 jieba.setLogLevel("ERROR")
-
-MODEL_CLASSES = {
-    "bloom": (BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, LlamaTokenizer),
-    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoModelForCausalLM, AutoTokenizer),
-}
 
 RAG_PROMPT = """基于以下已知信息，简洁和专业的来回答用户的问题。
 如果无法从中得到答案，请说 "根据已知信息无法回答该问题" 或 "没有提供足够的相关信息"，不允许在答案中添加编造成分，答案请使用中文。
@@ -123,7 +110,6 @@ class ChatPDF:
     def __init__(
             self,
             similarity_model: SimilarityABC = None,
-            generate_model_type: str = "auto",
             generate_model_name_or_path: str = "01-ai/Yi-6B-Chat",
             lora_model_name_or_path: str = None,
             corpus_files: Union[str, List[str]] = None,
@@ -138,7 +124,6 @@ class ChatPDF:
         """
         Init RAG model.
         :param similarity_model: similarity model, default None, if set, will use it instead of EnsembleSimilarity
-        :param generate_model_type: generate model type
         :param generate_model_name_or_path: generate model name or path
         :param lora_model_name_or_path: lora model name or path
         :param corpus_files: corpus files
@@ -166,7 +151,6 @@ class ChatPDF:
             default_sim_model = EnsembleSimilarity(similarities=[m1, m2], weights=[0.5, 0.5], c=2)
             self.sim_model = default_sim_model
         self.gen_model, self.tokenizer = self._init_gen_model(
-            generate_model_type,
             generate_model_name_or_path,
             peft_name=lora_model_name_or_path,
             int8=int8,
@@ -184,7 +168,6 @@ class ChatPDF:
 
     def _init_gen_model(
             self,
-            gen_model_type: str,
             gen_model_name_or_path: str,
             peft_name: str = None,
             int8: bool = False,
@@ -195,23 +178,17 @@ class ChatPDF:
             device_map = None
         else:
             device_map = "auto"
-        model_class, tokenizer_class = MODEL_CLASSES[gen_model_type]
-        tokenizer = tokenizer_class.from_pretrained(gen_model_name_or_path, trust_remote_code=True)
-        model = model_class.from_pretrained(
+        tokenizer = AutoTokenizer.from_pretrained(gen_model_name_or_path, trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(
             gen_model_name_or_path,
-            load_in_8bit=int8 if gen_model_type not in ['baichuan', 'chatglm'] else False,
-            load_in_4bit=int4 if gen_model_type not in ['baichuan', 'chatglm'] else False,
+            load_in_8bit=int8,
+            load_in_4bit=int4,
             torch_dtype="auto",
             device_map=device_map,
             trust_remote_code=True,
         )
         if self.device == torch.device('cpu'):
             model.float()
-        if gen_model_type in ['baichuan', 'chatglm']:
-            if int4:
-                model = model.quantize(4).cuda()
-            elif int8:
-                model = model.quantize(8).cuda()
         try:
             model.generation_config = GenerationConfig.from_pretrained(gen_model_name_or_path, trust_remote_code=True)
         except Exception as e:
@@ -457,7 +434,6 @@ class ChatPDF:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--sim_model", type=str, default="shibing624/text2vec-base-multilingual")
-    parser.add_argument("--gen_model_type", type=str, default="auto")
     parser.add_argument("--gen_model", type=str, default="01-ai/Yi-6B-Chat")
     parser.add_argument("--prompt_template_name", type=str, default=None,
                         help="The prompt template name. it can be vicuna/alpaca/yi..., None is use apply_chat_template.")
@@ -473,7 +449,6 @@ if __name__ == "__main__":
     sim_model = BertSimilarity(model_name_or_path=args.sim_model, device=args.device)
     m = ChatPDF(
         similarity_model=sim_model,
-        generate_model_type=args.gen_model_type,
         generate_model_name_or_path=args.gen_model,
         lora_model_name_or_path=args.lora_model,
         device=args.device,

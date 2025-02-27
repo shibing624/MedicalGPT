@@ -24,18 +24,9 @@ from transformers import (
 
 from template import get_conv_template
 
-MODEL_CLASSES = {
-    "bloom": (BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, AutoTokenizer),
-    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoModelForCausalLM, AutoTokenizer),
-}
-
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', default='auto', type=str)
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
@@ -56,9 +47,8 @@ def main():
 
     if args.tokenizer_path is None:
         args.tokenizer_path = args.base_model
-    model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
-    base_model = model_class.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path, trust_remote_code=True)
+    base_model = AutoModelForCausalLM.from_pretrained(
         args.base_model,
         torch_dtype=load_type,
         low_cpu_mem_usage=True,

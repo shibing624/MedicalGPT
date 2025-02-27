@@ -5,7 +5,6 @@
 
 Usage:
 python merge_peft_adapter.py \
-    --model_type llama \
     --base_model path/to/llama/model \
     --tokenizer_path path/to/llama/tokenizer \
     --lora_model path/to/lora/model \
@@ -47,8 +46,6 @@ def main():
 
     if peft_config.task_type == "SEQ_CLS":
         print("Loading LoRA for sequence classification model")
-        if args.model_type == "chatglm":
-            raise ValueError("chatglm does not support sequence classification")
         base_model = AutoModelForSequenceClassification.from_pretrained(
             base_model_path,
             num_labels=1,

@@ -12,26 +12,14 @@ import torch
 from peft import PeftModel
 from tqdm import tqdm
 from transformers import (
-    AutoModel,
     AutoModelForCausalLM,
     AutoTokenizer,
-    BloomForCausalLM,
-    BloomTokenizerFast,
-    LlamaForCausalLM,
     TextIteratorStreamer,
     GenerationConfig,
     BitsAndBytesConfig,
 )
 
 from template import get_conv_template
-
-MODEL_CLASSES = {
-    "bloom": (BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, AutoTokenizer),
-    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoModelForCausalLM, AutoTokenizer),
-}
 
 
 @torch.inference_mode()
@@ -120,7 +108,6 @@ def batch_generate_answer(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', default='auto', type=str)
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
@@ -145,8 +132,7 @@ def main():
     if args.tokenizer_path is None:
         args.tokenizer_path = args.base_model
 
-    model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True, padding_side='left')
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path, trust_remote_code=True, padding_side='left')
     config_kwargs = {
         "trust_remote_code": True,
         "torch_dtype": load_type,
@@ -160,7 +146,7 @@ def main():
             load_in_4bit=True,
             bnb_4bit_compute_dtype=load_type,
         )
-    base_model = model_class.from_pretrained(args.base_model, **config_kwargs)
+    base_model = AutoModelForCausalLM.from_pretrained(args.base_model, **config_kwargs)
     try:
         base_model.generation_config = GenerationConfig.from_pretrained(args.base_model, trust_remote_code=True)
     except OSError:

@@ -4,7 +4,7 @@
 @description: use torchrun to inference with multi-gpus
 
 usage:
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py --model_type bloom --base_model bigscience/bloom-560m
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py --base_model bigscience/bloom-560m
 """
 import argparse
 import json
@@ -18,25 +18,13 @@ from torch.nn import DataParallel
 from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from tqdm import tqdm
 from transformers import (
-    AutoModel,
     AutoModelForCausalLM,
     AutoTokenizer,
-    BloomForCausalLM,
-    BloomTokenizerFast,
-    LlamaForCausalLM,
     GenerationConfig,
     BitsAndBytesConfig,
 )
 
 from template import get_conv_template
-
-MODEL_CLASSES = {
-    "bloom": (BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, AutoTokenizer),
-    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoModelForCausalLM, AutoTokenizer),
-}
 
 
 class TextDataset(Dataset):
@@ -52,7 +40,6 @@ class TextDataset(Dataset):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', default=None, type=str, required=True)
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
@@ -82,21 +69,19 @@ def main():
     if args.tokenizer_path is None:
         args.tokenizer_path = args.base_model
 
-    model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True, padding_side='left')
-    load_type = 'auto'
-    base_model = model_class.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path, trust_remote_code=True, padding_side='left')
+    base_model = AutoModelForCausalLM.from_pretrained(
         args.base_model,
         load_in_8bit=args.load_in_8bit,
         load_in_4bit=args.load_in_4bit,
-        torch_dtype=load_type,
+        torch_dtype='auto',
         low_cpu_mem_usage=True,
         device_map={"": local_rank},
         trust_remote_code=True,
         quantization_config=BitsAndBytesConfig(
             load_in_4bit=args.load_in_4bit,
             load_in_8bit=args.load_in_8bit,
-            bnb_4bit_compute_dtype=load_type,
+            bnb_4bit_compute_dtype='auto',
         ) if args.load_in_8bit or args.load_in_4bit else None,
     )
     try:
@@ -113,7 +98,7 @@ def main():
             base_model.resize_token_embeddings(tokenzier_vocab_size)
 
     if args.lora_model:
-        model = PeftModel.from_pretrained(base_model, args.lora_model, torch_dtype=load_type,
+        model = PeftModel.from_pretrained(base_model, args.lora_model, torch_dtype='auto',
                                           device_map={"": local_rank})
         logger.info("Loaded lora model")
     else:
@@ -166,7 +151,8 @@ def main():
         inputs = []
         for texts in data_loader:
             inputs.extend(texts)
-            prompted_texts = [prompt_template.get_prompt(messages=[[s, '']], system_prompt=args.system_prompt) for s in texts]
+            prompted_texts = [prompt_template.get_prompt(messages=[[s, '']], system_prompt=args.system_prompt) for s in
+                              texts]
             logger.debug(f'local_rank: {local_rank}, inputs size:{len(prompted_texts)}, top3: {prompted_texts[:3]}')
             inputs_tokens = tokenizer(prompted_texts, return_tensors="pt", padding=True)
             input_ids = inputs_tokens['input_ids'].to(local_rank)

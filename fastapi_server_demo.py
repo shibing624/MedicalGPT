@@ -4,7 +4,7 @@
 @description: api start demo
 
 usage:
-CUDA_VISIBLE_DEVICES=0 python fastapi_server_demo.py --model_type bloom --base_model bigscience/bloom-560m
+CUDA_VISIBLE_DEVICES=0 python fastapi_server_demo.py --base_model bigscience/bloom-560m
 
 curl -X 'POST' 'http://0.0.0.0:8008/chat' \
   -H 'accept: application/json' \
@@ -26,25 +26,13 @@ from peft import PeftModel
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
 from transformers import (
-    AutoModel,
     AutoModelForCausalLM,
     AutoTokenizer,
-    BloomForCausalLM,
-    BloomTokenizerFast,
-    LlamaForCausalLM,
     TextIteratorStreamer,
     GenerationConfig,
 )
 
 from template import get_conv_template
-
-MODEL_CLASSES = {
-    "bloom": (BloomForCausalLM, BloomTokenizerFast),
-    "chatglm": (AutoModel, AutoTokenizer),
-    "llama": (LlamaForCausalLM, AutoTokenizer),
-    "baichuan": (AutoModelForCausalLM, AutoTokenizer),
-    "auto": (AutoModelForCausalLM, AutoTokenizer),
-}
 
 
 @torch.inference_mode()
@@ -96,7 +84,6 @@ class Item(BaseModel):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_type', default=None, type=str, required=True)
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
@@ -124,9 +111,8 @@ def main():
         if args.tokenizer_path is None:
             args.tokenizer_path = args.base_model
 
-        model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-        tokenizer = tokenizer_class.from_pretrained(args.tokenizer_path, trust_remote_code=True)
-        base_model = model_class.from_pretrained(
+        tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path, trust_remote_code=True)
+        base_model = AutoModelForCausalLM.from_pretrained(
             args.base_model,
             torch_dtype=load_type,
             low_cpu_mem_usage=True,

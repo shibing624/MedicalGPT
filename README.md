@@ -103,12 +103,11 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 
 启动服务，命令如下：
 ```shell
-CUDA_VISIBLE_DEVICES=0 python gradio_demo.py --model_type base_model_type --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
+CUDA_VISIBLE_DEVICES=0 python gradio_demo.py --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
 ```
 
 参数说明：
 
-- `--model_type {base_model_type}`：预训练模型类型，如llama、bloom、chatglm等
 - `--base_model {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录，也可使用HF Model Hub模型调用名称
 - `--lora_model {lora_model}`：LoRA文件所在目录，也可使用HF Model Hub模型调用名称。若lora权重已经合并到预训练模型，则删除--lora_model参数
 - `--tokenizer_path {tokenizer_path}`：存放对应tokenizer的目录。若不提供此参数，则其默认值与--base_model相同
@@ -196,7 +195,6 @@ Training Stage:
 
 ```shell
 CUDA_VISIBLE_DEVICES=0 python inference.py \
-    --model_type base_model_type \
     --base_model path_to_model_hf_dir \
     --tokenizer_path path_to_model_hf_dir \
     --lora_model path_to_lora \
@@ -205,7 +203,6 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 
 参数说明：
 
-- `--model_type {base_model_type}`：预训练模型类型，如llama、bloom、chatglm等
 - `--base_model {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录
 - `--tokenizer_path {base_model}`：存放HF格式的LLaMA模型权重和配置文件的目录
 - `--lora_model {lora_model}`：LoRA解压后文件所在目录，也可使用HF Model Hub模型调用名称。如果已经合并了LoRA权重到预训练模型，则可以不提供此参数
@@ -221,7 +218,7 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 #### 多卡推理
 多卡数据并行，batch推理
 ```shell
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py --model_type baichuan --base_model shibing624/vicuna-baichuan-13b-chat
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py --base_model shibing624/vicuna-baichuan-13b-chat
 ```
 #### Vllm多卡部署
 ```shell
