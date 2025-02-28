@@ -661,6 +661,14 @@ def main():
             from transformers.models.mixtral.modeling_mixtral import MixtralSparseMoeBlock  # type: ignore
 
             set_z3_leaf_modules(model, [MixtralSparseMoeBlock])
+
+        # Patch DeepSeek-V3 MoE module
+        if getattr(config, "model_type", None) == "deepseek_v3" and is_deepspeed_zero3_enabled():
+            require_version("deepspeed>=0.13.0", "To fix: pip install deepspeed>=0.13.0")
+            # deepseek_v3 moe module set as leaf node
+            for layer in model.model.layers:
+                if 'DeepseekV3MoE' in str(type(layer.mlp)):
+                    layer.mlp._z3_leaf = True
     else:
         raise ValueError(f"Error, model_name_or_path is None, SFT must be loaded from a pre-trained model")
 
