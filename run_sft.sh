@@ -32,8 +32,8 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --lora_rank 8 \
     --lora_alpha 16 \
     --lora_dropout 0.05 \
-    --torch_dtype float16 \
-    --fp16 \
+    --torch_dtype bfloat16 \
+    --bf16 \
     --device_map auto \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \

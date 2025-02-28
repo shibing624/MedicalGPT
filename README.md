@@ -196,7 +196,6 @@ Training Stage:
 ```shell
 CUDA_VISIBLE_DEVICES=0 python inference.py \
     --base_model path_to_model_hf_dir \
-    --tokenizer_path path_to_model_hf_dir \
     --lora_model path_to_lora \
     --interactive
 ```
@@ -220,9 +219,9 @@ CUDA_VISIBLE_DEVICES=0 python inference.py \
 ```shell
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 inference_multigpu_demo.py --base_model shibing624/vicuna-baichuan-13b-chat
 ```
-#### Vllm多卡部署
+#### vllm多卡部署
 ```shell
-bash run_Multi-GPUs-deployment.sh
+sh vllm_deployment.sh
 ```
 
 

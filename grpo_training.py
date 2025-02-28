@@ -313,14 +313,6 @@ def grpo_train(
         trainer.model.config.use_cache = True
         trainer.model.config.save_pretrained(training_args.output_dir)
 
-    # Evaluate
-    if training_args.do_eval and is_main_process:
-        logger.info("*** Evaluate ***")
-        metrics = trainer.evaluate()
-        metrics["eval_samples"] = len(test_dataset)
-        trainer.log_metrics("eval", metrics)
-        trainer.save_metrics("eval", metrics)
-
     if is_main_process:
         logger.info("*** Training complete! ***")
 

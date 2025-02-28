@@ -16,4 +16,5 @@ CUDA_VISIBLE_DEVICES=0,1 python ppo_training.py \
     --missing_eos_penalty 1.0 \
     --eval_strategy steps \
     --eval_steps 100 \
+    --num_train_epochs 3 \
     --report_to tensorboard

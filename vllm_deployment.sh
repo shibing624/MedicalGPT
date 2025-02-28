@@ -4,7 +4,7 @@
 # pip install vllm
 
 # 指定运行程序的GPU设备编号为0，选择使用编号为0的GPU,tp对应GPU卡数
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0,1
 
 # 启动VLLM API服务器，以下为相关参数说明：
 # - --model: 指定要加载的模型的路径
@@ -24,7 +24,7 @@ python -m vllm.entrypoints.openai.api_server \
     --host 0.0.0.0 \
     --gpu-memory-utilization 0.9 \
     --max-model-len 512 \
-    -tp 1 &
+    -tp 2 &
 
 
 curl http://localhost:8000/v1/chat/completions \

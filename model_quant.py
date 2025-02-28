@@ -4,7 +4,7 @@
 @description: model quantify
 
 usage:
-python model_quant.py --unquantized_model_path /path/to/unquantized/model --quantized_model_output_path /path/to/save/quantized/model --input_text "Your input text here"
+python model_quant.py --unquantized_model_path /path/to/unquantized/model --quantized_model_output_path /path/to/save/quantized/model
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -18,7 +18,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="量化模型推理对比")
     parser.add_argument("--unquantized_model_path", type=str, required=True, help="未量化模型路径")
     parser.add_argument("--quantized_model_output_path", type=str, required=True, help="量化模型保存路径")
-    parser.add_argument("--input_text", type=str, required=True, help="输入的文本内容")
+    parser.add_argument("--input_text", type=str, default='介绍北京', help="输入的文本内容")
     return parser.parse_args()
 
 
