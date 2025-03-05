@@ -20,6 +20,7 @@ part of code is modified from https://github.com/shibing624/textgen
 
 import math
 import os
+import sys
 from dataclasses import dataclass, field
 from glob import glob
 from types import MethodType
@@ -287,7 +288,18 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
 
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, Seq2SeqTrainingArguments, ScriptArguments))
-    model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses()
+    
+    # 使用 parse_args_into_dataclasses 时忽略未知参数
+    if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
+        # 如果我们传递了一个 JSON 文件，让我们用它来配置参数
+        model_args, data_args, training_args, script_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+    else:
+        # 否则解析命令行参数，忽略未知参数
+        model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses(look_for_args_file=False)
+
+    # 确保 DeepSpeed 配置正确加载
+    if training_args.deepspeed is not None:
+        training_args.distributed_state.deepspeed_plugin = None
 
     # The Trainer will handle distributed training setup
     is_main_process = training_args.local_rank in [-1, 0]
