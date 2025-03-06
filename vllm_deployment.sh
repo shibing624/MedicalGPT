@@ -22,8 +22,8 @@ python -m vllm.entrypoints.openai.api_server \
     --dtype=auto \
     --port 8000 \
     --host 0.0.0.0 \
-    --gpu-memory-utilization 0.9 \
-    --max-model-len 512 \
+    --gpu-memory-utilization 0.8 \
+    --max-model-len 2048 \
     -tp 2 &
 
 
@@ -35,6 +35,6 @@ curl http://localhost:8000/v1/chat/completions \
           {"role": "system", "content": "You are a helpful assistant."},
           {"role": "user", "content": "介绍北京"}
       ],
-      "max_tokens": 20,
+      "max_tokens": 120,
       "temperature": 0
   }'
