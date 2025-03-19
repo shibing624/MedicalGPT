@@ -1,13 +1,13 @@
 accelerate
 datasets>=2.14.6
 loguru
-peft~=0.14.0
+peft>=0.14.0
 sentencepiece
 scikit-learn
 tensorboard
 tqdm>=4.47.0
-transformers>=4.39.3
-trl~=0.9.4
+transformers>=4.49.0
+trl>=0.15.2
 # bitsandbytes # not available on pypi
 latex2sympy2_extended
 math-verify==0.5.2
