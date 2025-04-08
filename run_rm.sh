@@ -31,6 +31,7 @@ CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --lora_rank 8 \
     --lora_alpha 16 \
     --lora_dropout 0.05 \
+    --bf16 \
     --torch_dtype bfloat16 \
     --device_map auto \
     --report_to tensorboard \
