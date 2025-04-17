@@ -32,7 +32,7 @@ class ScriptArguments:
     )
     # Dataset arguments
     dataset_name: Optional[str] = field(
-        default="xiaodongguaAIGC/X-R1-750",
+        default="openai/gsm8k",
         metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
     train_samples: Optional[int] = field(default=-1, metadata={"help": "Number of samples to train on, -1 for all"})
@@ -68,6 +68,8 @@ def accuracy_reward(completions, solution, **kwargs):
     rewards = []
     for content, sol in zip(contents, solution):
         # First try latex parsing
+        if '####' in sol:
+            sol = sol.split("####", 1)[-1].strip()
         gold_parsed = parse(
             sol,
             extraction_mode="first_match",
@@ -100,7 +102,7 @@ def accuracy_reward(completions, solution, **kwargs):
                          f"answer_parsed: {answer_parsed}, gold_parsed: {gold_parsed}, reward: {reward}\n\n")
         else:
             # If the gold solution is not parseable, we reward 1 to skip this example
-            reward = 1.0
+            reward = 0.0
             logger.debug(f"Failed to parse ground_truth: {sol}")
         rewards.append(reward)
     logger.debug(f'accuracy rewards: {rewards}')
@@ -109,7 +111,7 @@ def accuracy_reward(completions, solution, **kwargs):
 
 def format_reward(completions, **kwargs):
     """Reward function that checks if the completion has a specific format."""
-    pattern = r"^<think>.*?</think><answer>.*?</answer>$"
+    pattern = r"<think>.*?</think><answer>.*?</answer>$"
     completion_contents = [completion[0]["content"] for completion in completions]
     matches = [re.match(pattern, content) for content in completion_contents]
 
