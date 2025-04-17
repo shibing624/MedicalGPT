@@ -2,10 +2,11 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
     --model_name_or_path Qwen/Qwen2.5-1.5B-Instruct \
     --train_samples -1 \
     --per_device_train_batch_size 6 \
+    --num_generations 6 \
+    --gradient_accumulation_steps 6 \
     --max_steps -1 --num_train_epochs 1 \
     --save_steps 50 \
     --save_strategy steps \
-    --num_generations 6 \
     --max_prompt_length 512 \
     --max_completion_length 512 \
     --output_dir outputs-grpo-qwen-v1 \
@@ -13,7 +14,6 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
     --bf16 True \
     --report_to tensorboard \
     --remove_unused_columns False \
-    --gradient_accumulation_steps 2 \
     --gradient_checkpointing True \
     --beta 0.001 \
     --learning_rate 5.0e-7 \

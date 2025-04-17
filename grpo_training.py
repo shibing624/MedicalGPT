@@ -62,19 +62,21 @@ def extract_answer(text):
     return text.strip()
 
 
-def accuracy_reward(completions, solution, **kwargs):
+def accuracy_reward(completions, answer, **kwargs):
     """Reward function that checks if the completion is the same as the ground truth."""
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
-    for content, sol in zip(contents, solution):
+    for content, sol in zip(contents, answer):
         # First try latex parsing
         if '####' in sol:
-            sol = sol.split("####", 1)[-1].strip()
-        gold_parsed = parse(
-            sol,
-            extraction_mode="first_match",
-            extraction_config=[LatexExtractionConfig()],
-        )
+            # for GSM8K
+            gold_parsed = parse(sol.split("####", 1)[-1].strip())
+        else:
+            gold_parsed = parse(
+                sol,
+                extraction_mode="first_match",
+                extraction_config=[LatexExtractionConfig()],
+            )
         if len(gold_parsed) != 0:
             # We require the answer to be provided in correct latex (no malformed operators)
             answer_parsed = parse(
@@ -101,7 +103,7 @@ def accuracy_reward(completions, solution, **kwargs):
             logger.debug(f"predict_answer: {content}, \nground_truth: {sol}, \n"
                          f"answer_parsed: {answer_parsed}, gold_parsed: {gold_parsed}, reward: {reward}\n\n")
         else:
-            # If the gold solution is not parseable, we reward 1 to skip this example
+            # If the gold answer is not parseable, we skip this example
             reward = 0.0
             logger.debug(f"Failed to parse ground_truth: {sol}")
         rewards.append(reward)
