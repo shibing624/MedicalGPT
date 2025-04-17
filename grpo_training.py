@@ -67,17 +67,17 @@ def accuracy_reward(completions, answer, **kwargs):
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
     for content, sol in zip(contents, answer):
-        # First try latex parsing
         if '####' in sol:
             # for GSM8K
             gold_parsed = parse(sol.split("####", 1)[-1].strip())
+            answer_parsed = parse(extract_answer(content))
         else:
+            # First try latex parsing
             gold_parsed = parse(
                 sol,
                 extraction_mode="first_match",
                 extraction_config=[LatexExtractionConfig()],
             )
-        if len(gold_parsed) != 0:
             # We require the answer to be provided in correct latex (no malformed operators)
             answer_parsed = parse(
                 content,
@@ -98,14 +98,13 @@ def accuracy_reward(completions, answer, **kwargs):
                 ],
                 extraction_mode="first_match",
             )
-            # Reward 1 if the content is the same as the ground truth, 0 otherwise
+        try:
             reward = float(verify(answer_parsed, gold_parsed))
-            logger.debug(f"predict_answer: {content}, \nground_truth: {sol}, \n"
-                         f"answer_parsed: {answer_parsed}, gold_parsed: {gold_parsed}, reward: {reward}\n\n")
-        else:
-            # If the gold answer is not parseable, we skip this example
+        except Exception as e:
+            logger.warning(f"Error in verification: {e}")
             reward = 0.0
-            logger.debug(f"Failed to parse ground_truth: {sol}")
+        logger.debug(f"predict_answer: {content}, \nground_truth: {sol}, \n"
+                     f"answer_parsed: {answer_parsed}, gold_parsed: {gold_parsed}, reward: {reward}\n\n")
         rewards.append(reward)
     logger.debug(f'accuracy rewards: {rewards}')
     return rewards
