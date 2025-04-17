@@ -36,7 +36,7 @@ class ScriptArguments:
         metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
     train_samples: Optional[int] = field(default=-1, metadata={"help": "Number of samples to train on, -1 for all"})
-    subset_name: Optional[str] = field(default="default",
+    subset_name: Optional[str] = field(default="main",
                                        metadata={"help": "Subset name, e.g., 'default', 'main'. default is 'default'"})
     dataset_splits: Optional[str] = field(default="train", metadata={"help": "Split name"})
     preprocessing_num_workers: Optional[int] = field(default=10,
@@ -197,9 +197,9 @@ def grpo_train(
             lambda x: {
                 'prompt': [
                     {'role': 'system', 'content': SYSTEM_PROMPT},
-                    {'role': 'user', 'content': x['problem']}
+                    {'role': 'user', 'content': x['question']}
                 ],
-                'answer': x['solution']
+                'answer': x['answer']
             },
             num_proc=script_args.preprocessing_num_workers,
             desc="Processing dataset" if is_main_process else None,
