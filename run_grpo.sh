@@ -3,7 +3,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
     --train_samples -1 \
     --per_device_train_batch_size 6 \
     --num_generations 6 \
-    --gradient_accumulation_steps 1 \
+    --gradient_accumulation_steps 6 \
     --max_steps -1 --num_train_epochs 1 \
     --save_steps 50 \
     --save_strategy steps \
