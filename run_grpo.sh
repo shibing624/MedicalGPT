@@ -3,7 +3,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
     --train_samples -1 \
     --per_device_train_batch_size 6 \
     --num_generations 6 \
-    --gradient_accumulation_steps 6 \
+    --gradient_accumulation_steps 1 \
     --max_steps -1 --num_train_epochs 1 \
     --save_steps 50 \
     --save_strategy steps \
@@ -15,10 +15,11 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
     --bf16 True \
     --report_to tensorboard \
     --remove_unused_columns False \
-    --gradient_checkpointing True \
+    --gradient_checkpointing False \
     --beta 0.001 \
     --learning_rate 5.0e-7 \
     --lr_scheduler_type cosine \
     --warmup_ratio 0.03 \
     --use_vllm False \
-    --logging_steps 10
+    --logging_steps 10 \
+    --use_peft True --lora_target_modules all
