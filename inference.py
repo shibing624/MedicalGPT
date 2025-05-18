@@ -92,7 +92,8 @@ def batch_generate_answer(
     prompts = [prompt_template.get_prompt(messages=[[s, '']], system_prompt=system_prompt) for s in sentences]
     inputs_tokens = tokenizer(prompts, return_tensors="pt", padding=True)
     input_ids = inputs_tokens['input_ids'].to(device)
-    outputs = model.generate(input_ids=input_ids, **generation_kwargs)
+    attention_mask = inputs_tokens['attention_mask'].to(device)
+    outputs = model.generate(input_ids=input_ids, attention_mask=attention_mask, **generation_kwargs)
     for gen_sequence in outputs:
         prompt_len = len(input_ids[0])
         gen_sequence = gen_sequence[prompt_len:]
