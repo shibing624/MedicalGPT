@@ -33,6 +33,8 @@ def main():
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan2, chatglm2 etc.")
     parser.add_argument('--system_prompt', default="", type=str)
+    parser.add_argument('--context_len', default=2048, type=int)
+    parser.add_argument('--max_new_tokens', default=512, type=int)
     parser.add_argument('--only_cpu', action='store_true', help='only use CPU for inference')
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--share', action='store_true', help='Share gradio')
@@ -78,19 +80,23 @@ def main():
     prompt_template = get_conv_template(args.template_name)
     system_prompt = args.system_prompt
     stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
+    context_len = args.context_len
+    max_new_tokens = args.max_new_tokens
 
     def predict(message, history):
         """Generate answer from prompt with GPT and stream the output"""
         history_messages = history + [[message, ""]]
         prompt = prompt_template.get_prompt(messages=history_messages, system_prompt=system_prompt)
         streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
-        input_ids = tokenizer(prompt).input_ids
-        context_len = 2048
-        max_new_tokens = 512
+        inputs = tokenizer(prompt, return_tensors="pt")
+        input_ids = inputs["input_ids"][0]
+        attention_mask = inputs["attention_mask"][0]
         max_src_len = context_len - max_new_tokens - 8
         input_ids = input_ids[-max_src_len:]
+        attention_mask = attention_mask[-max_src_len:]
         generation_kwargs = dict(
-            input_ids=torch.as_tensor([input_ids]).to(device),
+            input_ids=input_ids.unsqueeze(0).to(device),
+            attention_mask=attention_mask.unsqueeze(0).to(device),
             streamer=streamer,
             max_new_tokens=max_new_tokens,
             temperature=0.7,

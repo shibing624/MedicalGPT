@@ -37,7 +37,6 @@ def stream_generate_answer(
 ):
     """Generate answer from prompt with GPT and stream the output"""
     streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
-
     inputs = tokenizer(prompt, return_tensors="pt")
     input_ids = inputs["input_ids"][0]
     attention_mask = inputs["attention_mask"][0]
@@ -45,8 +44,8 @@ def stream_generate_answer(
     input_ids = input_ids[-max_src_len:]
     attention_mask = attention_mask[-max_src_len:]
     generation_kwargs = dict(
-        input_ids=torch.as_tensor([input_ids]).to(device),
-        attention_mask=torch.as_tensor([attention_mask]).to(device),
+        input_ids=input_ids.unsqueeze(0).to(device),
+        attention_mask=attention_mask.unsqueeze(0).to(device),
         max_new_tokens=max_new_tokens,
         temperature=temperature,
         do_sample=True if temperature > 0.0 else False,
@@ -119,6 +118,7 @@ def main():
     parser.add_argument('--template_name', default="vicuna", type=str,
                         help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
     parser.add_argument('--system_prompt', default="", type=str)
+    parser.add_argument('--stop_str', default="", type=str)
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
     parser.add_argument("--max_new_tokens", type=int, default=512)
     parser.add_argument('--data_file', default=None, type=str,
@@ -185,7 +185,7 @@ def main():
     # Chat
     prompt_template = get_conv_template(args.template_name)
     system_prompt = args.system_prompt
-    stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
+    stop_str = args.stop_str or prompt_template.stop_str
 
     if args.interactive:
         print("Welcome to the CLI application, use `clear` to remove the history, use `exit` to exit the application.")
