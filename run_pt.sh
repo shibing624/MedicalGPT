@@ -17,7 +17,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --logging_strategy steps \
     --logging_steps 10 \
     --eval_steps 50 \
-    --evaluation_strategy steps \
+    --eval_strategy steps \
     --save_steps 500 \
     --save_strategy steps \
     --save_total_limit 13 \

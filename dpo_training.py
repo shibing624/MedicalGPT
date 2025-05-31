@@ -426,7 +426,7 @@ def main():
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         gradient_checkpointing=args.gradient_checkpointing,
         learning_rate=args.learning_rate,
-        evaluation_strategy=args.eval_strategy,
+        eval_strategy=args.eval_strategy,
         eval_steps=args.eval_steps,
         output_dir=args.output_dir,
         report_to=args.report_to,

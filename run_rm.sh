@@ -18,7 +18,7 @@ CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --logging_strategy steps \
     --logging_steps 10 \
     --eval_steps 50 \
-    --evaluation_strategy steps \
+    --eval_strategy steps \
     --save_steps 500 \
     --save_strategy steps \
     --save_total_limit 3 \
