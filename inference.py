@@ -81,7 +81,6 @@ def batch_generate_answer(
         temperature=0.7,
         repetition_penalty=1.0,
         stop_str="</s>",
-        enable_thinking=False,
 ):
     """Generate answers from prompts in batch mode"""
     generated_texts = []
@@ -105,7 +104,6 @@ def batch_generate_answer(
             messages,
             tokenize=False,
             add_generation_prompt=True,
-            enable_thinking=enable_thinking
         )
         prompts.append(prompt)
 
@@ -145,7 +143,6 @@ def main():
     parser.add_argument('--resize_emb', action='store_true', help='Whether to resize model token embeddings')
     parser.add_argument('--load_in_8bit', action='store_true', help='Whether to load model in 8-bit mode')
     parser.add_argument('--load_in_4bit', action='store_true', help='Whether to load model in 4-bit mode')
-    parser.add_argument('--enable_thinking', action='store_true', help='Whether to enable thinking mode')
     args = parser.parse_args()
     print(args)
     load_type = 'auto'
@@ -246,7 +243,6 @@ def main():
                 messages,
                 tokenize=False,
                 add_generation_prompt=True,
-                enable_thinking=args.enable_thinking
             )
 
             response = stream_generate_answer(
@@ -286,7 +282,6 @@ def main():
                 temperature=args.temperature,
                 repetition_penalty=args.repetition_penalty,
                 stop_str=stop_str,
-                enable_thinking=args.enable_thinking,
             )
             results = []
             for example, response in zip(batch, responses):
