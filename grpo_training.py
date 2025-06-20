@@ -35,6 +35,9 @@ class ScriptArguments:
         default="openai/gsm8k",
         metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
+    train_file_dir: Optional[str] = field(
+        default=None, metadata={"help": "Directory containing training files for local datasets."}
+    )
     train_samples: Optional[int] = field(default=-1, metadata={"help": "Number of samples to train on, -1 for all"})
     subset_name: Optional[str] = field(default="main",
                                        metadata={"help": "Subset name, e.g., 'default', 'main'. default is 'default'"})
@@ -182,7 +185,13 @@ def grpo_train(
         tokenizer.pad_token = tokenizer.eos_token
 
     # Load datasets
-    dataset = load_dataset(script_args.dataset_name, script_args.subset_name, split=script_args.dataset_splits)
+    if script_args.train_file_dir and os.path.exists(script_args.train_file_dir):
+        # Load from local directory
+        dataset = load_dataset("json", data_dir=script_args.train_file_dir, split="train")
+    else:
+        # Load from HuggingFace hub
+        dataset = load_dataset(script_args.dataset_name, script_args.subset_name, split=script_args.dataset_splits)
+
     if script_args.train_samples > 0:
         dataset = dataset.shuffle(seed=42).select(range(script_args.train_samples))
 
@@ -218,7 +227,8 @@ def grpo_train(
     ddp = world_size != 1
     if ddp:
         training_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
-        training_args.gradient_accumulation_steps = training_args.gradient_accumulation_steps // world_size
+        # Ensure gradient_accumulation_steps is at least 1 after division
+        training_args.gradient_accumulation_steps = max(training_args.gradient_accumulation_steps // world_size, 1)
 
     model_kwargs = dict(
         revision=model_args.model_revision,
