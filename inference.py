@@ -30,21 +30,17 @@ def stream_generate_answer(
         max_new_tokens=512,
         temperature=0.7,
         repetition_penalty=1.0,
-        context_len=2048,
         stop_str="</s>",
 ):
     """Generate answer from prompt with GPT and stream the output"""
     # Streamer for handling token generation
     streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
     inputs = tokenizer(prompt, return_tensors="pt")
-    input_ids = inputs["input_ids"][0]
-    attention_mask = inputs["attention_mask"][0]
-    max_src_len = context_len - max_new_tokens - 8
-    input_ids = input_ids[-max_src_len:]
-    attention_mask = attention_mask[-max_src_len:]
+    input_ids = inputs["input_ids"].to(device)
+    attention_mask = inputs["attention_mask"].to(device)
     generation_kwargs = dict(
-        input_ids=input_ids.unsqueeze(0).to(device),
-        attention_mask=attention_mask.unsqueeze(0).to(device),
+        input_ids=input_ids,
+        attention_mask=attention_mask,
         max_new_tokens=max_new_tokens,
         temperature=temperature,
         do_sample=True if temperature > 0.0 else False,
@@ -299,4 +295,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
