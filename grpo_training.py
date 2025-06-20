@@ -11,8 +11,9 @@ import re
 from datasets import load_dataset
 import torch
 from loguru import logger
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from transformers.trainer_utils import get_last_checkpoint
+from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import GRPOConfig, GRPOTrainer, ModelConfig, TrlParser
 from peft import LoraConfig, TaskType, get_peft_model
 from latex2sympy2_extended import NormalizationConfig
@@ -25,7 +26,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 @dataclass
 class ScriptArguments:
     """
-    The name of the Casual LM model we wish to fine with DPO
+    The name of the Casual LM model we wish to fine with GRPO
     """
     tokenizer_name_or_path: Optional[str] = field(
         default=None, metadata={"help": "The tokenizer for weights initialization."}
@@ -44,6 +45,8 @@ class ScriptArguments:
     dataset_splits: Optional[str] = field(default="train", metadata={"help": "Split name"})
     preprocessing_num_workers: Optional[int] = field(default=10,
                                                      metadata={"help": "Number of workers for preprocessing"})
+    # QLoRA arguments
+    qlora: bool = field(default=False, metadata={"help": "Whether to use qlora"})
 
 
 def normalize_text(text):
@@ -139,9 +142,15 @@ def get_checkpoint(training_args: GRPOConfig):
     return last_checkpoint
 
 
-def find_all_linear_names(peft_model):
+def find_all_linear_names(peft_model, int4=False, int8=False):
     """Find all linear layer names in the model. reference from qlora paper."""
     cls = torch.nn.Linear
+    if int4 or int8:
+        import bitsandbytes as bnb
+        if int4:
+            cls = bnb.nn.Linear4bit
+        elif int8:
+            cls = bnb.nn.Linear8bitLt
     lora_module_names = set()
     for name, module in peft_model.named_modules():
         if isinstance(module, cls):
@@ -229,18 +238,84 @@ def grpo_train(
         training_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
         # Ensure gradient_accumulation_steps is at least 1 after division
         training_args.gradient_accumulation_steps = max(training_args.gradient_accumulation_steps // world_size, 1)
+    else:
+        training_args.device_map = "auto"
+
+    # Check for QLoRA compatibility
+    if script_args.qlora and is_deepspeed_zero3_enabled():
+        logger.warning("ZeRO3 are both currently incompatible with QLoRA.")
+
+    # Check quantization settings
+    if model_args.load_in_4bit and model_args.load_in_8bit:
+        raise ValueError("Error, load_in_4bit and load_in_8bit cannot be set at the same time")
+
+    # Set up quantization config
+    quantization_config = None
+    if script_args.qlora and (model_args.load_in_4bit or model_args.load_in_8bit):
+        if is_main_process:
+            logger.info(
+                f"Quantizing model, load_in_4bit: {model_args.load_in_4bit}, load_in_8bit: {model_args.load_in_8bit}")
+        if is_deepspeed_zero3_enabled():
+            raise ValueError("DeepSpeed ZeRO-3 is incompatible with quantization.")
+
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=model_args.load_in_4bit,
+            load_in_8bit=model_args.load_in_8bit,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch_dtype,
+        )
+    elif model_args.load_in_4bit or model_args.load_in_8bit:
+        # Support quantization even without qlora flag
+        if is_main_process:
+            logger.info(
+                f"Quantizing model, load_in_4bit: {model_args.load_in_4bit}, load_in_8bit: {model_args.load_in_8bit}")
+        if is_deepspeed_zero3_enabled():
+            raise ValueError("DeepSpeed ZeRO-3 is incompatible with quantization.")
+
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=model_args.load_in_4bit,
+            load_in_8bit=model_args.load_in_8bit,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch_dtype,
+        )
+
+    num_gpus = torch.cuda.device_count()
+    if ddp:
+        device_map = training_args.device_map
+    elif num_gpus > 1:
+        device_map = "auto"
+    else:
+        device_map = "auto"
 
     model_kwargs = dict(
         revision=model_args.model_revision,
         trust_remote_code=model_args.trust_remote_code,
         attn_implementation=model_args.attn_implementation,
         torch_dtype=torch_dtype,
-        device_map=training_args.device_map if ddp else "auto",
+        device_map=device_map,
+        low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
+        quantization_config=quantization_config,
     )
+
+    if is_main_process:
+        logger.info(f"Using {num_gpus} GPUs")
+        logger.info(f"Device_map={device_map}")
+
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         **model_kwargs,
     )
+
+    if is_main_process and hasattr(model, 'hf_device_map'):
+        logger.info(f"Model Device Map: {model.hf_device_map.items()}")
+    elif is_main_process and num_gpus > 1:
+        logger.info("Model Device Map:")
+        for name, param in model.named_parameters():
+            if hasattr(param, 'device'):
+                logger.info(f"  {name}: {param.device}")
+                break
 
     # Configure LoRA if enabled
     if model_args.use_peft:
@@ -250,8 +325,8 @@ def grpo_train(
             logger.warning("Gradient checkpointing is enabled. It may cause issues with LoRA, setting it to False.")
             training_args.gradient_checkpointing = False
         target_modules = model_args.lora_target_modules if model_args.lora_target_modules else None
-        if target_modules == 'all' or 'all' in target_modules:
-            target_modules = find_all_linear_names(model)
+        if target_modules == 'all' or (target_modules and 'all' in target_modules):
+            target_modules = find_all_linear_names(model, int4=model_args.load_in_4bit, int8=model_args.load_in_8bit)
         if is_main_process:
             logger.info(f"Peft target_modules: {target_modules}, lora rank: {model_args.lora_r}, ")
         peft_config = LoraConfig(
@@ -263,11 +338,13 @@ def grpo_train(
             lora_dropout=model_args.lora_dropout,
         )
         model = get_peft_model(model, peft_config)
+        # Fixed FP16 ValueError for quantized models
         for param in filter(lambda p: p.requires_grad, model.parameters()):
             param.data = param.data.to(torch.float32)
         model.print_trainable_parameters()
     else:
-        logger.info("Fine-tuning method: Full parameters training")
+        if is_main_process:
+            logger.info("Fine-tuning method: Full parameters training")
 
     if training_args.gradient_checkpointing and getattr(model, "supports_gradient_checkpointing", False):
         model.gradient_checkpointing_enable()
