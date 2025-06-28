@@ -45,6 +45,14 @@ from tqdm.auto import tqdm
 from accelerate import Accelerator
 from accelerate.utils import set_seed as accelerate_set_seed
 
+is_flash_attn_2_available = False
+try:
+    from flash_attn import flash_attn_func, flash_attn_varlen_func
+    from flash_attn.bert_padding import pad_input, unpad_input
+
+    is_flash_attn_2_available = True
+except ImportError:
+    is_flash_attn_2_available = False
 from template import get_conv_template
 
 
@@ -63,6 +71,10 @@ class ModelArguments:
     device_map: Optional[str] = field(default="auto")
     trust_remote_code: bool = field(default=True)
     rope_scaling: Optional[Literal["linear", "dynamic"]] = field(default=None)
+    flash_attn: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Enable FlashAttention-2 for faster training."}
+    )
 
 
 @dataclass
@@ -417,12 +429,19 @@ def main():
     elif model_args.load_in_8bit:
         quantization_config = BitsAndBytesConfig(load_in_8bit=True)
 
-    config = AutoConfig.from_pretrained(
-        model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        trust_remote_code=model_args.trust_remote_code,
-    )
+    config_kwargs = {
+        "trust_remote_code": model_args.trust_remote_code,
+        "cache_dir": model_args.cache_dir,
+        "revision": model_args.model_revision,
+        "hf_hub_token": model_args.hf_hub_token,
+    }
+    if model_args.flash_attn:
+        if is_flash_attn_2_available:
+            config_kwargs["use_flash_attention_2"] = True
+            logger.info("Using FlashAttention-2 for faster training and inference.")
+        else:
+            logger.warning("FlashAttention-2 is not installed.")
+    config = AutoConfig.from_pretrained(model_args.model_name_or_path, **config_kwargs)
 
     # 检测GPU使用情况并优化内存配置
     total_memory = 0
