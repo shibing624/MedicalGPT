@@ -347,6 +347,13 @@ def check_and_optimize_memory():
         logger.info("✅ 启用内存高效注意力机制")
 
 
+def get_unwrapped_model(model):
+    """获取未包装的原始模型，无论它是否被DDP包装"""
+    if hasattr(model, "module"):
+        return model.module
+    return model
+
+
 def main():
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     parser = HfArgumentParser((ModelArguments, DataArguments, Seq2SeqTrainingArguments, ScriptArguments))
@@ -825,13 +832,27 @@ def main():
     # 启用梯度检查点
     if training_args.gradient_checkpointing and getattr(model, "supports_gradient_checkpointing", False):
         model.gradient_checkpointing_enable()
-        model.config.use_cache = False
-        logger.info("Gradient checkpointing enabled.")
+        # 对于DDP包装的模型，需要通过module访问原始模型的config
+        if hasattr(model, "module"):
+            model.module.config.use_cache = False
+            logger.info("Gradient checkpointing enabled for DDP model.")
+        else:
+            model.config.use_cache = False
+            logger.info("Gradient checkpointing enabled.")
     else:
-        model.config.use_cache = True
-        logger.info("Gradient checkpointing disabled.")
+        # 同样，对于DDP包装的模型，需要通过module访问原始模型的config
+        if hasattr(model, "module"):
+            model.module.config.use_cache = True
+            logger.info("Gradient checkpointing disabled for DDP model.")
+        else:
+            model.config.use_cache = True
+            logger.info("Gradient checkpointing disabled.")
 
-    model.enable_input_require_grads()
+    # 对于DDP包装的模型，需要通过module访问原始模型的方法
+    if hasattr(model, "module"):
+        model.module.enable_input_require_grads()
+    else:
+        model.enable_input_require_grads()
 
     logger.info("🎉 Accelerate多GPU训练配置成功！")
 
@@ -972,21 +993,17 @@ def main():
         # 保存最终模型
         logger.info(f"保存最终模型到: {training_args.output_dir}")
 
+        # 在训练结束后，恢复模型的use_cache设置
+        unwrapped = get_unwrapped_model(model)
+        unwrapped.config.use_cache = True
+        unwrapped.enable_input_require_grads()
+
+        # 保存模型时也需要考虑DDP包装
         if model_is_distributed:
             # 分布式模型直接保存
             logger.info("🔧 保存分布式模型...")
             model.save_pretrained(training_args.output_dir)
             tokenizer.save_pretrained(training_args.output_dir)
-
-            # 保存训练状态
-            torch.save({
-                'optimizer': optimizer.state_dict(),
-                'lr_scheduler': lr_scheduler.state_dict() if lr_scheduler else None,
-                'completed_steps': completed_steps,
-                'training_args': training_args,
-            }, os.path.join(training_args.output_dir, 'training_state.pt'))
-
-            logger.info("✅ 分布式模型保存完成")
         else:
             # 标准Accelerate保存
             accelerator.wait_for_everyone()
