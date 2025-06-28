@@ -234,12 +234,6 @@ def grpo_train(
     # Set up distributed training config
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     ddp = world_size != 1
-    if ddp:
-        training_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
-        # Ensure gradient_accumulation_steps is at least 1 after division
-        training_args.gradient_accumulation_steps = max(training_args.gradient_accumulation_steps // world_size, 1)
-    else:
-        training_args.device_map = "auto"
 
     # Check for QLoRA compatibility
     if script_args.qlora and is_deepspeed_zero3_enabled():
@@ -281,27 +275,37 @@ def grpo_train(
             bnb_4bit_compute_dtype=torch_dtype,
         )
 
-    num_gpus = torch.cuda.device_count()
-    if ddp:
-        device_map = training_args.device_map
-    elif num_gpus > 1:
-        device_map = "auto"
-    else:
-        device_map = "auto"
-
     model_kwargs = dict(
         revision=model_args.model_revision,
         trust_remote_code=model_args.trust_remote_code,
         attn_implementation=model_args.attn_implementation,
         torch_dtype=torch_dtype,
-        device_map=device_map,
         low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
         quantization_config=quantization_config,
     )
 
+    num_gpus = torch.cuda.device_count()
+    if ddp:
+        device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
+        model_kwargs["device_map"] = device_map
+        # Ensure gradient_accumulation_steps is at least 1 after division
+        training_args.gradient_accumulation_steps = max(training_args.gradient_accumulation_steps // world_size, 1)
+    elif num_gpus > 1:
+        max_memory = {}
+        for i in range(num_gpus):
+            gpu_props = torch.cuda.get_device_properties(i)
+            total_mem = gpu_props.total_memory
+            # 预留20%内存给训练时的梯度、优化器状态等
+            usable_mem = int(total_mem * 0.8)
+            max_memory[i] = f"{usable_mem // (1024 ** 3)}GiB"
+        model_kwargs["max_memory"] = max_memory
+        model_kwargs["device_map"] = "auto"
+    else:
+        model_kwargs["device_map"] = "auto"
+
     if is_main_process:
         logger.info(f"Using {num_gpus} GPUs")
-        logger.info(f"Device_map={device_map}")
+        logger.info(f"model_kwargs={model_kwargs}")
 
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,

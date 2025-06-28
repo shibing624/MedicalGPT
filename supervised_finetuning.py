@@ -701,9 +701,9 @@ def main():
                         max_memory[i] = f"{usable_mem // (1024 ** 3)}GiB"
 
                     model_kwargs["max_memory"] = max_memory
-                    logger.info(f"🔧 大模型训练配置:")
-                    logger.info(f"  device_map: auto")
-                    logger.info(f"  max_memory: {max_memory}")
+
+            logger.info(f"🔧 大模型训练配置:")
+            logger.info(f"  model_kwargs: {model_kwargs}")
 
             model = AutoModelForCausalLM.from_pretrained(
                 model_args.model_name_or_path,
