@@ -67,8 +67,10 @@ class ModelArguments:
 
 @dataclass
 class DataArguments:
-    dataset_name: Optional[str] = field(default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."})
-    dataset_config_name: Optional[str] = field(default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."})
+    dataset_name: Optional[str] = field(default=None,
+                                        metadata={"help": "The name of the dataset to use (via the datasets library)."})
+    dataset_config_name: Optional[str] = field(default=None, metadata={
+        "help": "The configuration name of the dataset to use (via the datasets library)."})
     train_file_dir: str = field(default=None, metadata={"help": "Path to the training data."})
     validation_file_dir: str = field(default=None, metadata={"help": "Path to the validation data."})
     max_train_samples: Optional[int] = field(default=None)
@@ -92,6 +94,11 @@ class ScriptArguments:
     qlora: bool = field(default=False)
     model_max_length: int = field(default=2048)
     template_name: Optional[str] = field(default="vicuna")
+    # 添加参数控制是否使用张量并行
+    use_tensor_parallel: bool = field(
+        default=False,
+        metadata={"help": "Whether to use tensor parallelism for large models"}
+    )
 
 
 def find_all_linear_names(model, int4=False, int8=False):
@@ -115,6 +122,7 @@ def find_all_linear_names(model, int4=False, int8=False):
             lora_module_names.add(names[0] if len(names) == 1 else names[-1])
     return sorted(lora_module_names)
 
+
 def save_model(model, tokenizer, output_dir):
     """Save the model and the tokenizer."""
     os.makedirs(output_dir, exist_ok=True)
@@ -123,6 +131,7 @@ def save_model(model, tokenizer, output_dir):
     model_to_save = model.module if hasattr(model, "module") else model
     model_to_save.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
+
 
 def print_trainable_parameters(model):
     """
@@ -137,6 +146,7 @@ def print_trainable_parameters(model):
     print(
         f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
     )
+
 
 def load_datasets(data_args, model_args):
     """Load datasets from files or HuggingFace hub"""
@@ -187,6 +197,7 @@ def load_datasets(data_args, model_args):
 
     logger.info(f"Raw datasets: {raw_datasets}")
     return raw_datasets
+
 
 def create_preprocess_function(tokenizer, prompt_template, script_args, IGNORE_INDEX):
     """Create preprocessing function for datasets"""
@@ -275,9 +286,11 @@ def create_preprocess_function(tokenizer, prompt_template, script_args, IGNORE_I
 
     return preprocess_function
 
+
 def filter_empty_labels(example, IGNORE_INDEX):
     """Remove empty labels dataset."""
     return not all(label == IGNORE_INDEX for label in example["labels"])
+
 
 def check_and_optimize_memory():
     """检查并优化GPU内存使用"""
@@ -293,9 +306,9 @@ def check_and_optimize_memory():
     num_gpus = torch.cuda.device_count()
     for i in range(num_gpus):
         props = torch.cuda.get_device_properties(i)
-        total_memory = props.total_memory / 1024**3
-        allocated = torch.cuda.memory_allocated(i) / 1024**3
-        cached = torch.cuda.memory_reserved(i) / 1024**3
+        total_memory = props.total_memory / 1024 ** 3
+        allocated = torch.cuda.memory_allocated(i) / 1024 ** 3
+        cached = torch.cuda.memory_reserved(i) / 1024 ** 3
         free = total_memory - allocated - cached
 
         logger.info(f"GPU {i} ({props.name}):")
@@ -327,7 +340,8 @@ def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, Seq2SeqTrainingArguments, ScriptArguments))
 
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
-        model_args, data_args, training_args, script_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, script_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1]))
     else:
         model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses(look_for_args_file=False)
 
@@ -417,12 +431,13 @@ def main():
         logger.info(f"检测到 {num_gpus} 个GPU")
 
         for i in range(num_gpus):
-            gpu_memory = torch.cuda.get_device_properties(i).total_memory / 1024**3
-            allocated = torch.cuda.memory_allocated(i) / 1024**3
-            cached = torch.cuda.memory_reserved(i) / 1024**3
+            gpu_memory = torch.cuda.get_device_properties(i).total_memory / 1024 ** 3
+            allocated = torch.cuda.memory_allocated(i) / 1024 ** 3
+            cached = torch.cuda.memory_reserved(i) / 1024 ** 3
             free = gpu_memory - allocated
             total_memory += gpu_memory
-            logger.info(f"GPU {i}: 总内存={gpu_memory:.1f}GB, 已分配={allocated:.1f}GB, 缓存={cached:.1f}GB, 可用={free:.1f}GB")
+            logger.info(
+                f"GPU {i}: 总内存={gpu_memory:.1f}GB, 已分配={allocated:.1f}GB, 缓存={cached:.1f}GB, 可用={free:.1f}GB")
 
         logger.info(f"总GPU内存: {total_memory:.1f}GB")
 
@@ -430,63 +445,59 @@ def main():
         torch.cuda.empty_cache()
         logger.info("已清理GPU缓存")
 
-    # 智能选择加载策略 - 针对大模型优化
-    load_strategy = "auto"
-    use_device_map = True
-    num_gpus = torch.cuda.device_count()
-
     # 估算模型大小（粗略估算）
     estimated_model_size_gb = 0
     if hasattr(config, 'num_parameters'):
         # 如果配置中有参数数量信息
-        estimated_model_size_gb = config.num_parameters * 2 / 1024**3  # 假设fp16
+        estimated_model_size_gb = config.num_parameters * 2 / 1024 ** 3  # 假设fp16
     else:
         # 根据模型名称粗略估算
         model_name_lower = model_args.model_name_or_path.lower()
         if '70b' in model_name_lower or '72b' in model_name_lower:
             estimated_model_size_gb = 140  # 70B模型大约140GB
         elif '32b' in model_name_lower or '34b' in model_name_lower:
-            estimated_model_size_gb = 64   # 32B模型大约64GB
+            estimated_model_size_gb = 64  # 32B模型大约64GB
         elif '13b' in model_name_lower or '14b' in model_name_lower:
-            estimated_model_size_gb = 26   # 13B模型大约26GB
+            estimated_model_size_gb = 26  # 13B模型大约26GB
         elif '7b' in model_name_lower or '8b' in model_name_lower:
-            estimated_model_size_gb = 14   # 7B模型大约14GB
+            estimated_model_size_gb = 14  # 7B模型大约14GB
         elif '3b' in model_name_lower:
-            estimated_model_size_gb = 6    # 3B模型大约6GB
+            estimated_model_size_gb = 6  # 3B模型大约6GB
         else:
-            estimated_model_size_gb = 10   # 默认估算
+            estimated_model_size_gb = 10  # 默认估算
 
     logger.info(f"估算模型大小: {estimated_model_size_gb:.1f}GB")
 
-    # 根据模型大小和GPU数量选择策略
-    if num_gpus > 1:
-        if estimated_model_size_gb > total_memory * 0.8:
-            logger.error(f"❌ 模型太大({estimated_model_size_gb:.1f}GB)，总GPU内存不足({total_memory:.1f}GB)")
-            logger.error("建议: 1. 使用更强的量化 2. 使用更多GPU 3. 使用模型并行")
-            if not (model_args.load_in_4bit or model_args.load_in_8bit):
-                logger.error("强烈建议启用4bit量化: --load_in_4bit")
+    # 根据模型大小和GPU数量以及用户选择决定使用DDP还是张量并行
+    num_gpus = torch.cuda.device_count()
+    is_distributed = accelerator.num_processes > 1
 
-        # 大模型使用张量并行
-        if estimated_model_size_gb > 50:  # 50GB以上的大模型
-            logger.info(f"🔧 大模型({estimated_model_size_gb:.1f}GB)检测，使用张量并行策略")
-            load_strategy = "auto"  # 让transformers自动分配
-            use_device_map = True
+    # 智能选择加载策略
+    if is_distributed:
+        if script_args.use_tensor_parallel and estimated_model_size_gb > 20:
+            # 用户选择使用张量并行且模型足够大
+            logger.info(f"🔧 使用张量并行策略 (模型大小: {estimated_model_size_gb:.1f}GB)")
+            use_tensor_parallel = True
+
+            # 检查PyTorch版本是否支持张量并行
+            import pkg_resources
+            torch_version = pkg_resources.get_distribution("torch").version
+            if pkg_resources.parse_version(torch_version) < pkg_resources.parse_version("2.5.0"):
+                logger.warning(f"⚠️ 当前PyTorch版本 {torch_version} 不支持张量并行，需要 >= 2.5.0")
+                logger.warning("⚠️ 自动切换到DDP模式")
+                use_tensor_parallel = False
+            else:
+                logger.info(f"✅ PyTorch版本 {torch_version} 支持张量并行")
         else:
-            logger.info(f"🔧 中等模型({estimated_model_size_gb:.1f}GB)，使用标准多GPU策略")
-            load_strategy = "auto"
-            use_device_map = True
+            # 使用DDP
+            logger.info(f"🔧 使用DDP进行多GPU训练 (模型大小: {estimated_model_size_gb:.1f}GB)")
+            use_tensor_parallel = False
     else:
-        # 单GPU环境
-        if estimated_model_size_gb > 20:  # 单GPU无法容纳的大模型
-            logger.warning(f"⚠️ 单GPU环境加载大模型({estimated_model_size_gb:.1f}GB)")
-            if not (model_args.load_in_4bit or model_args.load_in_8bit):
-                logger.error("❌ 必须启用量化: --load_in_4bit 或 --load_in_8bit")
-                raise ValueError("大模型在单GPU环境下必须启用量化")
-        use_device_map = model_args.load_in_4bit or model_args.load_in_8bit
-        if not use_device_map:
-            logger.info("单GPU非量化模式，让Accelerate处理设备分配")
+        # 单进程，可以使用device_map="auto"
+        logger.info("🔧 单进程训练")
+        use_tensor_parallel = True
 
-    # 加载模型 - 针对大模型优化
+    # 加载模型 - 根据选择的并行策略配置
     model_kwargs = {
         "config": config,
         "torch_dtype": torch_dtype,
@@ -495,37 +506,53 @@ def main():
         "low_cpu_mem_usage": True,  # 减少CPU内存使用
     }
 
-    # 设置device_map
-    if use_device_map:
-        if num_gpus > 1 and estimated_model_size_gb > 50:
-            # 大模型多GPU：使用auto进行张量并行
-            model_kwargs["device_map"] = "auto"
-            # 设置最大内存使用
+    if use_tensor_parallel:
+        # 张量并行配置
+        model_kwargs["device_map"] = "auto"
+
+        # 如果是多GPU环境，设置max_memory
+        if num_gpus > 1:
             max_memory = {}
             for i in range(num_gpus):
-                # 为每个GPU预留一些内存给梯度和优化器
                 gpu_props = torch.cuda.get_device_properties(i)
                 total_mem = gpu_props.total_memory
                 # 预留20%内存给训练时的梯度、优化器状态等
                 usable_mem = int(total_mem * 0.8)
-                max_memory[i] = f"{usable_mem // (1024**3)}GiB"
+                max_memory[i] = f"{usable_mem // (1024 ** 3)}GiB"
 
             model_kwargs["max_memory"] = max_memory
-            logger.info(f"🔧 大模型张量并行配置:")
+            logger.info(f"🔧 张量并行配置:")
             logger.info(f"  device_map: auto")
             logger.info(f"  max_memory: {max_memory}")
-        else:
-            model_kwargs["device_map"] = load_strategy
-            logger.info(f"🔧 使用device_map={load_strategy}")
     else:
-        logger.info("🔧 不使用device_map，让Accelerate处理设备分配")
+        # DDP配置 - 不使用device_map
+        logger.info("🔧 DDP配置: 不使用device_map")
+        # 对于DDP，不设置device_map，让Accelerate处理设备分配
 
-    model = AutoModelForCausalLM.from_pretrained(
-        model_args.model_name_or_path,
-        **model_kwargs
-    )
+    # 加载模型
+    try:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_args.model_name_or_path,
+            **model_kwargs
+        )
+        logger.info("✅ 模型加载完成")
+    except OSError as e:
+        if "tensor parallel is only supported for" in str(e):
+            logger.error(f"❌ 张量并行加载失败: {e}")
+            logger.info("🔄 尝试使用DDP模式重新加载...")
+            # 移除张量并行相关配置
+            if "device_map" in model_kwargs:
+                del model_kwargs["device_map"]
+            if "max_memory" in model_kwargs:
+                del model_kwargs["max_memory"]
 
-    logger.info("✅ 模型加载完成")
+            model = AutoModelForCausalLM.from_pretrained(
+                model_args.model_name_or_path,
+                **model_kwargs
+            )
+            logger.info("✅ 使用DDP模式加载模型成功")
+        else:
+            raise
 
     # 显示模型分布信息
     logger.info("📊 模型分布情况:")
@@ -557,7 +584,7 @@ def main():
 
         logger.info("📈 参数设备分布:")
         for device, info in device_params.items():
-            param_size_gb = info['size'] * 4 / 1024**3  # 假设float32
+            param_size_gb = info['size'] * 4 / 1024 ** 3  # 假设float32
             percentage = info['size'] / total_params * 100
             logger.info(f"  {device}: {info['count']} 个参数组, {param_size_gb:.2f}GB ({percentage:.1f}%)")
 
@@ -565,9 +592,9 @@ def main():
     if torch.cuda.is_available():
         logger.info("💾 GPU内存使用情况:")
         for i in range(torch.cuda.device_count()):
-            allocated = torch.cuda.memory_allocated(i) / 1024**3
-            cached = torch.cuda.memory_reserved(i) / 1024**3
-            total = torch.cuda.get_device_properties(i).total_memory / 1024**3
+            allocated = torch.cuda.memory_allocated(i) / 1024 ** 3
+            cached = torch.cuda.memory_reserved(i) / 1024 ** 3
+            total = torch.cuda.get_device_properties(i).total_memory / 1024 ** 3
             logger.info(f"  GPU {i}: 已分配={allocated:.1f}GB, 缓存={cached:.1f}GB, 总计={total:.1f}GB")
 
     # 配置PEFT
@@ -737,7 +764,7 @@ def main():
             num_training_steps=max_train_steps,
         )
 
-    # 使用Accelerate准备所有组件 - 针对张量并行优化
+    # 使用Accelerate准备所有组件 - 针对不同并行策略优化
     logger.info("🔄 开始准备训练组件...")
 
     # 检查模型是否已经分布在多个设备上
@@ -895,9 +922,9 @@ def main():
 
                     # 定期评估
                     if (training_args.do_eval and
-                        training_args.eval_steps > 0 and
-                        completed_steps % training_args.eval_steps == 0 and
-                        eval_dataloader is not None):
+                            training_args.eval_steps > 0 and
+                            completed_steps % training_args.eval_steps == 0 and
+                            eval_dataloader is not None):
 
                         logger.info("*** 开始评估 ***")
                         model.eval()
@@ -916,7 +943,8 @@ def main():
                         except OverflowError:
                             perplexity = float("inf")
 
-                        logger.info(f"Step {completed_steps}: eval_loss = {avg_eval_loss:.4f}, perplexity = {perplexity:.2f}")
+                        logger.info(
+                            f"Step {completed_steps}: eval_loss = {avg_eval_loss:.4f}, perplexity = {perplexity:.2f}")
                         model.train()
 
         progress_bar.close()

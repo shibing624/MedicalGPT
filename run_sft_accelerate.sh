@@ -19,7 +19,7 @@ accelerate launch --num_processes=2 supervised_finetuning_accelerate.py \
     --logging_strategy steps \
     --logging_steps 10 \
     --eval_steps 50 \
-    --evaluation_strategy steps \
+    --eval_strategy steps \
     --save_steps 500 \
     --save_strategy steps \
     --save_total_limit 13 \
@@ -39,4 +39,4 @@ accelerate launch --num_processes=2 supervised_finetuning_accelerate.py \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
     --gradient_checkpointing True \
-    --cache_dir ./cache
+    --cache_dir ./cache --flash_attn True
