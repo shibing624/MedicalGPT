@@ -286,13 +286,50 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
     return sorted(lora_module_names)
 
 
+def check_and_optimize_memory():
+    """检查并优化GPU内存使用"""
+    if not torch.cuda.is_available():
+        return
+
+    logger.info("🔍 检查GPU内存状态...")
+
+    # 清理缓存
+    torch.cuda.empty_cache()
+
+    # 检查每个GPU的内存状态
+    num_gpus = torch.cuda.device_count()
+    for i in range(num_gpus):
+        props = torch.cuda.get_device_properties(i)
+        total_memory = props.total_memory / 1024 ** 3
+        allocated = torch.cuda.memory_allocated(i) / 1024 ** 3
+        cached = torch.cuda.memory_reserved(i) / 1024 ** 3
+        free = total_memory - allocated - cached
+
+        logger.info(f"GPU {i} ({props.name}):")
+        logger.info(f"  总内存: {total_memory:.1f}GB")
+        logger.info(f"  已分配: {allocated:.1f}GB")
+        logger.info(f"  已缓存: {cached:.1f}GB")
+        logger.info(f"  可用: {free:.1f}GB")
+
+    # 设置内存优化选项
+    if hasattr(torch.backends.cuda, 'enable_flash_sdp'):
+        torch.backends.cuda.enable_flash_sdp(True)
+        logger.info("✅ 启用Flash Attention优化")
+
+    # 启用内存高效的注意力机制
+    if hasattr(torch.backends.cuda, 'enable_mem_efficient_sdp'):
+        torch.backends.cuda.enable_mem_efficient_sdp(True)
+        logger.info("✅ 启用内存高效注意力机制")
+
+
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, Seq2SeqTrainingArguments, ScriptArguments))
-    
+
     # 使用 parse_args_into_dataclasses 时忽略未知参数
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # 如果我们传递了一个 JSON 文件，让我们用它来配置参数
-        model_args, data_args, training_args, script_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, script_args = parser.parse_json_file(
+            json_file=os.path.abspath(sys.argv[1]))
     else:
         # 否则解析命令行参数，忽略未知参数
         model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses(look_for_args_file=False)
@@ -615,6 +652,7 @@ def main():
 
         load_in_4bit = model_args.load_in_4bit
         load_in_8bit = model_args.load_in_8bit
+        quantization_config = None
         if load_in_4bit and load_in_8bit:
             raise ValueError("Error, load_in_4bit and load_in_8bit cannot be set at the same time")
         elif load_in_8bit or load_in_4bit:
@@ -622,28 +660,100 @@ def main():
             if is_deepspeed_zero3_enabled():
                 raise ValueError("DeepSpeed ZeRO-3 is incompatible with quantization.")
             if load_in_8bit:
-                config_kwargs['quantization_config'] = BitsAndBytesConfig(load_in_8bit=True)
+                quantization_config = BitsAndBytesConfig(load_in_8bit=True)
             elif load_in_4bit:
                 if script_args.qlora:
-                    config_kwargs['quantization_config'] = BitsAndBytesConfig(
+                    quantization_config = BitsAndBytesConfig(
                         load_in_4bit=True,
-                        bnb_4bit_use_double_quant=True,
-                        bnb_4bit_quant_type="nf4",
                         bnb_4bit_compute_dtype=torch_dtype,
+                        bnb_4bit_use_double_quant=True,
+                        bnb_4bit_quant_type="nf4"
                     )
                 else:
-                    config_kwargs['quantization_config'] = BitsAndBytesConfig(
+                    quantization_config = BitsAndBytesConfig(
                         load_in_4bit=True,
                         bnb_4bit_compute_dtype=torch_dtype,
                     )
 
-        model = AutoModelForCausalLM.from_pretrained(
-            model_args.model_name_or_path,
-            config=config,
-            torch_dtype=torch_dtype,
-            device_map=model_args.device_map,
-            **config_kwargs,
-        )
+            model_kwargs = {
+                "config": config,
+                "torch_dtype": torch_dtype,
+                "trust_remote_code": model_args.trust_remote_code,
+                "quantization_config": quantization_config,
+                "low_cpu_mem_usage": True,  # 减少CPU内存使用
+                "device_map": model_args.device_map,
+            }
+
+            # 设置device_map
+            num_gpus = torch.cuda.device_count()
+            if model_args.device_map == 'auto':
+                if num_gpus > 1 and not ddp:
+                    # 大模型多GPU：使用auto进行张量并行
+                    model_kwargs["device_map"] = "auto"
+                    # 设置最大内存使用
+                    max_memory = {}
+                    for i in range(num_gpus):
+                        # 为每个GPU预留一些内存给梯度和优化器
+                        gpu_props = torch.cuda.get_device_properties(i)
+                        total_mem = gpu_props.total_memory
+                        # 预留20%内存给训练时的梯度、优化器状态等
+                        usable_mem = int(total_mem * 0.8)
+                        max_memory[i] = f"{usable_mem // (1024 ** 3)}GiB"
+
+                    model_kwargs["max_memory"] = max_memory
+                    logger.info(f"🔧 大模型训练配置:")
+                    logger.info(f"  device_map: auto")
+                    logger.info(f"  max_memory: {max_memory}")
+
+            model = AutoModelForCausalLM.from_pretrained(
+                model_args.model_name_or_path,
+                **model_kwargs
+            )
+
+            logger.info("✅ 模型加载完成")
+
+            # 显示模型分布信息
+            logger.info("📊 模型分布情况:")
+            if hasattr(model, 'hf_device_map') and model.hf_device_map:
+                logger.info("🔧 使用HuggingFace设备映射:")
+                for module_name, device in model.hf_device_map.items():
+                    logger.info(f"  {module_name}: {device}")
+
+                # 统计每个GPU上的模块数量
+                device_count = {}
+                for device in model.hf_device_map.values():
+                    device_str = str(device)
+                    device_count[device_str] = device_count.get(device_str, 0) + 1
+
+                logger.info("📈 设备使用统计:")
+                for device, count in device_count.items():
+                    logger.info(f"  {device}: {count} 个模块")
+            else:
+                # 检查模型参数的设备分布
+                device_params = {}
+                total_params = 0
+                for name, param in model.named_parameters():
+                    device = str(param.device)
+                    if device not in device_params:
+                        device_params[device] = {'count': 0, 'size': 0}
+                    device_params[device]['count'] += 1
+                    device_params[device]['size'] += param.numel()
+                    total_params += param.numel()
+
+                logger.info("📈 参数设备分布:")
+                for device, info in device_params.items():
+                    param_size_gb = info['size'] * 4 / 1024 ** 3  # 假设float32
+                    percentage = info['size'] / total_params * 100
+                    logger.info(f"  {device}: {info['count']} 个参数组, {param_size_gb:.2f}GB ({percentage:.1f}%)")
+
+            # 显示GPU内存使用情况
+            if torch.cuda.is_available():
+                logger.info("💾 GPU内存使用情况:")
+                for i in range(torch.cuda.device_count()):
+                    allocated = torch.cuda.memory_allocated(i) / 1024 ** 3
+                    cached = torch.cuda.memory_reserved(i) / 1024 ** 3
+                    total = torch.cuda.get_device_properties(i).total_memory / 1024 ** 3
+                    logger.info(f"  GPU {i}: 已分配={allocated:.1f}GB, 缓存={cached:.1f}GB, 总计={total:.1f}GB")
 
         # Fix ChatGLM2 and ChatGLM3 and internlm2 LM head
         if getattr(config, "model_type", None) == "chatglm" or getattr(config, "model_type", None) == "internlm2":
