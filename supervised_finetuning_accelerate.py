@@ -840,15 +840,12 @@ def main():
             model.config.use_cache = False
             logger.info("Gradient checkpointing enabled.")
     else:
-        # 同样，对于DDP包装的模型，需要通过module访问原始模型的config
         if hasattr(model, "module"):
             model.module.config.use_cache = True
             logger.info("Gradient checkpointing disabled for DDP model.")
         else:
             model.config.use_cache = True
             logger.info("Gradient checkpointing disabled.")
-
-    # 对于DDP包装的模型，需要通过module访问原始模型的方法
     if hasattr(model, "module"):
         model.module.enable_input_require_grads()
     else:
@@ -965,8 +962,6 @@ def main():
                             training_args.eval_steps > 0 and
                             completed_steps % training_args.eval_steps == 0 and
                             eval_dataloader is not None):
-
-                        logger.info("*** 开始评估 ***")
                         model.eval()
                         eval_loss = 0
                         eval_steps = 0
@@ -986,12 +981,10 @@ def main():
                         logger.info(
                             f"Step {completed_steps}: eval_loss = {avg_eval_loss:.4f}, perplexity = {perplexity:.2f}")
                         model.train()
-
         progress_bar.close()
-        logger.info("✅ 训练完成")
 
-        # 保存最终模型
-        logger.info(f"保存最终模型到: {training_args.output_dir}")
+        if accelerator.is_main_process:
+            logger.info(f"保存模型到: {training_args.output_dir}")
 
         # 在训练结束后，恢复模型的use_cache设置
         unwrapped = get_unwrapped_model(model)
@@ -1032,10 +1025,8 @@ def main():
             perplexity = math.exp(avg_eval_loss)
         except OverflowError:
             perplexity = float("inf")
-
-        logger.info(f"最终评估结果: eval_loss = {avg_eval_loss:.4f}, perplexity = {perplexity:.2f}")
-
-    logger.info("🎉 所有任务完成！")
+        if accelerator.is_main_process:
+            logger.info(f"最终评估结果: eval_loss = {avg_eval_loss:.4f}, perplexity = {perplexity:.2f}")
 
 
 if __name__ == "__main__":

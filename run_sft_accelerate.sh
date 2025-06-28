@@ -20,7 +20,7 @@ accelerate launch --num_processes=2 supervised_finetuning_accelerate.py \
     --logging_steps 10 \
     --eval_steps 50 \
     --eval_strategy steps \
-    --save_steps 500 \
+    --save_steps 50 \
     --save_strategy steps \
     --save_total_limit 13 \
     --gradient_accumulation_steps 8 \
