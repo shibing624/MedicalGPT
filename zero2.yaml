@@ -6,11 +6,14 @@ deepspeed_config:
   offload_param_device: none
   zero3_init_flag: false
   zero_stage: 2
+  fp16:
+    enabled: auto
+  bf16:
+    enabled: auto
 distributed_type: DEEPSPEED
 downcast_bf16: 'no'
 machine_rank: 0
 main_training_function: main
-mixed_precision: bf16
 num_machines: 1
 num_processes: 8
 rdzv_backend: static
