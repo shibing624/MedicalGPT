@@ -21,7 +21,6 @@ import math
 import os
 from dataclasses import dataclass, field
 from glob import glob
-from itertools import chain
 from typing import Optional, List, Dict, Any, Mapping
 
 import numpy as np
@@ -168,6 +167,11 @@ class DataArguments:
     )
     keep_linebreaks: bool = field(
         default=True, metadata={"help": "Whether to keep line breaks when using TXT files or not."}
+    )
+    packing: bool = field(
+        default=True,
+        metadata={"help": "Whether to pack multiple texts into one sequence for efficient training. "
+                          "Texts are concatenated with EOS separator and split into block_size chunks."}
     )
 
     def __post_init__(self):
@@ -412,20 +416,41 @@ def main():
     def tokenize_wo_pad_function(examples):
         return tokenizer(examples["text"])
 
-    # Main data processing function that will concatenate all texts from our dataset and generate chunks of block_size.
+    # Packing function: concatenate texts with EOS separator, then split into block_size chunks
     def group_text_function(examples):
-        # Concatenate all texts.
-        concatenated_examples = {k: list(chain(*examples[k])) for k in examples.keys()}
-        total_length = len(concatenated_examples[list(examples.keys())[0]])
-        # We drop the small remainder, we could add padding if the model supported it instead of this drop, you can
-        # customize this part to your needs.
+        """
+        Packing implementation: concatenate texts with EOS separator, then split into block_size chunks
+        [doc1_ids][EOS][doc2_ids][EOS][doc3_ids][EOS]... → chunks of block_size
+        """
+        eos_token_id = tokenizer.eos_token_id
+        if eos_token_id is None:
+            eos_token_id = tokenizer.pad_token_id  # fallback
+        
+        # Concatenate all texts with EOS separator
+        all_input_ids = []
+        all_attention_mask = []
+        for i, ids in enumerate(examples["input_ids"]):
+            all_input_ids.extend(ids)
+            # Ensure each document ends with EOS
+            if len(ids) == 0 or ids[-1] != eos_token_id:
+                all_input_ids.append(eos_token_id)
+            if "attention_mask" in examples:
+                all_attention_mask.extend(examples["attention_mask"][i])
+                if len(ids) == 0 or ids[-1] != eos_token_id:
+                    all_attention_mask.append(1)
+        
+        total_length = len(all_input_ids)
+        # Drop the small remainder
         if total_length >= block_size:
             total_length = (total_length // block_size) * block_size
-        # Split by chunks of max_len.
+        
+        # Split by chunks of block_size
         result = {
-            k: [t[i: i + block_size] for i in range(0, total_length, block_size)]
-            for k, t in concatenated_examples.items()
+            "input_ids": [all_input_ids[i: i + block_size] for i in range(0, total_length, block_size)],
         }
+        if all_attention_mask:
+            result["attention_mask"] = [all_attention_mask[i: i + block_size] for i in range(0, total_length, block_size)]
+        
         result["labels"] = result["input_ids"].copy()
         return result
 
@@ -520,7 +545,7 @@ def main():
 
     with training_args.main_process_first(desc="Dataset tokenization and grouping"):
         if not data_args.streaming:
-            if training_args.group_by_length:
+            if data_args.packing:
                 tokenized_datasets = raw_datasets.map(
                     tokenize_wo_pad_function,
                     batched=True,
@@ -534,7 +559,7 @@ def main():
                     batched=True,
                     num_proc=data_args.preprocessing_num_workers,
                     load_from_cache_file=not data_args.overwrite_cache,
-                    desc=f"Grouping texts in chunks of {block_size}",
+                    desc=f"Packing texts in chunks of {block_size}",
                 )
             else:
                 lm_datasets = raw_datasets.map(
@@ -546,7 +571,7 @@ def main():
                     desc="Running tokenizer on dataset" if is_main_process else None,
                 )
         else:
-            if training_args.group_by_length:
+            if data_args.packing:
                 tokenized_datasets = raw_datasets.map(
                     tokenize_wo_pad_function,
                     batched=True,
