@@ -24,7 +24,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --gradient_accumulation_steps 8 \
     --preprocessing_num_workers 10 \
     --block_size 512 \
-    --group_by_length True \
+    --packing True \
     --output_dir outputs-pt-qwen-v1 \
     --overwrite_output_dir \
     --ddp_timeout 30000 \
