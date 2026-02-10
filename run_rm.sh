@@ -13,7 +13,7 @@ CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --max_eval_samples 10 \
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
-    --warmup_steps 50 \
+    --warmup_steps 5 \
     --weight_decay 0.001 \
     --logging_strategy steps \
     --logging_steps 10 \

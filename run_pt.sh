@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --max_eval_samples 10 \
     --num_train_epochs 0.5 \
     --learning_rate 2e-4 \
-    --warmup_steps 50 \
+    --warmup_steps 5 \
     --weight_decay 0.01 \
     --logging_strategy steps \
     --logging_steps 10 \

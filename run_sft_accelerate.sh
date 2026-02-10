@@ -14,7 +14,7 @@ accelerate launch --num_processes=2 supervised_finetuning_accelerate.py \
     --model_max_length 4096 \
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
-    --warmup_steps 50 \
+    --warmup_steps 5 \
     --weight_decay 0.05 \
     --logging_strategy steps \
     --logging_steps 10 \

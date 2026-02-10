@@ -10,7 +10,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 supervised_fine
     --per_device_eval_batch_size 2 \
     --max_train_samples -1 \
     --learning_rate 3e-5 \
-    --warmup_steps 100 \
+    --warmup_steps 10 \
     --model_max_length 2048 \
     --weight_decay 0.01 \
     --logging_strategy steps \
