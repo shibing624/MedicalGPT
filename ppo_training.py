@@ -45,7 +45,9 @@ class PPOArguments:
 
 def main():
     parser = HfArgumentParser((PPOArguments, PPOConfig, ModelConfig))
-    args, training_args, model_args = parser.parse_args_into_dataclasses()
+    args, training_args, model_args = parser.parse_args_into_dataclasses(
+        return_remaining_strings=True
+    )[:3]
 
     # Add distributed training initialization
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))

@@ -194,7 +194,7 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
 
 def main():
     parser = HfArgumentParser(ScriptArguments)
-    args = parser.parse_args_into_dataclasses()[0]
+    args = parser.parse_args_into_dataclasses(return_remaining_strings=True)[0]
     logger.info(f"Parse args: {args}")
 
     # Load tokenizer
@@ -377,7 +377,9 @@ def main():
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     ddp = world_size != 1
     if ddp:
-        args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
+        args.device_map = None
+    if args.device_map in ["None", "none", ""]:
+        args.device_map = None
     logger.info(f"Device map: {args.device_map}")
     if args.qlora and is_deepspeed_zero3_enabled():
         logger.warning("ZeRO3 are both currently incompatible with QLoRA.")

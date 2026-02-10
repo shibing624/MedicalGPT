@@ -25,6 +25,7 @@ from transformers import (
     Trainer,
     TrainingArguments,
     set_seed,
+    BitsAndBytesConfig,
 )
 from transformers.trainer import TRAINING_ARGS_NAME
 
@@ -350,7 +351,9 @@ def main():
         )
         world_size = int(os.environ.get("WORLD_SIZE", "1"))
         if world_size > 1:
-            model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
+            model_args.device_map = None
+        if model_args.device_map in ["None", "none", ""]:
+            model_args.device_map = None
         config = AutoConfig.from_pretrained(
             model_args.model_name_or_path,
             num_labels=1,
@@ -592,7 +595,7 @@ def main():
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         compute_metrics=compute_metrics,
         data_collator=RewardDataCollatorWithPadding(
             tokenizer=tokenizer, max_length=full_max_length, padding="max_length"

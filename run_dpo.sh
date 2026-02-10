@@ -24,7 +24,6 @@ CUDA_VISIBLE_DEVICES=0,1 python dpo_training.py \
     --torch_dtype bfloat16 \
     --bf16 True \
     --fp16 False \
-    --device_map auto \
     --report_to tensorboard \
     --remove_unused_columns False \
     --gradient_checkpointing True \

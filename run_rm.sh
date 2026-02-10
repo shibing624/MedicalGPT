@@ -13,7 +13,7 @@ CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --max_eval_samples 10 \
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
-    --warmup_ratio 0.05 \
+    --warmup_steps 50 \
     --weight_decay 0.001 \
     --logging_strategy steps \
     --logging_steps 10 \
@@ -34,7 +34,6 @@ CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
     --lora_dropout 0.05 \
     --bf16 \
     --torch_dtype bfloat16 \
-    --device_map auto \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
     --remove_unused_columns False \

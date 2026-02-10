@@ -286,10 +286,7 @@ def grpo_train(
 
     num_gpus = torch.cuda.device_count()
     if ddp:
-        device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
-        model_kwargs["device_map"] = device_map
-        # Ensure gradient_accumulation_steps is at least 1 after division
-        training_args.gradient_accumulation_steps = max(training_args.gradient_accumulation_steps // world_size, 1)
+        model_kwargs["device_map"] = None
     elif num_gpus > 1:
         max_memory = {}
         for i in range(num_gpus):

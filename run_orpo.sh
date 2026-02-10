@@ -20,7 +20,7 @@ CUDA_VISIBLE_DEVICES=0,1 python orpo_training.py \
     --lora_rank 8 \
     --lora_alpha 16 \
     --lora_dropout 0.05 \
-    --torch_dtype float16 \
+    --torch_dtype bfloat16 \
     --bf16 True \
     --report_to tensorboard \
     --remove_unused_columns False \

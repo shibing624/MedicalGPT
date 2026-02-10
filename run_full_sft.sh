@@ -3,7 +3,6 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 supervised_fine
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \
     --cache_dir ./model \
-    --device_map None \
     --use_peft False \
     --per_device_train_batch_size 2 \
     --do_train \
@@ -11,7 +10,7 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 supervised_fine
     --per_device_eval_batch_size 2 \
     --max_train_samples -1 \
     --learning_rate 3e-5 \
-    --warmup_ratio 0.2 \
+    --warmup_steps 100 \
     --model_max_length 2048 \
     --weight_decay 0.01 \
     --logging_strategy steps \
@@ -22,7 +21,6 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node 8 supervised_fine
     --gradient_accumulation_steps 8 \
     --preprocessing_num_workers 10 \
     --output_dir outputs-full-sft-v1 \
-    --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
     --target_modules all \

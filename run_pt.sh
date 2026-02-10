@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --max_eval_samples 10 \
     --num_train_epochs 0.5 \
     --learning_rate 2e-4 \
-    --warmup_ratio 0.05 \
+    --warmup_steps 50 \
     --weight_decay 0.01 \
     --logging_strategy steps \
     --logging_steps 10 \
@@ -26,7 +26,6 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --block_size 512 \
     --packing True \
     --output_dir outputs-pt-qwen-v1 \
-    --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
     --target_modules all \
@@ -35,7 +34,6 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 pretraining.py \
     --lora_dropout 0.05 \
     --torch_dtype bfloat16 \
     --bf16 \
-    --device_map auto \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
     --gradient_checkpointing True \

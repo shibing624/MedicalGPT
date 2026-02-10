@@ -36,7 +36,6 @@ from transformers import (
     HfArgumentParser,
     Trainer,
     Seq2SeqTrainingArguments,
-    is_torch_tpu_available,
     set_seed,
     BitsAndBytesConfig,
 )
@@ -352,7 +351,9 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
 
 def main():
     parser = HfArgumentParser((ModelArguments, DataArguments, Seq2SeqTrainingArguments, ScriptArguments))
-    model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses()
+    model_args, data_args, training_args, script_args = parser.parse_args_into_dataclasses(
+        return_remaining_strings=True
+    )[:4]
 
     # Remove the explicit distributed initialization and simplify the process check
     # The Trainer will handle distributed training setup
@@ -626,7 +627,9 @@ def main():
         world_size = int(os.environ.get("WORLD_SIZE", "1"))
         ddp = world_size != 1
         if ddp:
-            model_args.device_map = {"": training_args.local_rank}
+            model_args.device_map = None
+        if model_args.device_map in ["None", "none", ""]:
+            model_args.device_map = None
         if script_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and DeepSpeed ZeRO-3 are both currently incompatible with QLoRA.")
 
@@ -727,11 +730,11 @@ def main():
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         data_collator=fault_tolerance_data_collator,
-        compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
+        compute_metrics=compute_metrics if training_args.do_eval else None,
         preprocess_logits_for_metrics=preprocess_logits_for_metrics
-        if training_args.do_eval and not is_torch_tpu_available()
+        if training_args.do_eval
         else None,
     )
 

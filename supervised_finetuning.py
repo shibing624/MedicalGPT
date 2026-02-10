@@ -595,8 +595,9 @@ def main():
         world_size = int(os.environ.get("WORLD_SIZE", "1"))
         ddp = world_size != 1
         if ddp:
-            model_args.device_map = {"": int(os.environ.get("LOCAL_RANK", "0"))}
-            training_args.gradient_accumulation_steps = training_args.gradient_accumulation_steps // world_size or 1
+            model_args.device_map = None
+        if model_args.device_map in ["None", "none", ""]:
+            model_args.device_map = None
         if script_args.qlora and (len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled()):
             logger.warning("FSDP and DeepSpeed ZeRO-3 are both currently incompatible with QLoRA.")
 
@@ -864,7 +865,7 @@ def main():
         args=training_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         data_collator=data_collator,
     )
 

@@ -14,7 +14,7 @@ accelerate launch --num_processes=2 supervised_finetuning_accelerate.py \
     --model_max_length 4096 \
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
-    --warmup_ratio 0.05 \
+    --warmup_steps 50 \
     --weight_decay 0.05 \
     --logging_strategy steps \
     --logging_steps 10 \
@@ -26,7 +26,6 @@ accelerate launch --num_processes=2 supervised_finetuning_accelerate.py \
     --gradient_accumulation_steps 8 \
     --preprocessing_num_workers 4 \
     --output_dir outputs-sft-qwen-v1 \
-    --overwrite_output_dir \
     --ddp_timeout 30000 \
     --logging_first_step True \
     --target_modules all \
@@ -35,7 +34,6 @@ accelerate launch --num_processes=2 supervised_finetuning_accelerate.py \
     --lora_dropout 0.05 \
     --torch_dtype bfloat16 \
     --bf16 \
-    --device_map auto \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
     --gradient_checkpointing True \

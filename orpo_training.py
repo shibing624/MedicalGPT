@@ -396,10 +396,9 @@ def main():
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     ddp = world_size != 1
     if ddp:
-        args.device_map = {"": local_rank}
-        args.gradient_accumulation_steps = args.gradient_accumulation_steps // world_size
-    else:
-        args.device_map = "auto"
+        args.device_map = None
+    if args.device_map in ["None", "none", ""]:
+        args.device_map = None
     if is_main_process:
         logger.info(f"Device map: {args.device_map}")
     if args.qlora and is_deepspeed_zero3_enabled():

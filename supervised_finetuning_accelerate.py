@@ -444,7 +444,7 @@ def main():
     }
     if model_args.flash_attn:
         if is_flash_attn_2_available:
-            config_kwargs["use_flash_attention_2"] = True
+            config_kwargs["attn_implementation"] = "flash_attention_2"
             logger.info("Using FlashAttention-2 for faster training and inference.")
         else:
             logger.warning("FlashAttention-2 is not installed.")
