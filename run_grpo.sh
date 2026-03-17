@@ -11,7 +11,7 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
     --save_strategy steps \
     --save_total_limit 13 \
     --output_dir outputs-grpo-qwen-v1 \
-    --torch_dtype bfloat16 \
+    --dtype bfloat16 \
     --bf16 True \
     --report_to tensorboard \
     --remove_unused_columns False \
@@ -37,7 +37,6 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
     --per_device_eval_batch_size 1 \
     --num_generations 4 \
     --gradient_accumulation_steps 1 \
-    --max_prompt_length 16384 \
     --max_completion_length 512
 
 echo "训练完成!"

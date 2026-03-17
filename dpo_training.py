@@ -129,7 +129,7 @@ class ScriptArguments:
     lr_scheduler_type: Optional[str] = field(default="cosine", metadata={"help": "The lr scheduler type"})
     warmup_steps: Optional[int] = field(default=100, metadata={"help": "The number of warmup steps"})
     weight_decay: Optional[float] = field(default=0.05, metadata={"help": "The weight decay"})
-    optim: Optional[str] = field(default="adamw_hf", metadata={"help": "The optimizer type"})
+    optim: Optional[str] = field(default="adamw_torch", metadata={"help": "The optimizer type"})
     fp16: Optional[bool] = field(default=True, metadata={"help": "Whether to use fp16"})
     bf16: Optional[bool] = field(default=False, metadata={"help": "Whether to use bf16"})
     gradient_checkpointing: Optional[bool] = field(
@@ -386,7 +386,7 @@ def main():
     config = AutoConfig.from_pretrained(
         args.model_name_or_path,
         trust_remote_code=args.trust_remote_code,
-        torch_dtype=torch_dtype,
+        dtype=torch_dtype,
         cache_dir=args.cache_dir
     )
     if args.load_in_4bit or args.load_in_8bit:
@@ -394,7 +394,7 @@ def main():
     model = AutoModelForCausalLM.from_pretrained(
         args.model_name_or_path,
         config=config,
-        torch_dtype=torch_dtype,
+        dtype=torch_dtype,
         low_cpu_mem_usage=(not is_deepspeed_zero3_enabled()),
         device_map=args.device_map,
         trust_remote_code=args.trust_remote_code,
@@ -418,7 +418,6 @@ def main():
         model.config.use_cache = True
 
     training_args = DPOConfig(
-        max_prompt_length=args.max_source_length,
         max_length=full_max_length,
         per_device_train_batch_size=args.per_device_train_batch_size,
         per_device_eval_batch_size=args.per_device_eval_batch_size,

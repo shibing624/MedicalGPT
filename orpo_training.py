@@ -21,7 +21,7 @@ from transformers import (
     BitsAndBytesConfig,
 )
 from transformers.integrations import is_deepspeed_zero3_enabled
-from trl import ORPOConfig, ORPOTrainer
+from trl import DPOConfig, DPOTrainer
 
 from template import get_conv_template
 
@@ -129,7 +129,7 @@ class ScriptArguments:
     lr_scheduler_type: Optional[str] = field(default="cosine", metadata={"help": "The lr scheduler type"})
     warmup_steps: Optional[int] = field(default=100, metadata={"help": "The number of warmup steps"})
     weight_decay: Optional[float] = field(default=0.05, metadata={"help": "The weight decay"})
-    optim: Optional[str] = field(default="adamw_hf", metadata={"help": "The optimizer type"})
+    optim: Optional[str] = field(default="adamw_torch", metadata={"help": "The optimizer type"})
     fp16: Optional[bool] = field(default=True, metadata={"help": "Whether to use fp16"})
     bf16: Optional[bool] = field(default=False, metadata={"help": "Whether to use bf16"})
     gradient_checkpointing: Optional[bool] = field(
@@ -198,7 +198,7 @@ def find_all_linear_names(peft_model, int4=False, int8=False):
 
 def main():
     parser = HfArgumentParser(ScriptArguments)
-    args = parser.parse_args_into_dataclasses()[0]
+    args = parser.parse_args_into_dataclasses(return_remaining_strings=True)[0]
 
     # Add distributed training initialization
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -406,7 +406,7 @@ def main():
     config = AutoConfig.from_pretrained(
         args.model_name_or_path,
         trust_remote_code=args.trust_remote_code,
-        torch_dtype=torch_dtype,
+        dtype=torch_dtype,
         cache_dir=args.cache_dir
     )
     if args.load_in_4bit or args.load_in_8bit:
@@ -437,9 +437,8 @@ def main():
     else:
         model.config.use_cache = True
 
-    training_args = ORPOConfig(
+    training_args = DPOConfig(
         max_length=full_max_length,
-        max_prompt_length=args.max_source_length,
         per_device_train_batch_size=args.per_device_train_batch_size,
         per_device_eval_batch_size=args.per_device_eval_batch_size,
         max_steps=args.max_steps,
@@ -459,11 +458,12 @@ def main():
         fp16=args.fp16,
         remove_unused_columns=args.remove_unused_columns,
         run_name=f"orpo_v1",
+        loss_type="orpo",
         beta=args.orpo_beta,
         ddp_find_unused_parameters=False if ddp else None,
     )
 
-    # Initialize ORPO trainer
+    # Initialize DPO trainer with ORPO loss
     peft_config = None
     if args.use_peft:
         logger.info("Fine-tuning method: LoRA(PEFT)")
@@ -481,7 +481,7 @@ def main():
         )
     else:
         logger.info("Fine-tuning method: Full parameters training")
-    trainer = ORPOTrainer(
+    trainer = DPOTrainer(
         model,
         args=training_args,
         train_dataset=train_dataset,

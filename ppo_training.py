@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 @author:XuMing(xuming624@qq.com)
-@description: Train a model from SFT using PPO
+@description: Train a model from SFT using RLOO (REINFORCE Leave-One-Out, PPO alternative)
 """
 
 import os
@@ -17,8 +17,8 @@ from transformers import (
     AutoModelForCausalLM,
 )
 from trl import (
-    PPOConfig,
-    PPOTrainer,
+    RLOOConfig,
+    RLOOTrainer,
     ModelConfig,
     get_peft_config,
 )
@@ -29,10 +29,12 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 
 @dataclass
-class PPOArguments:
+class RLOOArguments:
     """
-    The name of the Casual LM model we wish to fine with PPO
+    The name of the Casual LM model we wish to fine with RLOO
     """
+    sft_model_path: Optional[str] = field(default=None, metadata={"help": "Path to the SFT model."})
+    reward_model_path: Optional[str] = field(default=None, metadata={"help": "Path to the reward model."})
     dataset_name: Optional[str] = field(default=None, metadata={"help": "Dataset name."})
     dataset_config: Optional[str] = field(default=None, metadata={"help": "Dataset configuration name."})
     dataset_train_split: str = field(default="train", metadata={"help": "Dataset split to use for training."})
@@ -44,7 +46,7 @@ class PPOArguments:
 
 
 def main():
-    parser = HfArgumentParser((PPOArguments, PPOConfig, ModelConfig))
+    parser = HfArgumentParser((RLOOArguments, RLOOConfig, ModelConfig))
     args, training_args, model_args = parser.parse_args_into_dataclasses(
         return_remaining_strings=True
     )[:3]
@@ -60,8 +62,9 @@ def main():
         logger.info(f"Model args: {model_args}")
 
     # Load tokenizer
+    sft_model_path = args.sft_model_path or model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(
-        training_args.sft_model_path, trust_remote_code=model_args.trust_remote_code
+        sft_model_path, trust_remote_code=model_args.trust_remote_code
     )
     if tokenizer.eos_token_id is None:
         tokenizer.eos_token = tokenizer.eos_token if tokenizer.eos_token is not None else tokenizer.sep_token
@@ -79,24 +82,17 @@ def main():
         logger.info(f"Add pad_token: {tokenizer.pad_token}, pad_token_id: {tokenizer.pad_token_id}")
     logger.debug(f"Tokenizer: {tokenizer}")
 
-    # Load model
-    value_model = AutoModelForSequenceClassification.from_pretrained(
-        training_args.reward_model_path, trust_remote_code=model_args.trust_remote_code, num_labels=1
-    )
+    # Load reward model as reward function
     reward_model = AutoModelForSequenceClassification.from_pretrained(
-        training_args.reward_model_path, trust_remote_code=model_args.trust_remote_code, num_labels=1
+        args.reward_model_path, trust_remote_code=model_args.trust_remote_code, num_labels=1
     )
+
+    # Load policy model
     policy = AutoModelForCausalLM.from_pretrained(
-        training_args.sft_model_path, trust_remote_code=model_args.trust_remote_code
+        sft_model_path, trust_remote_code=model_args.trust_remote_code
     )
 
     peft_config = get_peft_config(model_args)
-    if peft_config is None:
-        ref_policy = AutoModelForCausalLM.from_pretrained(
-            training_args.sft_model_path, trust_remote_code=model_args.trust_remote_code
-        )
-    else:
-        ref_policy = None
 
     # Get datasets
     prompt_template = get_conv_template(args.template_name)
@@ -135,7 +131,7 @@ def main():
     max_source_length = args.max_source_length
 
     def preprocess_function(examples):
-        new_examples = {"input_ids": []}
+        new_examples = {"prompt": []}
         roles = ["human", "gpt"]
 
         def get_dialog(examples):
@@ -167,8 +163,7 @@ def main():
         for dialog in get_dialog(examples):
             for i in range(len(dialog) // 2):
                 source_txt = dialog[2 * i]
-                tokenized_question = tokenizer(source_txt, padding=False)
-                new_examples["input_ids"].append(tokenized_question["input_ids"])
+                new_examples["prompt"].append(source_txt)
 
         return new_examples
 
@@ -184,9 +179,9 @@ def main():
             desc="Running tokenizer on dataset" if is_main_process else None,
         )
         train_dataset = tokenized_train_dataset.filter(
-            lambda x: len(x['input_ids']) > 0
+            lambda x: len(x['prompt']) > 0
         )
-        logger.debug(f"Train samples tokenized top3: {train_dataset[:3]}")
+        logger.debug(f"Train samples top3: {train_dataset[:3]}")
 
         # Preprocess the dataset for evaluation
         logger.debug(f"Example eval_dataset[0]: {eval_dataset[0]}")
@@ -199,18 +194,17 @@ def main():
             desc="Running tokenizer on dataset" if is_main_process else None,
         )
         eval_dataset = tokenized_eval_dataset.filter(
-            lambda x: len(x['input_ids']) > 0
+            lambda x: len(x['prompt']) > 0
         )
-        logger.debug(f"Eval samples tokenized top3: {eval_dataset[:3]}")
+        logger.debug(f"Eval samples top3: {eval_dataset[:3]}")
 
-    # We then build the PPOTrainer, passing the model, the reference model, the tokenizer
-    trainer = PPOTrainer(
+    # We then build the RLOOTrainer, passing the model, the reward function, the tokenizer
+    # RLOO does not need a separate value model or ref model (unlike PPO)
+    trainer = RLOOTrainer(
         args=training_args,
         processing_class=tokenizer,
         model=policy,
-        ref_model=ref_policy,
-        reward_model=reward_model,
-        value_model=value_model,
+        reward_funcs=reward_model,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         peft_config=peft_config,
