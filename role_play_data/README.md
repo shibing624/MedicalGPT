@@ -2,7 +2,7 @@
 ## 造训练数据
 
 ### 数据生成框架
-本数据集使用OpenAI API接口生成，流程：
+本数据集使用LLM API接口生成，支持多种LLM提供商（OpenAI、豆包、[MiniMax](https://platform.minimaxi.com/)等），流程：
 
 - **种子特征集和基础设定**：
    - 手工编写的种子集包含基本角色特征。
@@ -26,10 +26,38 @@ python role_generate.py
 
 
 2. 生成医患之间的多轮对话
-LLM选择：分别用gpt-4o的api和豆包的doubao-character-pro-32k的api生成对话
+LLM选择：支持gpt-4o、豆包doubao-character-pro-32k、MiniMax-M2.7等多种LLM生成对话
 ```bash
+# 使用OpenAI GPT-4o
 python roleplay_data_generate_gpt4.py
 
+# 使用豆包
 python roleplay_data_generate_doubao.py
+
+# 使用MiniMax（需要设置 MINIMAX_API_KEY 环境变量）
+export MINIMAX_API_KEY="your_api_key"
+python roleplay_data_generate_minimax.py
+
+# MiniMax支持自定义参数
+python roleplay_data_generate_minimax.py --model MiniMax-M2.5-highspeed --total 500 --rounds 8
 ```
 
+### 多Provider支持
+
+`llm_client.py` 提供了统一的LLM客户端接口，支持通过环境变量自动检测或手动指定Provider：
+
+| Provider | 环境变量 | 默认模型 | API地址 |
+|----------|---------|---------|---------|
+| OpenAI | `OPENAI_API_KEY` | gpt-4o | https://api.openai.com/v1 |
+| 豆包 | `DOUBAO_API_KEY` | doubao-character-pro-32k | https://ark.cn-beijing.volces.com/api/v3 |
+| MiniMax | `MINIMAX_API_KEY` | MiniMax-M2.7 | https://api.minimax.io/v1 |
+
+```python
+from llm_client import create_llm_client
+
+# 自动检测（根据环境变量）
+client, model = create_llm_client()
+
+# 指定Provider
+client, model = create_llm_client(provider="minimax")
+```

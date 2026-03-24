@@ -34,7 +34,7 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 
 [2024/09/21] v2.3版本：支持了 **[Qwen-2.5](https://qwenlm.github.io/zh/blog/qwen2.5/)** 系列模型，详见[Release-v2.3](https://github.com/shibing624/MedicalGPT/releases/tag/2.3.0)
 
-[2024/08/02] v2.2版本：支持了角色扮演模型训练，新增了医患对话SFT数据生成脚本[role_play_data](https://github.com/shibing624/MedicalGPT/blob/main/role_play_data/README.md)，详见[Release-v2.2](https://github.com/shibing624/MedicalGPT/releases/tag/2.2.0)
+[2024/08/02] v2.2版本：支持了角色扮演模型训练，新增了医患对话SFT数据生成脚本[role_play_data](https://github.com/shibing624/MedicalGPT/blob/main/role_play_data/README.md)，支持OpenAI、豆包、[MiniMax](https://platform.minimaxi.com/)等多种LLM Provider，详见[Release-v2.2](https://github.com/shibing624/MedicalGPT/releases/tag/2.2.0)
 
 <details><summary>展开日志</summary>
 
