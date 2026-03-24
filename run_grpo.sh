@@ -1,10 +1,8 @@
 #!/bin/bash
 
-# 优化的GRPO QLoRA训练脚本 - 解决显存不足问题
-# 针对32k长文本的配置
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
     --model_name_or_path Qwen/Qwen2.5-1.5B-Instruct \
-    --train_file_dir data/grop \
+    --train_file_dir data/grpo \
     --train_samples -1 \
     --max_steps -1 --num_train_epochs 1 \
     --save_steps 50 \
@@ -25,8 +23,8 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
     \
     `# QLoRA配置` \
     --use_peft True \
-    --qlora True \
-    --load_in_4bit True \
+    --qlora False \
+    --load_in_4bit False \
     --lora_target_modules q_proj k_proj v_proj o_proj gate_proj up_proj down_proj \
     --lora_r 16 \
     --lora_alpha 32 \
