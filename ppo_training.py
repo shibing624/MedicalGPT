@@ -8,6 +8,7 @@ import os
 from dataclasses import dataclass, field
 from glob import glob
 from typing import Optional
+import torch
 from datasets import load_dataset
 from loguru import logger
 from transformers import (
@@ -54,12 +55,43 @@ def main():
     # Add distributed training initialization
     local_rank = int(os.environ.get("LOCAL_RANK", "0"))
     is_main_process = local_rank == 0
+    world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    ddp = world_size != 1
+    num_gpus = torch.cuda.device_count()
 
     # Only log on main process
     if is_main_process:
         logger.info(f"Parse args: {args}")
         logger.info(f"Training args: {training_args}")
         logger.info(f"Model args: {model_args}")
+        logger.info(f"DDP: {ddp}, num_gpus: {num_gpus}")
+
+    # Determine torch dtype
+    torch_dtype = (
+        model_args.dtype if model_args.dtype in ["auto", None] else getattr(torch, model_args.dtype)
+    )
+
+    # Determine device_map and max_memory for model loading
+    if ddp:
+        # In DDP mode, each process manages its own GPU; accelerate handles placement
+        device_map = None
+        max_memory = None
+    elif num_gpus > 1:
+        # Single-process multi-GPU: distribute model layers across GPUs
+        max_memory = {}
+        for i in range(num_gpus):
+            gpu_props = torch.cuda.get_device_properties(i)
+            total_mem = gpu_props.total_memory
+            # Reserve 20% of memory for gradients, optimizer states, etc.
+            usable_mem = int(total_mem * 0.8)
+            max_memory[i] = f"{usable_mem // (1024 ** 2)}MiB"
+        device_map = "auto"
+    else:
+        device_map = "auto"
+        max_memory = None
+
+    if is_main_process:
+        logger.info(f"device_map: {device_map}, max_memory: {max_memory}, torch_dtype: {torch_dtype}")
 
     # Load tokenizer
     sft_model_path = args.sft_model_path or model_args.model_name_or_path
@@ -83,14 +115,41 @@ def main():
     logger.debug(f"Tokenizer: {tokenizer}")
 
     # Load reward model as reward function
-    reward_model = AutoModelForSequenceClassification.from_pretrained(
-        args.reward_model_path, trust_remote_code=model_args.trust_remote_code, num_labels=1
+    reward_model_kwargs = dict(
+        trust_remote_code=model_args.trust_remote_code,
+        num_labels=1,
     )
+    if torch_dtype is not None:
+        reward_model_kwargs["torch_dtype"] = torch_dtype
+    if device_map is not None:
+        reward_model_kwargs["device_map"] = device_map
+    if max_memory is not None:
+        reward_model_kwargs["max_memory"] = max_memory
+    if is_main_process:
+        logger.info(f"Loading reward model from: {args.reward_model_path}")
+    reward_model = AutoModelForSequenceClassification.from_pretrained(
+        args.reward_model_path, **reward_model_kwargs
+    )
+    if is_main_process and hasattr(reward_model, 'hf_device_map'):
+        logger.info(f"Reward model device map: {dict(reward_model.hf_device_map)}")
 
     # Load policy model
-    policy = AutoModelForCausalLM.from_pretrained(
-        sft_model_path, trust_remote_code=model_args.trust_remote_code
+    policy_kwargs = dict(
+        trust_remote_code=model_args.trust_remote_code,
     )
+    if torch_dtype is not None:
+        policy_kwargs["torch_dtype"] = torch_dtype
+    if device_map is not None:
+        policy_kwargs["device_map"] = device_map
+    if max_memory is not None:
+        policy_kwargs["max_memory"] = max_memory
+    if is_main_process:
+        logger.info(f"Loading policy model from: {sft_model_path}")
+    policy = AutoModelForCausalLM.from_pretrained(
+        sft_model_path, **policy_kwargs
+    )
+    if is_main_process and hasattr(policy, 'hf_device_map'):
+        logger.info(f"Policy model device map: {dict(policy.hf_device_map)}")
 
     peft_config = get_peft_config(model_args)
 
