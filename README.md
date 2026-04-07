@@ -31,7 +31,7 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - ORPO方法来自论文[ORPO: Monolithic Preference Optimization without Reference Model](https://arxiv.org/abs/2403.07691)
 
 ## 🔥 News
-[2026/04/07] v2.5版本：支持了 **[Qwen3.5](https://huggingface.co/collections/Qwen/qwen35)** 系列模型（包括Base、Instruct和MoE变体），PT/SFT/DPO/ORPO/GRPO全流程适配，新增`qwen3`、`qwen3_5`、`qwen3_nothink`、`qwen3_5_nothink`对话模板，支持DeepSpeed ZeRO-3 MoE训练
+[2026/04/07] v2.5版本：支持了 **[Qwen3.5](https://huggingface.co/collections/Qwen/qwen35)** 系列模型（包括Base、Instruct和MoE变体），PT/SFT/DPO/ORPO/GRPO全流程适配，新增`qwen3`、`qwen3_5`、`qwen3_nothink`、`qwen3_5_nothink`对话模板，支持DeepSpeed ZeRO-3 MoE训练，详见[Release-v2.5](https://github.com/shibing624/MedicalGPT/releases/tag/2.5.0)
 
 [2025/04/18] v2.4版本：支持了LoRA和全参的 **[GRPO](https://arxiv.org/pdf/2402.03300)** 训练方法，GRPO通过纯RL方法可以体验`aha moment`，详见[Release-v2.4](https://github.com/shibing624/MedicalGPT/releases/tag/2.4.0)
 
