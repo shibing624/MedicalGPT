@@ -30,6 +30,8 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - DPO方法来自论文[Direct Preference Optimization:Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
 - ORPO方法来自论文[ORPO: Monolithic Preference Optimization without Reference Model](https://arxiv.org/abs/2403.07691)
 ## 🔥 News
+[2026/04/07] v2.5版本：支持了 **[Qwen3.5](https://huggingface.co/collections/Qwen/qwen3-5-68575326dab79ec7d1e9d3c8)** 系列模型（包括Base、Instruct和MoE变体），PT/SFT/DPO/ORPO/GRPO全流程适配，新增`qwen3`、`qwen3_5`、`qwen3_nothink`、`qwen3_5_nothink`对话模板，支持DeepSpeed ZeRO-3 MoE训练
+
 [2025/04/18] v2.4版本：支持了LoRA和全参的 **[GRPO](https://arxiv.org/pdf/2402.03300)** 训练方法，GRPO通过纯RL方法可以体验`aha moment`，详见[Release-v2.4](https://github.com/shibing624/MedicalGPT/releases/tag/2.4.0)
 
 [2024/09/21] v2.3版本：支持了 **[Qwen-2.5](https://qwenlm.github.io/zh/blog/qwen2.5/)** 系列模型，详见[Release-v2.3](https://github.com/shibing624/MedicalGPT/releases/tag/2.3.0)
@@ -184,6 +186,8 @@ Training Stage:
 | [Qwen1.5](https://huggingface.co/Qwen/Qwen1.5-72B)                   | 0.5B/1.8B/4B/14B/32B/72B/110B | q_proj,v_proj   | qwen      |
 | [Qwen2](https://github.com/QwenLM/Qwen2)                             | 0.5B/1.5B/7B/72B              | q_proj,v_proj   | qwen      |
 | [Qwen2.5](https://github.com/QwenLM/Qwen2.5)                         | 0.5B/1.8B/4B/14B/72B        | q_proj,v_proj   | qwen      |
+| [Qwen3](https://huggingface.co/Qwen)                                  | 0.6B/1.7B/4B/8B/14B/32B/235B | q_proj,v_proj   | qwen3     |
+| [Qwen3.5](https://huggingface.co/collections/Qwen/qwen35) | 0.8B/2B/4B/9B/27B/35B/122B | q_proj,v_proj   | qwen3_5   |
 | [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                           | query_key_value | xverse    |
 | [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                        | q_proj,v_proj   | yi        |
 

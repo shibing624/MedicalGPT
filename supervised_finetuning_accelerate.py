@@ -40,6 +40,7 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 from transformers.trainer_pt_utils import LabelSmoother
+from transformers.integrations import is_deepspeed_zero3_enabled
 from tqdm.auto import tqdm
 
 from accelerate import Accelerator
@@ -579,6 +580,27 @@ def main():
             logger.info("✅ 使用DDP模式加载模型成功")
         else:
             raise
+
+    # Patch MoE modules for DeepSpeed ZeRO-3
+    if getattr(config, "model_type", None) == "mixtral" and is_deepspeed_zero3_enabled():
+        from deepspeed.utils import set_z3_leaf_modules
+        from transformers.models.mixtral.modeling_mixtral import MixtralSparseMoeBlock
+        set_z3_leaf_modules(model, [MixtralSparseMoeBlock])
+
+    if getattr(config, "model_type", None) == "deepseek_v3" and is_deepspeed_zero3_enabled():
+        for layer in model.model.layers:
+            if 'DeepseekV3MoE' in str(type(layer.mlp)):
+                layer.mlp._z3_leaf = True
+
+    if getattr(config, "model_type", None) == "qwen3_moe" and is_deepspeed_zero3_enabled():
+        from deepspeed.utils import set_z3_leaf_modules
+        from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
+        set_z3_leaf_modules(model, [Qwen3MoeSparseMoeBlock])
+
+    if getattr(config, "model_type", None) == "qwen3_5_moe" and is_deepspeed_zero3_enabled():
+        from deepspeed.utils import set_z3_leaf_modules
+        from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import Qwen3_5MoeSparseMoeBlock
+        set_z3_leaf_modules(model, [Qwen3_5MoeSparseMoeBlock])
 
     # 显示模型分布信息
     logger.info("📊 模型分布情况:")

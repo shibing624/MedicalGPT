@@ -1,6 +1,6 @@
 CUDA_VISIBLE_DEVICES=0,1 python dpo_training.py \
-    --model_name_or_path Qwen/Qwen2.5-0.5B-Instruct \
-    --template_name qwen \
+    --model_name_or_path Qwen/Qwen3.5-2B \
+    --template_name qwen3_5 \
     --train_file_dir ./data/reward \
     --validation_file_dir ./data/reward \
     --per_device_train_batch_size 4 \

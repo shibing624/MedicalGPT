@@ -174,6 +174,8 @@ sh run_ppo.sh
 | [Qwen](https://github.com/QwenLM/Qwen)                               | 1.8B/7B/14B/72B             | c_attn          | chatml    |
 | [Qwen1.5](https://github.com/QwenLM/Qwen1.5)                         | 0.5B/1.8B/4B/14B/72B        | q_proj,v_proj   | qwen      |
 | [Qwen2.5](https://github.com/QwenLM/Qwen2.5)                         | 0.5B/1.8B/4B/14B/72B        | q_proj,v_proj   | qwen      |
+| [Qwen3](https://huggingface.co/Qwen)                                  | 0.6B/1.7B/4B/8B/14B/32B/235B | q_proj,v_proj   | qwen3     |
+| [Qwen3.5](https://huggingface.co/collections/Qwen/qwen35) | 0.8B/2B/4B/9B/27B/35B/122B | q_proj,v_proj   | qwen3_5   |
 | [XVERSE](https://github.com/xverse-ai/XVERSE-13B)                    | 13B                         | query_key_value | xverse    |
 | [Yi](https://github.com/01-ai/Yi)                                    | 6B/34B                      | q_proj,v_proj   | yi        |
 

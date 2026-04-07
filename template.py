@@ -528,7 +528,7 @@ register_conv_template(
     )
 )
 
-"""Qwen template
+"""Qwen template (ChatML format)
 source: https://huggingface.co/Qwen/CodeQwen1.5-7B-Chat/blob/main/tokenizer_config.json#L18
 Supports: https://huggingface.co/Qwen/CodeQwen1.5-7B-Chat
           https://huggingface.co/Qwen/Qwen1.5-72B-Chat
@@ -547,18 +547,74 @@ register_conv_template(
     )
 )
 
-
+"""Qwen3 template (ChatML format, same as Qwen2.5)
+Supports: https://huggingface.co/Qwen/Qwen3-8B
+          https://huggingface.co/Qwen/Qwen3-4B
+          https://huggingface.co/Qwen/Qwen3-32B
+For thinking models, the model will auto-generate <think>...</think> blocks.
+Use qwen3_nothink for non-thinking mode.
+"""
 register_conv_template(
     Conversation(
-        name="deepseek",
-        system_prompt="<BOS_TOKEN>",
+        name="qwen3",
+        system_prompt="<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n",
         messages=[],
-        roles=("User", "Assistant"),
-        prompt=(
-            "<|START_OF_TURN_TOKEN|><|USER_TOKEN|>{query}<|END_OF_TURN_TOKEN|>"
-            "<|START_OF_TURN_TOKEN|><|CHATBOT_TOKEN|>"
-        ),
-        sep="</s>",
+        roles=("user", "assistant"),
+        prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
+        sep="\n",
+        stop_str="<|im_end|>",
+    )
+)
+
+"""Qwen3 no-think template
+Use this template to disable thinking mode for Qwen3 models.
+Add '/no_think' or set enable_thinking=False to disable thinking.
+"""
+register_conv_template(
+    Conversation(
+        name="qwen3_nothink",
+        system_prompt="<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n",
+        messages=[],
+        roles=("user", "assistant"),
+        prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
+        sep="\n",
+        stop_str="<|im_end|>",
+    )
+)
+
+"""Qwen3.5 template (ChatML format with thinking support)
+Supports: https://huggingface.co/Qwen/Qwen3.5-0.8B-Base
+          https://huggingface.co/Qwen/Qwen3.5-3B
+          https://huggingface.co/Qwen/Qwen3.5-8B
+          https://huggingface.co/Qwen/Qwen3.5-32B
+          https://huggingface.co/Qwen/Qwen3.5-72B
+          https://huggingface.co/Qwen/Qwen3.5-397B-A17B
+Qwen3.5 uses the same ChatML format as Qwen3, with reasoning/thinking support.
+"""
+register_conv_template(
+    Conversation(
+        name="qwen3_5",
+        system_prompt="<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n",
+        messages=[],
+        roles=("user", "assistant"),
+        prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
+        sep="\n",
+        stop_str="<|im_end|>",
+    )
+)
+
+"""Qwen3.5 no-think template
+Use this template to disable thinking mode for Qwen3.5 models.
+"""
+register_conv_template(
+    Conversation(
+        name="qwen3_5_nothink",
+        system_prompt="<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n",
+        messages=[],
+        roles=("user", "assistant"),
+        prompt="<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n",
+        sep="\n",
+        stop_str="<|im_end|>",
     )
 )
 

@@ -1,8 +1,8 @@
 CUDA_VISIBLE_DEVICES=0,1 python ppo_training.py \
-    --sft_model_path Qwen/Qwen2.5-0.5B-Instruct \
-    --reward_model_path Qwen/Qwen2.5-0.5B-Instruct \
-    --model_name_or_path Qwen/Qwen2.5-0.5B-Instruct \
-    --template_name qwen \
+    --sft_model_path Qwen/Qwen3.5-2B \
+    --reward_model_path Qwen/Qwen3.5-2B \
+    --model_name_or_path Qwen/Qwen3.5-2B \
+    --template_name qwen3_5 \
     --dtype bfloat16 \
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \

@@ -672,6 +672,30 @@ def main():
             device_map=model_args.device_map,
             **config_kwargs,
         )
+
+        # Patch Mixtral MoE module for DeepSpeed ZeRO-3
+        if getattr(config, "model_type", None) == "mixtral" and is_deepspeed_zero3_enabled():
+            from deepspeed.utils import set_z3_leaf_modules
+            from transformers.models.mixtral.modeling_mixtral import MixtralSparseMoeBlock
+            set_z3_leaf_modules(model, [MixtralSparseMoeBlock])
+
+        # Patch DeepSeek-V3 MoE module for DeepSpeed ZeRO-3
+        if getattr(config, "model_type", None) == "deepseek_v3" and is_deepspeed_zero3_enabled():
+            for layer in model.model.layers:
+                if 'DeepseekV3MoE' in str(type(layer.mlp)):
+                    layer.mlp._z3_leaf = True
+
+        # Patch Qwen3 MoE module for DeepSpeed ZeRO-3
+        if getattr(config, "model_type", None) == "qwen3_moe" and is_deepspeed_zero3_enabled():
+            from deepspeed.utils import set_z3_leaf_modules
+            from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
+            set_z3_leaf_modules(model, [Qwen3MoeSparseMoeBlock])
+
+        # Patch Qwen3.5 MoE module for DeepSpeed ZeRO-3
+        if getattr(config, "model_type", None) == "qwen3_5_moe" and is_deepspeed_zero3_enabled():
+            from deepspeed.utils import set_z3_leaf_modules
+            from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import Qwen3_5MoeSparseMoeBlock
+            set_z3_leaf_modules(model, [Qwen3_5MoeSparseMoeBlock])
     else:
         raise ValueError(f"Error, model_name_or_path is None, Continue PT must be loaded from a pre-trained model")
 

@@ -304,10 +304,43 @@ def grpo_train(
         logger.info(f"Using {num_gpus} GPUs")
         logger.info(f"model_kwargs={model_kwargs}")
 
+    config = AutoModelForCausalLM.config_class if hasattr(AutoModelForCausalLM, 'config_class') else None
+    try:
+        from transformers import AutoConfig
+        config = AutoConfig.from_pretrained(
+            model_args.model_name_or_path,
+            trust_remote_code=model_args.trust_remote_code,
+            revision=model_args.model_revision,
+        )
+    except Exception:
+        config = None
+
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path,
         **model_kwargs,
     )
+
+    # Patch MoE modules for DeepSpeed ZeRO-3
+    model_type = getattr(config, "model_type", None) if config else getattr(model.config, "model_type", None)
+    if model_type == "mixtral" and is_deepspeed_zero3_enabled():
+        from deepspeed.utils import set_z3_leaf_modules
+        from transformers.models.mixtral.modeling_mixtral import MixtralSparseMoeBlock
+        set_z3_leaf_modules(model, [MixtralSparseMoeBlock])
+
+    if model_type == "deepseek_v3" and is_deepspeed_zero3_enabled():
+        for layer in model.model.layers:
+            if 'DeepseekV3MoE' in str(type(layer.mlp)):
+                layer.mlp._z3_leaf = True
+
+    if model_type == "qwen3_moe" and is_deepspeed_zero3_enabled():
+        from deepspeed.utils import set_z3_leaf_modules
+        from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeSparseMoeBlock
+        set_z3_leaf_modules(model, [Qwen3MoeSparseMoeBlock])
+
+    if model_type == "qwen3_5_moe" and is_deepspeed_zero3_enabled():
+        from deepspeed.utils import set_z3_leaf_modules
+        from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import Qwen3_5MoeSparseMoeBlock
+        set_z3_leaf_modules(model, [Qwen3_5MoeSparseMoeBlock])
 
     if is_main_process and hasattr(model, 'hf_device_map'):
         logger.info(f"Model Device Map: {model.hf_device_map.items()}")
