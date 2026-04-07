@@ -12,26 +12,19 @@ import gradio as gr
 import torch
 from peft import PeftModel
 from transformers import (
-    AutoModel,
     AutoTokenizer,
     AutoModelForCausalLM,
-    BloomForCausalLM,
-    BloomTokenizerFast,
-    LlamaForCausalLM,
     GenerationConfig,
     TextIteratorStreamer,
 )
-
-from template import get_conv_template
-
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
-    parser.add_argument('--template_name', default="vicuna", type=str,
-                        help="Prompt template name, eg: alpaca, vicuna, baichuan2, chatglm2 etc.")
+    parser.add_argument('--template_name', default=None, type=str,
+                        help="Prompt template name. If not set, use tokenizer's built-in chat_template.")
     parser.add_argument('--system_prompt', default="", type=str)
     parser.add_argument('--context_len', default=2048, type=int)
     parser.add_argument('--max_new_tokens', default=512, type=int)
@@ -77,16 +70,34 @@ def main():
     if device == torch.device('cpu'):
         model.float()
     model.eval()
-    prompt_template = get_conv_template(args.template_name)
+    prompt_template = None
+    if args.template_name:
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'training'))
+        from template import get_conv_template
+        prompt_template = get_conv_template(args.template_name)
     system_prompt = args.system_prompt
-    stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
+    stop_str = tokenizer.eos_token or "</s>"
     context_len = args.context_len
     max_new_tokens = args.max_new_tokens
 
     def predict(message, history):
         """Generate answer from prompt with GPT and stream the output"""
-        history_messages = history + [[message, ""]]
-        prompt = prompt_template.get_prompt(messages=history_messages, system_prompt=system_prompt)
+        if prompt_template:
+            history_messages = history + [[message, ""]]
+            prompt = prompt_template.get_prompt(messages=history_messages, system_prompt=system_prompt)
+        else:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            for user_msg, assistant_msg in history:
+                messages.append({"role": "user", "content": user_msg})
+                if assistant_msg:
+                    messages.append({"role": "assistant", "content": assistant_msg})
+            messages.append({"role": "user", "content": message})
+            prompt = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
         streamer = TextIteratorStreamer(tokenizer, timeout=60.0, skip_prompt=True, skip_special_tokens=True)
         inputs = tokenizer(prompt, return_tensors="pt")
         input_ids = inputs["input_ids"][0]

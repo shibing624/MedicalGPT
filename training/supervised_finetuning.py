@@ -27,7 +27,6 @@ from types import MethodType
 from typing import Literal, Optional, Tuple
 
 import torch
-import torch.utils.data
 from datasets import load_dataset
 from loguru import logger
 from peft import LoraConfig, TaskType, get_peft_model, PeftModel, prepare_model_for_kbit_training
@@ -48,16 +47,13 @@ from transformers.utils.versions import require_version
 
 from transformers.integrations import is_deepspeed_zero3_enabled
 
-is_flash_attn_2_available = False
 try:
-    from flash_attn import flash_attn_func, flash_attn_varlen_func
-    from flash_attn.bert_padding import pad_input, unpad_input
+    import flash_attn  # noqa: F401
 
     is_flash_attn_2_available = True
 except ImportError:
     is_flash_attn_2_available = False
 
-from template import get_conv_template
 
 
 @dataclass
@@ -207,7 +203,10 @@ class ScriptArguments:
         default=512,
         metadata={"help": "Maximum model context length. suggest: 8192 * 4, 8192 * 2, 8192, 4096, 2048, 1024, 512"}
     )
-    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The prompt template name."})
+    template_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "The prompt template name. If not set, use tokenizer's built-in chat_template."}
+    )
 
     def __post_init__(self):
         if self.model_max_length < 60:
@@ -365,9 +364,15 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
-    prompt_template = get_conv_template(script_args.template_name)
+    prompt_template = None
+    if script_args.template_name:
+        from template import get_conv_template
+        prompt_template = get_conv_template(script_args.template_name)
     if tokenizer.eos_token_id is None:
-        tokenizer.eos_token = prompt_template.stop_str  # eos token is required
+        if prompt_template:
+            tokenizer.eos_token = prompt_template.stop_str
+        else:
+            tokenizer.eos_token = "</s>"
         tokenizer.add_special_tokens({"eos_token": tokenizer.eos_token})
         logger.info(f"Add eos_token: {tokenizer.eos_token}, eos_token_id: {tokenizer.eos_token_id}")
     if tokenizer.bos_token_id is None:
@@ -475,7 +480,26 @@ def main():
                 history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
                 if not system_prompt:
                     system_prompt = system_prompts[i] if system_prompts else ""
-                yield prompt_template.get_dialog(history_messages, system_prompt=system_prompt)
+                if prompt_template:
+                    yield prompt_template.get_dialog(history_messages, system_prompt=system_prompt)
+                else:
+                    convs = []
+                    accumulated = []
+                    if system_prompt:
+                        accumulated.append({"role": "system", "content": system_prompt})
+                    prev_text = ""
+                    for uq, br in history_messages:
+                        accumulated.append({"role": "user", "content": uq})
+                        cur_text = tokenizer.apply_chat_template(
+                            accumulated, tokenize=False, add_generation_prompt=True
+                        )
+                        convs.append(cur_text[len(prev_text):])
+                        convs.append(br)
+                        accumulated.append({"role": "assistant", "content": br})
+                        prev_text = tokenizer.apply_chat_template(
+                            accumulated, tokenize=False, add_generation_prompt=False
+                        )
+                    yield convs
 
         for dialog in get_dialog(examples):
             input_ids, labels = [], []

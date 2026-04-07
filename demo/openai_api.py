@@ -26,9 +26,6 @@ from starlette.responses import Response
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from transformers import GenerationConfig, TextIteratorStreamer
 
-from template import get_conv_template
-
-
 class BasicAuthMiddleware(BaseHTTPMiddleware):
 
     def __init__(self, app, username: str, password: str):
@@ -603,6 +600,9 @@ if __name__ == '__main__':
         resume_download=True,
     )
     if args.template_name:
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'training'))
+        from template import get_conv_template
         prompt_template = get_conv_template(args.template_name)
     else:
         prompt_template = None

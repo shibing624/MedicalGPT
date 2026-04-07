@@ -7,11 +7,10 @@ accelerate launch --num_processes=2 training/supervised_finetuning_accelerate.py
     --per_device_eval_batch_size 4 \
     --do_train \
     --do_eval \
-    --template_name qwen3_5 \
     --use_peft True \
     --max_train_samples 1000 \
     --max_eval_samples 10 \
-    --model_max_length 4096 \
+    --model_max_length 512 \
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
     --warmup_steps 5 \

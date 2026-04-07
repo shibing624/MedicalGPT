@@ -25,11 +25,9 @@ from transformers import (
     Trainer,
     TrainingArguments,
     set_seed,
-    BitsAndBytesConfig,
 )
 from transformers.trainer import TRAINING_ARGS_NAME
 
-from template import get_conv_template
 
 
 
@@ -146,7 +144,10 @@ class ScriptArguments:
     lora_alpha: Optional[float] = field(default=32.0)
     modules_to_save: Optional[str] = field(default=None)
     peft_path: Optional[str] = field(default=None)
-    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The prompt template name."})
+    template_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "The prompt template name. If not set, use tokenizer's built-in chat_template."}
+    )
 
 
 def compute_metrics(eval_preds):
@@ -383,9 +384,15 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = model_args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
-    prompt_template = get_conv_template(script_args.template_name)
+    prompt_template = None
+    if script_args.template_name:
+        from template import get_conv_template
+        prompt_template = get_conv_template(script_args.template_name)
     if tokenizer.eos_token_id is None:
-        tokenizer.eos_token = prompt_template.stop_str  # eos token is required
+        if prompt_template:
+            tokenizer.eos_token = prompt_template.stop_str
+        else:
+            tokenizer.eos_token = "</s>"
         tokenizer.add_special_tokens({"eos_token": tokenizer.eos_token})
         logger.info(f"Add eos_token: {tokenizer.eos_token}, eos_token_id: {tokenizer.eos_token_id}")
     if tokenizer.bos_token_id is None:
@@ -509,10 +516,28 @@ def main():
                 examples["response_rejected"]
         ):
             system_prompt = system or ""
-            chosen_messages = history + [[question, chosen]] if history else [[question, chosen]]
-            chosen_prompt = prompt_template.get_prompt(messages=chosen_messages, system_prompt=system_prompt)
-            rejected_messages = history + [[question, rejected]] if history else [[question, rejected]]
-            rejected_prompt = prompt_template.get_prompt(messages=rejected_messages, system_prompt=system_prompt)
+            if prompt_template:
+                chosen_messages = history + [[question, chosen]] if history else [[question, chosen]]
+                chosen_prompt = prompt_template.get_prompt(messages=chosen_messages, system_prompt=system_prompt)
+                rejected_messages = history + [[question, rejected]] if history else [[question, rejected]]
+                rejected_prompt = prompt_template.get_prompt(messages=rejected_messages, system_prompt=system_prompt)
+            else:
+                base_messages = []
+                if system_prompt:
+                    base_messages.append({"role": "system", "content": system_prompt})
+                if history:
+                    for h_q, h_a in history:
+                        base_messages.append({"role": "user", "content": h_q})
+                        base_messages.append({"role": "assistant", "content": h_a})
+                base_messages.append({"role": "user", "content": question})
+                chosen_msgs = base_messages + [{"role": "assistant", "content": chosen}]
+                rejected_msgs = base_messages + [{"role": "assistant", "content": rejected}]
+                chosen_prompt = tokenizer.apply_chat_template(
+                    chosen_msgs, tokenize=False, add_generation_prompt=False
+                )
+                rejected_prompt = tokenizer.apply_chat_template(
+                    rejected_msgs, tokenize=False, add_generation_prompt=False
+                )
 
             tokenized_chosen = tokenizer(chosen_prompt)
             tokenized_rejected = tokenizer(rejected_prompt)

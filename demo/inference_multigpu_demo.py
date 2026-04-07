@@ -24,9 +24,6 @@ from transformers import (
     BitsAndBytesConfig,
 )
 
-from template import get_conv_template
-
-
 class TextDataset(Dataset):
     def __init__(self, data):
         self.data = data
@@ -43,8 +40,8 @@ def main():
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
-    parser.add_argument('--template_name', default="vicuna", type=str,
-                        help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
+    parser.add_argument('--template_name', default=None, type=str,
+                        help="Prompt template name. If not set, use tokenizer's built-in chat_template.")
     parser.add_argument('--system_prompt', default="", type=str)
     parser.add_argument("--repetition_penalty", type=float, default=1.0)
     parser.add_argument('--temperature', type=float, default=0.7)
@@ -124,7 +121,12 @@ def main():
             examples = [l.strip() for l in f.readlines()]
         logger.info(f"first 10 examples: {examples[:10]}")
 
-    prompt_template = get_conv_template(args.template_name)
+    prompt_template = None
+    if args.template_name:
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'training'))
+        from template import get_conv_template
+        prompt_template = get_conv_template(args.template_name)
     write_batch_size = args.batch_size * world_size * 10
     generation_kwargs = dict(
         max_new_tokens=args.max_new_tokens,
@@ -132,7 +134,7 @@ def main():
         do_sample=True if args.temperature > 0.0 else False,
         repetition_penalty=args.repetition_penalty,
     )
-    stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
+    stop_str = tokenizer.eos_token or "</s>"
     if local_rank <= 0 and os.path.exists(args.output_file):
         os.remove(args.output_file)
     count = 0
@@ -151,8 +153,19 @@ def main():
         inputs = []
         for texts in data_loader:
             inputs.extend(texts)
-            prompted_texts = [prompt_template.get_prompt(messages=[[s, '']], system_prompt=args.system_prompt) for s in
-                              texts]
+            if prompt_template:
+                prompted_texts = [prompt_template.get_prompt(messages=[[s, '']], system_prompt=args.system_prompt)
+                                  for s in texts]
+            else:
+                prompted_texts = []
+                for s in texts:
+                    msgs = []
+                    if args.system_prompt:
+                        msgs.append({"role": "system", "content": args.system_prompt})
+                    msgs.append({"role": "user", "content": s})
+                    prompted_texts.append(tokenizer.apply_chat_template(
+                        msgs, tokenize=False, add_generation_prompt=True
+                    ))
             logger.debug(f'local_rank: {local_rank}, inputs size:{len(prompted_texts)}, top3: {prompted_texts[:3]}')
             inputs_tokens = tokenizer(prompted_texts, return_tensors="pt", padding=True)
             input_ids = inputs_tokens['input_ids'].to(local_rank)

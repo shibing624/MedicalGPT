@@ -21,7 +21,6 @@ from similarities import (
     BertSimilarity,
     BM25Similarity,
 )
-from similarities.similarity import SimilarityABC
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -109,7 +108,7 @@ class SentenceSplitter:
 class ChatPDF:
     def __init__(
             self,
-            similarity_model: SimilarityABC = None,
+            similarity_model = None,
             generate_model_name_or_path: str = "01-ai/Yi-6B-Chat",
             lora_model_name_or_path: str = None,
             corpus_files: Union[str, List[str]] = None,
@@ -206,6 +205,8 @@ class ChatPDF:
     def _get_chat_input(self):
         messages = []
         if self.prompt_template_name:
+            import sys, os
+            sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'training'))
             from template import get_conv_template
             prompt_template = get_conv_template(self.prompt_template_name)
             prompt = prompt_template.get_prompt(messages=self.history)

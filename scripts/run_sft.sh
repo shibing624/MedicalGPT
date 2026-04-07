@@ -1,16 +1,15 @@
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 training/supervised_finetuning.py \
-    --model_name_or_path Qwen/Qwen3.5-2B \
+    --model_name_or_path Qwen/Qwen3.5-0.8B \
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \
-    --per_device_train_batch_size 4 \
-    --per_device_eval_batch_size 4 \
+    --per_device_train_batch_size 2 \
+    --per_device_eval_batch_size 1 \
     --do_train \
     --do_eval \
-    --template_name qwen3_5 \
     --use_peft True \
     --max_train_samples 1000 \
     --max_eval_samples 10 \
-    --model_max_length 4096 \
+    --model_max_length 512 \
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
     --warmup_steps 5 \

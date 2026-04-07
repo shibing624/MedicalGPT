@@ -23,7 +23,6 @@ from transformers import (
 from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import DPOConfig, DPOTrainer
 
-from template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -78,7 +77,10 @@ class ScriptArguments:
     )
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The input jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."}, )
-    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The prompt template name."})
+    template_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "The prompt template name. If not set, use tokenizer's built-in chat_template."}
+    )
     per_device_train_batch_size: Optional[int] = field(default=4, metadata={"help": "Train batch size per device"})
     per_device_eval_batch_size: Optional[int] = field(default=1, metadata={"help": "Eval batch size per device"})
     max_source_length: Optional[int] = field(default=2048, metadata={"help": "Max length of prompt input text"})
@@ -218,9 +220,15 @@ def main():
     if not tokenizer_name_or_path:
         tokenizer_name_or_path = args.model_name_or_path
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
-    prompt_template = get_conv_template(args.template_name)
+    prompt_template = None
+    if args.template_name:
+        from template import get_conv_template
+        prompt_template = get_conv_template(args.template_name)
     if tokenizer.eos_token_id is None:
-        tokenizer.eos_token = prompt_template.stop_str  # eos token is required
+        if prompt_template:
+            tokenizer.eos_token = prompt_template.stop_str
+        else:
+            tokenizer.eos_token = "</s>"
         tokenizer.add_special_tokens({"eos_token": tokenizer.eos_token})
         logger.info(f"Add eos_token: {tokenizer.eos_token}, eos_token_id: {tokenizer.eos_token_id}")
     if tokenizer.bos_token_id is None:
@@ -313,8 +321,21 @@ def main():
         prompts = []
         for system, history, question in zip(examples["system"], examples["history"], examples["question"]):
             system_prompt = system or ""
-            history_with_question = history + [[question, '']] if history else [[question, '']]
-            prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
+            if prompt_template:
+                history_with_question = history + [[question, '']] if history else [[question, '']]
+                prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
+            else:
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                if history:
+                    for h_q, h_a in history:
+                        messages.append({"role": "user", "content": h_q})
+                        messages.append({"role": "assistant", "content": h_a})
+                messages.append({"role": "user", "content": question})
+                prompts.append(tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                ))
         return {
             "prompt": prompts,
             "chosen": examples["response_chosen"],

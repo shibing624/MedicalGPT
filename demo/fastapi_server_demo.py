@@ -32,9 +32,6 @@ from transformers import (
     GenerationConfig,
 )
 
-from template import get_conv_template
-
-
 @torch.inference_mode()
 def stream_generate_answer(
         model,
@@ -91,8 +88,8 @@ def main():
     parser.add_argument('--base_model', default=None, type=str, required=True)
     parser.add_argument('--lora_model', default="", type=str, help="If None, perform inference on the base model")
     parser.add_argument('--tokenizer_path', default=None, type=str)
-    parser.add_argument('--template_name', default="vicuna", type=str,
-                        help="Prompt template name, eg: alpaca, vicuna, baichuan, chatglm2 etc.")
+    parser.add_argument('--template_name', default=None, type=str,
+                        help="Prompt template name. If not set, use tokenizer's built-in chat_template.")
     parser.add_argument('--system_prompt', default="", type=str)
     parser.add_argument("--repetition_penalty", default=1.0, type=float)
     parser.add_argument("--max_new_tokens", default=512, type=int)
@@ -157,12 +154,26 @@ def main():
         allow_headers=["*"])
 
     model, tokenizer, device = load_model(args)
-    prompt_template = get_conv_template(args.template_name)
-    stop_str = tokenizer.eos_token if tokenizer.eos_token else prompt_template.stop_str
+    prompt_template = None
+    if args.template_name:
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'training'))
+        from template import get_conv_template
+        prompt_template = get_conv_template(args.template_name)
+    stop_str = tokenizer.eos_token or "</s>"
 
     def predict(sentence):
-        history = [[sentence, '']]
-        prompt = prompt_template.get_prompt(messages=history, system_prompt=args.system_prompt)
+        if prompt_template:
+            history = [[sentence, '']]
+            prompt = prompt_template.get_prompt(messages=history, system_prompt=args.system_prompt)
+        else:
+            messages = []
+            if args.system_prompt:
+                messages.append({"role": "system", "content": args.system_prompt})
+            messages.append({"role": "user", "content": sentence})
+            prompt = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
         response = stream_generate_answer(
             model,
             tokenizer,

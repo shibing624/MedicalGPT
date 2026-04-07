@@ -23,7 +23,6 @@ from trl import (
     ModelConfig,
     get_peft_config,
 )
-from template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -42,7 +41,10 @@ class RLOOArguments:
     dataset_test_split: str = field(default="test", metadata={"help": "Dataset split to use for evaluation."})
     train_file_dir: Optional[str] = field(default=None, metadata={"help": "The input jsonl data file folder."})
     validation_file_dir: Optional[str] = field(default=None, metadata={"help": "The evaluation jsonl file folder."}, )
-    template_name: Optional[str] = field(default="vicuna", metadata={"help": "The template name."})
+    template_name: Optional[str] = field(
+        default=None,
+        metadata={"help": "The prompt template name. If not set, use tokenizer's built-in chat_template."}
+    )
     max_source_length: Optional[int] = field(default=1024, metadata={"help": "Max length of prompt input text"})
 
 
@@ -154,7 +156,10 @@ def main():
     peft_config = get_peft_config(model_args)
 
     # Get datasets
-    prompt_template = get_conv_template(args.template_name)
+    prompt_template = None
+    if args.template_name:
+        from template import get_conv_template
+        prompt_template = get_conv_template(args.template_name)
     if args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         dataset = load_dataset(
@@ -217,7 +222,26 @@ def main():
                 # Convert the list to pairs of elements
                 history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
                 system_prompt = system_prompts[i] if system_prompts else None
-                yield prompt_template.get_dialog(history_messages, system_prompt=system_prompt)
+                if prompt_template:
+                    yield prompt_template.get_dialog(history_messages, system_prompt=system_prompt)
+                else:
+                    convs = []
+                    accumulated = []
+                    if system_prompt:
+                        accumulated.append({"role": "system", "content": system_prompt})
+                    prev_text = ""
+                    for uq, br in history_messages:
+                        accumulated.append({"role": "user", "content": uq})
+                        cur_text = tokenizer.apply_chat_template(
+                            accumulated, tokenize=False, add_generation_prompt=True
+                        )
+                        convs.append(cur_text[len(prev_text):])
+                        convs.append(br)
+                        accumulated.append({"role": "assistant", "content": br})
+                        prev_text = tokenizer.apply_chat_template(
+                            accumulated, tokenize=False, add_generation_prompt=False
+                        )
+                    yield convs
 
         for dialog in get_dialog(examples):
             for i in range(len(dialog) // 2):

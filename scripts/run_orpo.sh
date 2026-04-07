@@ -1,6 +1,5 @@
 CUDA_VISIBLE_DEVICES=0,1 python training/orpo_training.py \
     --model_name_or_path Qwen/Qwen3.5-2B \
-    --template_name qwen3_5 \
     --train_file_dir ./data/reward \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 2 \

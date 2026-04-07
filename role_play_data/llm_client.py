@@ -30,7 +30,7 @@ PROVIDER_CONFIGS = {
     "doubao": {
         "env_key": "DOUBAO_API_KEY",
         "base_url": "https://ark.cn-beijing.volces.com/api/v3",
-        "default_model": "ep-20240623141021-r77gl",
+        "default_model": "ep-xxx",
     },
     "minimax": {
         "env_key": "MINIMAX_API_KEY",

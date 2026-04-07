@@ -2,6 +2,8 @@
 """
 @author:XuMing(xuming624@qq.com)
 @description: Inference script
+
+python3 demo/inference.py --base_model Qwen/Qwen3.5-2B --lora_model outputs-sft-qwen-v1
 """
 import argparse
 import json
