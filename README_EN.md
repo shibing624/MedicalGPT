@@ -306,9 +306,11 @@ Then you can submit a PR.
 
 ## 💕 Acknowledgements
 
+- [Direct Preference Optimization:Your Language Model is Secretly a Reward Model](https://arxiv.org/pdf/2305.18290.pdf)
 - [tloen/alpaca-lora](https://github.com/tloen/alpaca-lora/blob/main/finetune.py)
 - [ymcui/Chinese-LLaMA-Alpaca](https://github.com/ymcui/Chinese-LLaMA-Alpaca)
 
 Thanks for their great work!
+
 #### Related Projects
-- [shibing624/ChatPilot](https://github.com/shibing624/ChatPilot): Provide a simple and easy-to-use web UI interface for LLM Agent (including RAG, online search, code interpreter).
+- [shibing624/agentica](https://github.com/shibing624/agentica)：Framework for building LLM Agents, supporting various Agent types, including RAG, online search, Code interpreter, Vibe Coding, Claude Code, Copilot Agent, etc.
