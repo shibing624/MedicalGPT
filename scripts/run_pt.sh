@@ -1,20 +1,19 @@
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 training/pretraining.py \
     --model_name_or_path Qwen/Qwen3.5-2B \
-    --train_file_dir ./data/finetune \
-    --validation_file_dir ./data/finetune \
+    --train_file_dir ./data/pretrain \
+    --validation_file_dir ./data/pretrain \
     --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
     --do_train \
     --do_eval \
-    --template_name qwen3_5 \
     --use_peft True \
-    --max_train_samples 1000 \
+    --seed 42 \
+    --max_train_samples 10000 \
     --max_eval_samples 10 \
-    --model_max_length 4096 \
-    --num_train_epochs 1 \
-    --learning_rate 2e-5 \
+    --num_train_epochs 0.5 \
+    --learning_rate 2e-4 \
     --warmup_steps 5 \
-    --weight_decay 0.05 \
+    --weight_decay 0.01 \
     --logging_strategy steps \
     --logging_steps 10 \
     --eval_steps 50 \
@@ -23,8 +22,10 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --save_strategy steps \
     --save_total_limit 13 \
     --gradient_accumulation_steps 8 \
-    --preprocessing_num_workers 4 \
-    --output_dir outputs-sft-qwen-v1 \
+    --preprocessing_num_workers 10 \
+    --block_size 512 \
+    --packing True \
+    --output_dir outputs-pt-qwen-v1 \
     --ddp_timeout 30000 \
     --logging_first_step True \
     --target_modules all \
@@ -36,4 +37,4 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 supervised_finetuning.py \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
     --gradient_checkpointing True \
-    --cache_dir ./cache --flash_attn True
+    --cache_dir ./cache

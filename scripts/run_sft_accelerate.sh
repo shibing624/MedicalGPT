@@ -1,40 +1,40 @@
-# reward model 训练暂不支持 torchrun 多卡训练
-CUDA_VISIBLE_DEVICES=0,1 python reward_modeling.py \
+export CUDA_VISIBLE_DEVICES=0,1
+accelerate launch --num_processes=2 training/supervised_finetuning_accelerate.py \
     --model_name_or_path Qwen/Qwen3.5-2B \
-    --train_file_dir ./data/reward \
-    --validation_file_dir ./data/reward \
+    --train_file_dir ./data/finetune \
+    --validation_file_dir ./data/finetune \
     --per_device_train_batch_size 4 \
-    --gradient_accumulation_steps 8 \
     --per_device_eval_batch_size 4 \
     --do_train \
+    --do_eval \
+    --template_name qwen3_5 \
     --use_peft True \
-    --seed 42 \
     --max_train_samples 1000 \
     --max_eval_samples 10 \
+    --model_max_length 4096 \
     --num_train_epochs 1 \
     --learning_rate 2e-5 \
     --warmup_steps 5 \
-    --weight_decay 0.001 \
+    --weight_decay 0.05 \
     --logging_strategy steps \
     --logging_steps 10 \
     --eval_steps 50 \
     --eval_strategy steps \
-    --save_steps 500 \
+    --save_steps 50 \
     --save_strategy steps \
-    --save_total_limit 3 \
-    --max_source_length 1024 \
-    --max_target_length 256 \
-    --output_dir outputs-rm-qwen-v1 \
-    --overwrite_output_dir \
+    --save_total_limit 13 \
+    --gradient_accumulation_steps 8 \
+    --preprocessing_num_workers 4 \
+    --output_dir outputs-sft-qwen-v1 \
     --ddp_timeout 30000 \
     --logging_first_step True \
     --target_modules all \
     --lora_rank 8 \
     --lora_alpha 16 \
     --lora_dropout 0.05 \
-    --bf16 \
     --torch_dtype bfloat16 \
+    --bf16 \
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
-    --remove_unused_columns False \
-    --gradient_checkpointing True
+    --gradient_checkpointing True \
+    --cache_dir ./cache --flash_attn True

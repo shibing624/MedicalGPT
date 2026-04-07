@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 grpo_training.py \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 training/grpo_training.py \
     --model_name_or_path Qwen/Qwen3.5-2B \
     --train_file_dir data/grpo \
     --train_samples -1 \

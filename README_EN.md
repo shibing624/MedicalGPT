@@ -43,7 +43,7 @@ Training MedicalGPT model：
 
 We provide a simple Gradio-based interactive web interface. After the service is started, it can be accessed through a browser, enter a question, and the model will return an answer. The command is as follows:
 ```shell
-python gradio_demo.py --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
+python demo/gradio_demo.py --base_model path_to_llama_hf_dir --lora_model path_to_lora_dir
 ```
 
 Parameter Description:
@@ -57,6 +57,54 @@ Parameter Description:
 
 
 
+## 📁 Project Structure
+
+```
+MedicalGPT/
+├── training/                # Core training scripts (main learning path)
+│   ├── template.py                         # Conversation template definitions
+│   ├── pretraining.py                      # Stage 1: Continue Pretraining (PT)
+│   ├── supervised_finetuning.py            # Stage 2: Supervised Fine-tuning (SFT)
+│   ├── supervised_finetuning_accelerate.py # Stage 2: SFT (Accelerate version)
+│   ├── reward_modeling.py                  # Stage 3: Reward Modeling (RM)
+│   ├── ppo_training.py                     # Stage 3: Reinforcement Learning (PPO/RLOO)
+│   ├── dpo_training.py                     # Stage 3: Direct Preference Optimization (DPO)
+│   ├── orpo_training.py                    # Stage 3: ORPO
+│   └── grpo_training.py                    # Stage 3: GRPO
+│
+├── scripts/                 # One-click run scripts + DeepSpeed configs
+│   ├── run_pt.sh / run_sft.sh / run_dpo.sh / ...
+│   └── zero1.json / zero2.json / zero3.json
+│
+├── demo/                    # Inference, deployment & application examples
+│   ├── inference.py / gradio_demo.py / fastapi_server_demo.py
+│   ├── openai_api.py / chatpdf.py
+│   └── inference_multigpu_demo.py
+│
+├── tools/                   # Model merging, quantization & data processing
+│   ├── merge_peft_adapter.py / merge_tokenizers.py
+│   ├── model_quant.py / eval_quantize.py
+│   └── convert_dataset.py / validate_jsonl.py
+│
+├── notebooks/               # Colab tutorial notebooks
+│   ├── run_training_dpo_pipeline.ipynb
+│   └── run_training_ppo_pipeline.ipynb
+│
+├── data/                    # Training data
+├── docs/                    # Documentation
+└── tests/                   # Tests
+```
+
+| Directory | Description | Target Audience |
+|-----------|-------------|-----------------|
+| `training/` | Core training code covering PT→SFT→RM→PPO/DPO/ORPO/GRPO pipeline | Developers learning training principles |
+| `scripts/` | One-click run scripts and DeepSpeed configs, copy and use | Users who want to start training quickly |
+| `demo/` | Inference, Gradio UI, FastAPI server, RAG QA examples | Users who want to deploy and try models |
+| `tools/` | LoRA merging, quantization, vocab extension, data conversion | Users needing model post-processing |
+| `notebooks/` | End-to-end Colab tutorials, one-click run | Beginners for quick hands-on experience |
+
+> All scripts are run from the **project root**, e.g.: `bash scripts/run_sft.sh`
+
 ## 🚀 Training Pipeline
 
 ### Stage 1: Continue Pretraining
@@ -65,7 +113,7 @@ Based on the llama-7b model, use medical encyclopedia data to continue pre-train
 
 
 ```shell
-sh run_pt.sh
+bash scripts/run_pt.sh
 ```
 
 [Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
@@ -76,7 +124,7 @@ Based on the llama-7b-pt model, the llama-7b-sft model is obtained by using medi
 Supervised fine-tuning of the base llama-7b-pt model to create llama-7b-sft
 
 ```shell
-sh run_sft.sh
+bash scripts/run_sft.sh
 ```
 
 [Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
@@ -98,7 +146,7 @@ Based on the llama-7b-sft model, the reward preference model is trained using me
 Reward modeling using dialog pairs from the reward dataset using the llama-7b-sft to create llama-7b-reward:
 
 ```shell
-sh run_rm.sh
+bash scripts/run_rm.sh
 ```
 [Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
 
@@ -117,7 +165,7 @@ This process is roughly divided into three steps:
 Reinforcement Learning fine-tuning of llama-7b-sft with the llama-7b-reward reward model to create llama-7b-rl
 
 ```shell
-sh run_ppo.sh
+bash scripts/run_ppo.sh
 ```
 [Training Detail wiki](https://github.com/shibing624/MedicalGPT/wiki/Training-Details)
 
@@ -178,7 +226,7 @@ pip install -r requirements.txt --upgrade
 After the training is complete, now we load the trained model to verify the effect of the model generating text.
 
 ```shell
-python inference.py \
+python demo/inference.py \
     --base_model path_to_llama_hf_dir \
     --lora_model path_to_lora \
     --with_prompt \

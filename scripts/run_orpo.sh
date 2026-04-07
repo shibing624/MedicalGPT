@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0,1 python orpo_training.py \
+CUDA_VISIBLE_DEVICES=0,1 python training/orpo_training.py \
     --model_name_or_path Qwen/Qwen3.5-2B \
     --template_name qwen3_5 \
     --train_file_dir ./data/reward \

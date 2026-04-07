@@ -1,5 +1,4 @@
-export CUDA_VISIBLE_DEVICES=0,1
-accelerate launch --num_processes=2 supervised_finetuning_accelerate.py \
+CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 training/supervised_finetuning.py \
     --model_name_or_path Qwen/Qwen3.5-2B \
     --train_file_dir ./data/finetune \
     --validation_file_dir ./data/finetune \
@@ -20,7 +19,7 @@ accelerate launch --num_processes=2 supervised_finetuning_accelerate.py \
     --logging_steps 10 \
     --eval_steps 50 \
     --eval_strategy steps \
-    --save_steps 50 \
+    --save_steps 500 \
     --save_strategy steps \
     --save_total_limit 13 \
     --gradient_accumulation_steps 8 \
