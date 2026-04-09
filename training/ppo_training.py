@@ -5,6 +5,7 @@
 """
 
 import os
+import sys
 from dataclasses import dataclass, field
 from glob import glob
 from typing import Optional
@@ -23,6 +24,9 @@ from trl import (
     ModelConfig,
     get_peft_config,
 )
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from training.template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -158,7 +162,6 @@ def main():
     # Get datasets
     prompt_template = None
     if args.template_name:
-        from template import get_conv_template
         prompt_template = get_conv_template(args.template_name)
     if args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.

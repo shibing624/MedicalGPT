@@ -9,8 +9,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from glob import glob
 from typing import Dict, Optional
-
-from training.tool_utils import get_tool_utils, FunctionCall
+import sys
 
 import torch
 from datasets import load_dataset
@@ -26,6 +25,9 @@ from transformers import (
 from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import DPOTrainer, DPOConfig
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from training.tool_utils import get_tool_utils, FunctionCall
+from training.template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -217,7 +219,6 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = None
     if args.template_name:
-        from template import get_conv_template
         prompt_template = get_conv_template(args.template_name)
     if tokenizer.eos_token_id is None:
         if prompt_template:

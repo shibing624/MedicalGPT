@@ -6,6 +6,7 @@
 
 import math
 import os
+import sys
 from dataclasses import dataclass, field
 from glob import glob
 from typing import Any, List, Union, Optional, Dict
@@ -27,7 +28,8 @@ from transformers import (
     set_seed,
 )
 from transformers.trainer import TRAINING_ARGS_NAME
-
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from training.template import get_conv_template
 
 
 
@@ -386,7 +388,6 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = None
     if script_args.template_name:
-        from template import get_conv_template
         prompt_template = get_conv_template(script_args.template_name)
     if tokenizer.eos_token_id is None:
         if prompt_template:

@@ -46,9 +46,9 @@ from tqdm.auto import tqdm
 
 from accelerate import Accelerator
 from accelerate.utils import set_seed as accelerate_set_seed
-
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from training.tool_utils import get_tool_utils, FunctionCall
-
+from training.template import get_conv_template
 try:
     import flash_attn  # noqa: F401
 
@@ -461,7 +461,6 @@ def main():
     # 设置特殊token
     prompt_template = None
     if script_args.template_name:
-        from template import get_conv_template
         prompt_template = get_conv_template(script_args.template_name)
     if tokenizer.eos_token_id is None:
         if prompt_template:

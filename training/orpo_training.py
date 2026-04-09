@@ -4,6 +4,7 @@
 @description: Train a model from base model using ORPO
 """
 import os
+import sys
 from dataclasses import dataclass, field
 from glob import glob
 from typing import Dict, Optional
@@ -22,7 +23,8 @@ from transformers import (
 )
 from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import DPOConfig, DPOTrainer
-
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from training.template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -222,7 +224,6 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = None
     if args.template_name:
-        from template import get_conv_template
         prompt_template = get_conv_template(args.template_name)
     if tokenizer.eos_token_id is None:
         if prompt_template:

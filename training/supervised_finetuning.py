@@ -47,9 +47,9 @@ from transformers.trainer_pt_utils import LabelSmoother
 from transformers.utils.versions import require_version
 
 from transformers.integrations import is_deepspeed_zero3_enabled
-
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from training.tool_utils import get_tool_utils, FunctionCall
-
+from training.template import get_conv_template
 try:
     import flash_attn  # noqa: F401
 
@@ -373,7 +373,6 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path, **tokenizer_kwargs)
     prompt_template = None
     if script_args.template_name:
-        from template import get_conv_template
         prompt_template = get_conv_template(script_args.template_name)
     if tokenizer.eos_token_id is None:
         if prompt_template:
