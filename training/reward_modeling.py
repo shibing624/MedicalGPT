@@ -513,8 +513,8 @@ def main():
                 examples["system"],
                 examples["history"],
                 examples["question"],
-                examples["response_chosen"],
-                examples["response_rejected"]
+                examples["chosen"],
+                examples["rejected"]
         ):
             system_prompt = system or ""
             if prompt_template:

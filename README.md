@@ -163,7 +163,6 @@ MedicalGPT/
 │
 ├── scripts/                 # 一键运行脚本 + DeepSpeed配置
 │   ├── run_pt.sh / run_sft.sh / run_dpo.sh / ...
-│   ├── run_agent_sft.sh / run_agent_dpo.sh # Agent训练脚本
 │   └── zero1.json / zero2.json / zero3.json
 │
 ├── demo/                    # 推理、部署、应用示例
@@ -181,9 +180,8 @@ MedicalGPT/
 │   └── run_training_ppo_pipeline.ipynb
 │
 ├── data/                    # 训练数据
-│   ├── finetune/                           # SFT数据
-│   ├── reward/                             # DPO/RM偏好数据
-│   └── toolcall/                           # Agent工具调用数据(SFT+DPO)
+│   ├── sft/                               # SFT数据（含普通问答和Tool Call）
+│   └── reward/                            # DPO/RM偏好数据（含普通偏好和Tool Call偏好）
 ├── docs/                    # 文档
 └── tests/                   # 测试
 ```
@@ -228,7 +226,7 @@ Training Stage:
 
 **数据格式（ShareGPT + Tools）：**
 
-SFT 数据格式（`data/toolcall/glaive_toolcall_zh_demo.json`）：
+SFT 数据格式（`data/sft/glaive_toolcall_zh_demo.json`）：
 ```json
 {
   "conversations": [
@@ -241,7 +239,7 @@ SFT 数据格式（`data/toolcall/glaive_toolcall_zh_demo.json`）：
 }
 ```
 
-DPO 数据格式（`data/toolcall/toolcall_dpo_zh_demo.json`）：
+DPO 数据格式（`data/reward/toolcall_dpo_zh_demo.json`）：
 ```json
 {
   "conversations": [
@@ -267,21 +265,19 @@ DPO 数据格式（`data/toolcall/toolcall_dpo_zh_demo.json`）：
 
 **混合训练：** 普通问答SFT数据和Tool Call数据可以一起训练，只需将两类数据文件放在同一个 `--train_file_dir` 目录下即可。没有 `tools` 字段的数据会按照普通SFT/DPO流程处理。
 
-**训练命令示例：**
+**训练命令：** Tool Call 数据与普通数据混合在同一目录下，直接使用标准训练脚本，加 `--tool_format` 参数即可：
 
-Agent SFT 训练：
 ```shell
-bash scripts/run_agent_sft.sh
-```
+# SFT（data/sft/ 目录下同时包含普通问答和 tool call 数据）
+bash scripts/run_sft.sh
 
-Agent DPO 训练：
-```shell
-bash scripts/run_agent_dpo.sh
+# DPO（data/reward/ 目录下同时包含普通偏好和 tool call 偏好数据）
+bash scripts/run_dpo.sh
 ```
 
 关键参数说明：
 - `--tool_format default`：指定工具调用的文本格式（可选 `default, glm4, llama3, mistral, qwen`）
-- `--train_file_dir ./data/toolcall`：指向包含 tool call 数据的文件夹
+- 无需单独的 agent 训练脚本，普通数据和 tool call 数据自动混合训练
 
 #### Supported Models
 

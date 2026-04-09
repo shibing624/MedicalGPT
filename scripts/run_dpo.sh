@@ -26,4 +26,5 @@ CUDA_VISIBLE_DEVICES=0,1 python training/dpo_training.py \
     --report_to tensorboard \
     --remove_unused_columns False \
     --gradient_checkpointing True \
+    --tool_format default \
     --cache_dir ./cache

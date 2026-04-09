@@ -339,8 +339,8 @@ def main():
                 ))
         return {
             "prompt": prompts,
-            "chosen": examples["response_chosen"],
-            "rejected": examples["response_rejected"],
+            "chosen": examples["chosen"],
+            "rejected": examples["rejected"],
         }
 
     # Preprocess the dataset

@@ -3,8 +3,8 @@ CUDA_VISIBLE_DEVICES=0,1 python training/ppo_training.py \
     --reward_model_path Qwen/Qwen3.5-2B \
     --model_name_or_path Qwen/Qwen3.5-2B \
     --dtype bfloat16 \
-    --train_file_dir ./data/finetune \
-    --validation_file_dir ./data/finetune \
+    --train_file_dir ./data/sft \
+    --validation_file_dir ./data/sft \
     --max_source_length 1024 \
     --max_completion_length 1000 \
     --per_device_train_batch_size 1 \

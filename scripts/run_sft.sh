@@ -1,7 +1,7 @@
 CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 training/supervised_finetuning.py \
     --model_name_or_path Qwen/Qwen3.5-0.8B \
-    --train_file_dir ./data/finetune \
-    --validation_file_dir ./data/finetune \
+    --train_file_dir ./data/sft \
+    --validation_file_dir ./data/sft \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 1 \
     --do_train \
@@ -35,4 +35,5 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --nproc_per_node 2 training/supervised_finetun
     --report_to tensorboard \
     --ddp_find_unused_parameters False \
     --gradient_checkpointing True \
+    --tool_format default \
     --cache_dir ./cache --flash_attn True

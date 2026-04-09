@@ -123,7 +123,7 @@ head -n 1 sharegpt_gpt4.jsonl
 The format of the Reward (reward model) data set is as follows:
 json file, one sample per line, each sample contains the following fields:
 ```
-{"question": "text1", "response_chosen": "text2", "response_rejected": "text3"}
+{"question": "text1", "chosen": "text2", "rejected": "text3"}
 ```
 
 

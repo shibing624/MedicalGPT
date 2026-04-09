@@ -388,7 +388,7 @@ def main():
         """Load the paired dataset and convert it to the necessary format.
 
         Supports two data formats:
-        1. Alpaca-style: {system, history, question, response_chosen, response_rejected}
+        1. Alpaca-style: {system, history, question, chosen, rejected}
         2. ShareGPT-style with tool calls: {conversations, tools, chosen, rejected}
 
         The dataset is converted to a dictionary with the following structure:
@@ -445,8 +445,8 @@ def main():
                     prompts.append(tokenizer.apply_chat_template(
                         messages, tokenize=False, add_generation_prompt=True
                     ))
-            chosen_list = examples["response_chosen"]
-            rejected_list = examples["response_rejected"]
+            chosen_list = examples["chosen"]
+            rejected_list = examples["rejected"]
 
         return {
             "prompt": prompts,
