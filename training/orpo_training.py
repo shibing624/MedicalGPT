@@ -3,6 +3,7 @@
 @author:XuMing(xuming624@qq.com)
 @description: Train a model from base model using ORPO
 """
+import json
 import os
 import sys
 from dataclasses import dataclass, field
@@ -25,6 +26,7 @@ from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import DPOConfig, DPOTrainer
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from training.template import get_conv_template
+from training.tool_utils import get_tool_utils, FunctionCall
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -82,6 +84,10 @@ class ScriptArguments:
     template_name: Optional[str] = field(
         default=None,
         metadata={"help": "The prompt template name. If not set, use tokenizer's built-in chat_template."}
+    )
+    tool_format: Optional[str] = field(
+        default=None,
+        metadata={"help": "Tool format for agent training. Options: default, glm4, llama3, mistral, qwen."}
     )
     per_device_train_batch_size: Optional[int] = field(default=4, metadata={"help": "Train batch size per device"})
     per_device_eval_batch_size: Optional[int] = field(default=1, metadata={"help": "Eval batch size per device"})
@@ -306,41 +312,104 @@ def main():
     max_target_length = args.max_target_length
     full_max_length = max_source_length + max_target_length
 
+    def _build_prompt(source, tools_json):
+        """Build prompt from ShareGPT conversations with optional tool support."""
+        system_prompt = ""
+        tools_text = ""
+
+        if tools_json:
+            tools_parsed = json.loads(tools_json) if isinstance(tools_json, str) else tools_json
+            if tools_parsed and args.tool_format:
+                tu = get_tool_utils(args.tool_format)
+                tools_text = tu.tool_formatter(tools_parsed)
+
+        chat_messages = []
+        for sentence in source:
+            role = sentence.get("from", "")
+            value = sentence.get("value", "")
+            if role == "system":
+                system_prompt = value
+            elif role in ("human", "user", "observation"):
+                if role == "observation":
+                    if args.tool_format == "qwen":
+                        value = f"<tool_response>\n{value}\n</tool_response>"
+                    elif args.tool_format == "glm4":
+                        value = f"<|observation|>\n{value}"
+                    elif args.tool_format == "mistral":
+                        value = f'[TOOL_RESULTS] {{"content": {value}}}[/TOOL_RESULTS]'
+                    else:
+                        value = f"Observation: {value}"
+                chat_messages.append({"role": "user", "content": value})
+            elif role in ("gpt", "assistant", "function_call"):
+                if role == "function_call":
+                    fc_dict = json.loads(value)
+                    if "name" in fc_dict and "arguments" in fc_dict:
+                        if args.tool_format:
+                            tu = get_tool_utils(args.tool_format)
+                            value = tu.function_formatter([FunctionCall(fc_dict["name"], json.dumps(fc_dict["arguments"], ensure_ascii=False))])
+                        else:
+                            value = f"Action: {fc_dict['name']}\nAction Input: {json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
+                chat_messages.append({"role": "assistant", "content": value})
+
+        if tools_text:
+            system_prompt = system_prompt + ("\n\n" if system_prompt else "") + tools_text
+
+        history_messages = []
+        temp = []
+        for msg in chat_messages:
+            if not temp and msg["role"] == "user":
+                temp.append(msg["content"])
+            elif len(temp) == 1 and msg["role"] == "assistant":
+                temp.append(msg["content"])
+                history_messages.append(temp)
+                temp = []
+            elif msg["role"] == "user" and len(temp) == 1:
+                temp[0] += "\n" + msg["content"]
+            elif msg["role"] == "assistant" and len(temp) == 2:
+                history_messages[-1][1] += "\n" + msg["content"]
+        if len(temp) == 1:
+            history_messages.append([temp[0], ""])
+
+        if prompt_template:
+            return prompt_template.get_prompt(messages=history_messages, system_prompt=system_prompt)
+        else:
+            accumulated = []
+            if system_prompt:
+                accumulated.append({"role": "system", "content": system_prompt})
+            for uq, br in history_messages:
+                accumulated.append({"role": "user", "content": uq})
+                if br:
+                    accumulated.append({"role": "assistant", "content": br})
+            return tokenizer.apply_chat_template(
+                accumulated, tokenize=False, add_generation_prompt=True
+            )
+
     def return_prompt_and_responses(examples) -> Dict[str, str]:
-        """Load the paired dataset and convert it to the necessary format.
+        """Load the paired dataset (ShareGPT format) and convert it.
 
-        The dataset is converted to a dictionary with the following structure:
-        {
-            'prompt': List[str],
-            'chosen': List[str],
-            'rejected': List[str],
-        }
-
-        Prompts are structured as follows:
-          system_prompt + history[[q,a], [q,a]...] + question
+        Data format: {conversations: [{from, value}, ...], chosen: str|dict, rejected: str|dict, tools?: str}
         """
         prompts = []
-        for system, history, question in zip(examples["system"], examples["history"], examples["question"]):
-            system_prompt = system or ""
-            if prompt_template:
-                history_with_question = history + [[question, '']] if history else [[question, '']]
-                prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
-            else:
-                messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                if history:
-                    for h_q, h_a in history:
-                        messages.append({"role": "user", "content": h_q})
-                        messages.append({"role": "assistant", "content": h_a})
-                messages.append({"role": "user", "content": question})
-                prompts.append(tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True
-                ))
+        chosen_list = []
+        rejected_list = []
+
+        tools_list = examples.get("tools", [None] * len(examples["conversations"]))
+        for i, source in enumerate(examples["conversations"]):
+            tools_json = tools_list[i] if tools_list else None
+
+            chosen_data = examples["chosen"][i]
+            rejected_data = examples["rejected"][i]
+            chosen_text = chosen_data.get("value", "") if isinstance(chosen_data, dict) else str(chosen_data)
+            rejected_text = rejected_data.get("value", "") if isinstance(rejected_data, dict) else str(rejected_data)
+
+            prompts.append(_build_prompt(source, tools_json))
+            chosen_list.append(chosen_text)
+            rejected_list.append(rejected_text)
+
         return {
             "prompt": prompts,
-            "chosen": examples["chosen"],
-            "rejected": examples["rejected"],
+            "chosen": chosen_list,
+            "rejected": rejected_list,
         }
 
     # Preprocess the dataset

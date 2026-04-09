@@ -387,9 +387,8 @@ def main():
     def return_prompt_and_responses(examples) -> Dict[str, str]:
         """Load the paired dataset and convert it to the necessary format.
 
-        Supports two data formats:
-        1. Alpaca-style: {system, history, question, chosen, rejected}
-        2. ShareGPT-style with tool calls: {conversations, tools, chosen, rejected}
+        Data format (ShareGPT):
+            {conversations: [{from, value}, ...], chosen: str|dict, rejected: str|dict, tools?: str}
 
         The dataset is converted to a dictionary with the following structure:
         {
@@ -398,55 +397,31 @@ def main():
             'rejected': List[str],
         }
         """
-        columns = set(examples.keys())
-        is_sharegpt = "conversations" in columns
-
         prompts = []
         chosen_list = []
         rejected_list = []
 
-        if is_sharegpt:
-            tools_list = examples.get("tools", [None] * len(examples["conversations"]))
-            for i, source in enumerate(examples["conversations"]):
-                tools_json = tools_list[i] if tools_list else None
+        tools_list = examples.get("tools", [None] * len(examples["conversations"]))
+        for i, source in enumerate(examples["conversations"]):
+            tools_json = tools_list[i] if tools_list else None
 
-                chosen_data = examples["chosen"][i]
-                rejected_data = examples["rejected"][i]
-                if isinstance(chosen_data, dict):
-                    chosen_text = chosen_data.get("value", chosen_data.get("content", ""))
-                else:
-                    chosen_text = str(chosen_data)
-                if isinstance(rejected_data, dict):
-                    rejected_text = rejected_data.get("value", rejected_data.get("content", ""))
-                else:
-                    rejected_text = str(rejected_data)
+            chosen_data = examples["chosen"][i]
+            rejected_data = examples["rejected"][i]
+            if isinstance(chosen_data, dict):
+                chosen_text = chosen_data.get("value", chosen_data.get("content", ""))
+            else:
+                chosen_text = str(chosen_data)
+            if isinstance(rejected_data, dict):
+                rejected_text = rejected_data.get("value", rejected_data.get("content", ""))
+            else:
+                rejected_text = str(rejected_data)
 
-                prompt = _build_prompt_from_conversations(
-                    source, tools_json, "", args.tool_format
-                )
-                prompts.append(prompt)
-                chosen_list.append(chosen_text)
-                rejected_list.append(rejected_text)
-        else:
-            for system, history, question in zip(examples["system"], examples["history"], examples["question"]):
-                system_prompt = system or ""
-                if prompt_template:
-                    history_with_question = history + [[question, '']] if history else [[question, '']]
-                    prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
-                else:
-                    messages = []
-                    if system_prompt:
-                        messages.append({"role": "system", "content": system_prompt})
-                    if history:
-                        for h_q, h_a in history:
-                            messages.append({"role": "user", "content": h_q})
-                            messages.append({"role": "assistant", "content": h_a})
-                    messages.append({"role": "user", "content": question})
-                    prompts.append(tokenizer.apply_chat_template(
-                        messages, tokenize=False, add_generation_prompt=True
-                    ))
-            chosen_list = examples["chosen"]
-            rejected_list = examples["rejected"]
+            prompt = _build_prompt_from_conversations(
+                source, tools_json, "", args.tool_format
+            )
+            prompts.append(prompt)
+            chosen_list.append(chosen_text)
+            rejected_list.append(rejected_text)
 
         return {
             "prompt": prompts,

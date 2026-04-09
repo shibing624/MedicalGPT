@@ -119,21 +119,19 @@ head -n 1 sharegpt_gpt4.jsonl
 }
 ```
 
-#### Reward model dataset format
-The format of the Reward (reward model) data set is as follows:
+#### Reward model / DPO dataset format
+The format of the Reward/DPO data set is ShareGPT format with chosen/rejected fields:
 json file, one sample per line, each sample contains the following fields:
 ```
-{"question": "text1", "chosen": "text2", "rejected": "text3"}
+{"conversations": [{"from": "human", "value": "text1"}], "chosen": "text2", "rejected": "text3"}
 ```
 
+With tool calls:
+```
+{"conversations": [{"from": "human", "value": "text1"}], "tools": "[...]", "chosen": "text2", "rejected": "text3"}
+```
 
 #### Reinforcement Learning dataset format
-The RL (Reinforcement Learning) dataset format is as follows:
-json file, one sample per line, each sample contains the following fields:
-```
-{"instruction": "text1", "input": "text2", "output": "text3"}
-```
-
 SFT datasets can be reused.
 
 

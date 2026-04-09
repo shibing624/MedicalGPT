@@ -4,6 +4,7 @@
 @description:
 """
 
+import json
 import math
 import os
 import sys
@@ -30,6 +31,7 @@ from transformers import (
 from transformers.trainer import TRAINING_ARGS_NAME
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from training.template import get_conv_template
+from training.tool_utils import get_tool_utils, FunctionCall
 
 
 
@@ -149,6 +151,10 @@ class ScriptArguments:
     template_name: Optional[str] = field(
         default=None,
         metadata={"help": "The prompt template name. If not set, use tokenizer's built-in chat_template."}
+    )
+    tool_format: Optional[str] = field(
+        default=None,
+        metadata={"help": "Tool format for agent training. Options: default, glm4, llama3, mistral, qwen."}
     )
 
 
@@ -498,10 +504,54 @@ def main():
     # Preprocessing the datasets
     full_max_length = data_args.max_source_length + data_args.max_target_length
 
+    def _parse_conversations_to_messages(source, tools_json):
+        """Parse ShareGPT conversations into (system_prompt, chat_messages) for reward modeling."""
+        system_prompt = ""
+        tools_text = ""
+
+        if tools_json:
+            tools_parsed = json.loads(tools_json) if isinstance(tools_json, str) else tools_json
+            if tools_parsed and script_args.tool_format:
+                tu = get_tool_utils(script_args.tool_format)
+                tools_text = tu.tool_formatter(tools_parsed)
+
+        chat_messages = []
+        for sentence in source:
+            role = sentence.get("from", "")
+            value = sentence.get("value", "")
+            if role == "system":
+                system_prompt = value
+            elif role in ("human", "user", "observation"):
+                if role == "observation":
+                    if script_args.tool_format == "qwen":
+                        value = f"<tool_response>\n{value}\n</tool_response>"
+                    elif script_args.tool_format == "glm4":
+                        value = f"<|observation|>\n{value}"
+                    elif script_args.tool_format == "mistral":
+                        value = f'[TOOL_RESULTS] {{"content": {value}}}[/TOOL_RESULTS]'
+                    else:
+                        value = f"Observation: {value}"
+                chat_messages.append({"role": "user", "content": value})
+            elif role in ("gpt", "assistant", "function_call"):
+                if role == "function_call":
+                    fc_dict = json.loads(value)
+                    if "name" in fc_dict and "arguments" in fc_dict:
+                        if script_args.tool_format:
+                            tu = get_tool_utils(script_args.tool_format)
+                            value = tu.function_formatter([FunctionCall(fc_dict["name"], json.dumps(fc_dict["arguments"], ensure_ascii=False))])
+                        else:
+                            value = f"Action: {fc_dict['name']}\nAction Input: {json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
+                chat_messages.append({"role": "assistant", "content": value})
+
+        if tools_text:
+            system_prompt = system_prompt + ("\n\n" if system_prompt else "") + tools_text
+
+        return system_prompt, chat_messages
+
     def preprocess_reward_function(examples):
-        """
-        Turn the dataset into pairs of Question + Answer, where input_ids_chosen is the preferred question + answer
-            and text_rejected is the other.
+        """Turn ShareGPT dataset into pairs of (prompt + chosen) vs (prompt + rejected).
+
+        Data format: {conversations: [{from, value}, ...], chosen: str|dict, rejected: str|dict, tools?: str}
         """
         new_examples = {
             "input_ids_chosen": [],
@@ -509,30 +559,45 @@ def main():
             "input_ids_rejected": [],
             "attention_mask_rejected": [],
         }
-        for system, history, question, chosen, rejected in zip(
-                examples["system"],
-                examples["history"],
-                examples["question"],
-                examples["chosen"],
-                examples["rejected"]
-        ):
-            system_prompt = system or ""
+        tools_list = examples.get("tools", [None] * len(examples["conversations"]))
+        for i, source in enumerate(examples["conversations"]):
+            tools_json = tools_list[i] if tools_list else None
+            system_prompt, chat_messages = _parse_conversations_to_messages(source, tools_json)
+
+            chosen_data = examples["chosen"][i]
+            rejected_data = examples["rejected"][i]
+            chosen_text = chosen_data.get("value", "") if isinstance(chosen_data, dict) else str(chosen_data)
+            rejected_text = rejected_data.get("value", "") if isinstance(rejected_data, dict) else str(rejected_data)
+
             if prompt_template:
-                chosen_messages = history + [[question, chosen]] if history else [[question, chosen]]
-                chosen_prompt = prompt_template.get_prompt(messages=chosen_messages, system_prompt=system_prompt)
-                rejected_messages = history + [[question, rejected]] if history else [[question, rejected]]
-                rejected_prompt = prompt_template.get_prompt(messages=rejected_messages, system_prompt=system_prompt)
+                history_messages = []
+                temp = []
+                for msg in chat_messages:
+                    if not temp and msg["role"] == "user":
+                        temp.append(msg["content"])
+                    elif len(temp) == 1 and msg["role"] == "assistant":
+                        temp.append(msg["content"])
+                        history_messages.append(temp)
+                        temp = []
+                    elif msg["role"] == "user" and len(temp) == 1:
+                        temp[0] += "\n" + msg["content"]
+                    elif msg["role"] == "assistant" and len(temp) == 2:
+                        history_messages[-1][1] += "\n" + msg["content"]
+                if len(temp) == 1:
+                    history_messages.append([temp[0], ""])
+                last_q = history_messages[-1][0] if history_messages else ""
+                hist = history_messages[:-1]
+                chosen_msgs = hist + [[last_q, chosen_text]]
+                rejected_msgs = hist + [[last_q, rejected_text]]
+                chosen_prompt = prompt_template.get_prompt(messages=chosen_msgs, system_prompt=system_prompt)
+                rejected_prompt = prompt_template.get_prompt(messages=rejected_msgs, system_prompt=system_prompt)
             else:
                 base_messages = []
                 if system_prompt:
                     base_messages.append({"role": "system", "content": system_prompt})
-                if history:
-                    for h_q, h_a in history:
-                        base_messages.append({"role": "user", "content": h_q})
-                        base_messages.append({"role": "assistant", "content": h_a})
-                base_messages.append({"role": "user", "content": question})
-                chosen_msgs = base_messages + [{"role": "assistant", "content": chosen}]
-                rejected_msgs = base_messages + [{"role": "assistant", "content": rejected}]
+                base_messages.extend(chat_messages)
+                chosen_msgs = base_messages + [{"role": "assistant", "content": chosen_text}]
+                rejected_msgs = base_messages + [{"role": "assistant", "content": rejected_text}]
                 chosen_prompt = tokenizer.apply_chat_template(
                     chosen_msgs, tokenize=False, add_generation_prompt=False
                 )
