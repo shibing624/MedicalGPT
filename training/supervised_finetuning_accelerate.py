@@ -191,13 +191,11 @@ def load_datasets(data_args, model_args):
         # Loading a dataset from local files.
         data_files = {}
         if data_args.train_file_dir is not None and os.path.exists(data_args.train_file_dir):
-            train_data_files = glob(f'{data_args.train_file_dir}/**/*.json', recursive=True) + glob(
-                f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
+            train_data_files = glob(f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"train files: {train_data_files}")
             data_files["train"] = train_data_files
         if data_args.validation_file_dir is not None and os.path.exists(data_args.validation_file_dir):
-            eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.json', recursive=True) + glob(
-                f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
+            eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"eval files: {eval_data_files}")
             data_files["validation"] = eval_data_files
         raw_datasets = load_dataset(

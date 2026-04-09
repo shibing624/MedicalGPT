@@ -274,14 +274,12 @@ def main():
     else:
         data_files = {}
         if args.train_file_dir is not None and os.path.exists(args.train_file_dir):
-            train_data_files = glob(f'{args.train_file_dir}/**/*.json', recursive=True) + glob(
-                f'{args.train_file_dir}/**/*.jsonl', recursive=True)
+            train_data_files = glob(f'{args.train_file_dir}/**/*.jsonl', recursive=True)
             if is_main_process:
                 logger.info(f"train files: {', '.join(train_data_files)}")
             data_files["train"] = train_data_files
         if args.validation_file_dir is not None and os.path.exists(args.validation_file_dir):
-            eval_data_files = glob(f'{args.validation_file_dir}/**/*.json', recursive=True) + glob(
-                f'{args.validation_file_dir}/**/*.jsonl', recursive=True)
+            eval_data_files = glob(f'{args.validation_file_dir}/**/*.jsonl', recursive=True)
             if is_main_process:
                 logger.info(f"eval files: {', '.join(eval_data_files)}")
             data_files["validation"] = eval_data_files
@@ -397,10 +395,8 @@ def main():
         for i, source in enumerate(examples["conversations"]):
             tools_json = tools_list[i] if tools_list else None
 
-            chosen_data = examples["chosen"][i]
-            rejected_data = examples["rejected"][i]
-            chosen_text = chosen_data.get("value", "") if isinstance(chosen_data, dict) else str(chosen_data)
-            rejected_text = rejected_data.get("value", "") if isinstance(rejected_data, dict) else str(rejected_data)
+            chosen_text = examples["chosen"][i]
+            rejected_text = examples["rejected"][i]
 
             prompts.append(_build_prompt(source, tools_json))
             chosen_list.append(chosen_text)

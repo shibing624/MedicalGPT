@@ -263,13 +263,11 @@ def main():
     else:
         data_files = {}
         if args.train_file_dir is not None and os.path.exists(args.train_file_dir):
-            train_data_files = glob(f'{args.train_file_dir}/**/*.json', recursive=True) + glob(
-                f'{args.train_file_dir}/**/*.jsonl', recursive=True)
+            train_data_files = glob(f'{args.train_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"train files: {', '.join(train_data_files)}")
             data_files["train"] = train_data_files
         if args.validation_file_dir is not None and os.path.exists(args.validation_file_dir):
-            eval_data_files = glob(f'{args.validation_file_dir}/**/*.json', recursive=True) + glob(
-                f'{args.validation_file_dir}/**/*.jsonl', recursive=True)
+            eval_data_files = glob(f'{args.validation_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"eval files: {', '.join(eval_data_files)}")
             data_files["validation"] = eval_data_files
         raw_datasets = load_dataset(
@@ -405,16 +403,8 @@ def main():
         for i, source in enumerate(examples["conversations"]):
             tools_json = tools_list[i] if tools_list else None
 
-            chosen_data = examples["chosen"][i]
-            rejected_data = examples["rejected"][i]
-            if isinstance(chosen_data, dict):
-                chosen_text = chosen_data.get("value", chosen_data.get("content", ""))
-            else:
-                chosen_text = str(chosen_data)
-            if isinstance(rejected_data, dict):
-                rejected_text = rejected_data.get("value", rejected_data.get("content", ""))
-            else:
-                rejected_text = str(rejected_data)
+            chosen_text = examples["chosen"][i]
+            rejected_text = examples["rejected"][i]
 
             prompt = _build_prompt_from_conversations(
                 source, tools_json, "", args.tool_format

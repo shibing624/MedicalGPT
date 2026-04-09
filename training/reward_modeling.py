@@ -471,13 +471,11 @@ def main():
     else:
         data_files = {}
         if data_args.train_file_dir is not None and os.path.exists(data_args.train_file_dir):
-            train_data_files = glob(f'{data_args.train_file_dir}/**/*.json', recursive=True) + glob(
-                f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
+            train_data_files = glob(f'{data_args.train_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"train files: {', '.join(train_data_files)}")
             data_files["train"] = train_data_files
         if data_args.validation_file_dir is not None and os.path.exists(data_args.validation_file_dir):
-            eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.json', recursive=True) + glob(
-                f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
+            eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"eval files: {', '.join(eval_data_files)}")
             data_files["validation"] = eval_data_files
         raw_datasets = load_dataset(
@@ -564,10 +562,8 @@ def main():
             tools_json = tools_list[i] if tools_list else None
             system_prompt, chat_messages = _parse_conversations_to_messages(source, tools_json)
 
-            chosen_data = examples["chosen"][i]
-            rejected_data = examples["rejected"][i]
-            chosen_text = chosen_data.get("value", "") if isinstance(chosen_data, dict) else str(chosen_data)
-            rejected_text = rejected_data.get("value", "") if isinstance(rejected_data, dict) else str(rejected_data)
+            chosen_text = examples["chosen"][i]
+            rejected_text = examples["rejected"][i]
 
             if prompt_template:
                 history_messages = []

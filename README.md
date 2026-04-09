@@ -224,32 +224,19 @@ Training Stage:
 
 **核心原理：** Tool Call 本质上是特殊的多轮对话，在标准的 `human`/`gpt` 角色之外新增了 `function_call`（模型决定调用工具）和 `observation`（工具返回结果）两种角色。Template 系统统一处理所有角色，有工具描述就拼接到 system message，没有就跳过，对 loss 计算和训练过程完全透明。
 
-**数据格式（ShareGPT + Tools）：**
+**数据格式：** 统一使用 jsonl（一行一条），ShareGPT 格式。
 
-SFT 数据格式（`data/sft/glaive_toolcall_zh_demo.json`）：
-```json
-{
-  "conversations": [
-    {"from": "human", "value": "帮我查一下北京天气"},
-    {"from": "function_call", "value": "{\"name\": \"get_weather\", \"arguments\": {\"city\": \"北京\"}}"},
-    {"from": "observation", "value": "{\"temperature\": \"28°C\", \"weather\": \"晴\"}"},
-    {"from": "gpt", "value": "北京今天天气晴朗，气温28°C。"}
-  ],
-  "tools": "[{\"name\": \"get_weather\", \"description\": \"获取天气\", \"parameters\": {...}}]"
-}
+SFT 数据（`data/sft/glaive_toolcall_zh_demo.jsonl`）：
+```
+{"conversations": [{"from": "human", "value": "帮我查一下北京天气"}, {"from": "function_call", "value": "{\"name\": \"get_weather\", \"arguments\": {\"city\": \"北京\"}}"}, {"from": "observation", "value": "{\"temperature\": \"28°C\", \"weather\": \"晴\"}"}, {"from": "gpt", "value": "北京今天天气晴朗，气温28°C。"}], "tools": "[...]"}
 ```
 
-DPO 数据格式（`data/reward/toolcall_dpo_zh_demo.json`）：
-```json
-{
-  "conversations": [
-    {"from": "human", "value": "帮我查一下北京天气"}
-  ],
-  "tools": "[{\"name\": \"get_weather\", ...}]",
-  "chosen": {"from": "gpt", "value": "Action: get_weather\nAction Input: {\"city\": \"北京\"}"},
-  "rejected": {"from": "gpt", "value": "北京今天天气晴朗，气温25度。"}
-}
+DPO 数据（`data/reward/toolcall_dpo_zh_demo.jsonl`）：
 ```
+{"conversations": [{"from": "human", "value": "帮我查一下北京天气"}], "tools": "[...]", "chosen": "Action: get_weather\nAction Input: {\"city\": \"北京\"}", "rejected": "北京今天天气晴朗，气温25度。"}
+```
+
+> **注意：** 所有训练数据统一为 `.jsonl` 格式。`chosen`/`rejected` 为纯字符串。如有 `.json` 文件（JSON 数组），可用 `python tools/convert_dataset.py --in_file data.json --out_file data.jsonl --data_type json2jsonl` 转换。
 
 **支持的 tool_format：**
 

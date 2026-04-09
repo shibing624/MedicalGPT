@@ -99,11 +99,11 @@ txt file
 ```
 
 #### SFT dataset format
-The format of the SFT (supervised fine-tuning) dataset is as follows
+The format of the SFT (supervised fine-tuning) dataset is as follows.
 
-vicuna dataset format, one sample per line, each sample contains the following fields:
+All data files use `.jsonl` format (one JSON object per line).
 
-json file, one sample per line, each sample contains the following fields:
+ShareGPT format:
 ```
 head -n 1 sharegpt_gpt4.jsonl
 
@@ -120,19 +120,24 @@ head -n 1 sharegpt_gpt4.jsonl
 ```
 
 #### Reward model / DPO dataset format
-The format of the Reward/DPO data set is ShareGPT format with chosen/rejected fields:
-json file, one sample per line, each sample contains the following fields:
+ShareGPT format with chosen/rejected string fields, `.jsonl` file:
 ```
 {"conversations": [{"from": "human", "value": "text1"}], "chosen": "text2", "rejected": "text3"}
 ```
 
-With tool calls:
+With tool calls (optional `tools` field):
 ```
 {"conversations": [{"from": "human", "value": "text1"}], "tools": "[...]", "chosen": "text2", "rejected": "text3"}
 ```
 
 #### Reinforcement Learning dataset format
 SFT datasets can be reused.
+
+#### Data format conversion
+Convert JSON array to jsonl:
+```bash
+python tools/convert_dataset.py --in_file data.json --out_file data.jsonl --data_type json2jsonl
+```
 
 
 Use `--dataset_name` to load HF datasets, format refer to [shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
