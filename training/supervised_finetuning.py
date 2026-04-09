@@ -48,6 +48,8 @@ from transformers.utils.versions import require_version
 
 from transformers.integrations import is_deepspeed_zero3_enabled
 
+from training.tool_utils import get_tool_utils, FunctionCall
+
 try:
     import flash_attn  # noqa: F401
 
@@ -462,14 +464,10 @@ def main():
                 if "tools" in examples and examples["tools"][i]:
                     tools_json = examples["tools"][i]
                     if isinstance(tools_json, str):
-                        try:
-                            tools_parsed = json.loads(tools_json)
-                            if tools_parsed and script_args.tool_format:
-                                from training.tool_utils import get_tool_utils
-                                tool_utils = get_tool_utils(script_args.tool_format)
-                                tools_text = tool_utils.tool_formatter(tools_parsed)
-                        except Exception:
-                            pass
+                        tools_parsed = json.loads(tools_json)
+                        if tools_parsed and script_args.tool_format:
+                            tu = get_tool_utils(script_args.tool_format)
+                            tools_text = tu.tool_formatter(tools_parsed)
                 
                 messages = []
                 for sentence in source:
@@ -493,17 +491,13 @@ def main():
                         messages.append({"role": "user", "content": value})
                     elif role in ["gpt", "assistant", "function_call"]:
                         if role == "function_call":
-                            try:
-                                fc_dict = json.loads(value)
-                                if "name" in fc_dict and "arguments" in fc_dict:
-                                    if script_args.tool_format:
-                                        from training.tool_utils import get_tool_utils, FunctionCall
-                                        tool_utils = get_tool_utils(script_args.tool_format)
-                                        value = tool_utils.function_formatter([FunctionCall(fc_dict["name"], json.dumps(fc_dict["arguments"], ensure_ascii=False))])
-                                    else:
-                                        value = f"Action: {fc_dict['name']}\nAction Input: {json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
-                            except Exception:
-                                pass
+                            fc_dict = json.loads(value)
+                            if "name" in fc_dict and "arguments" in fc_dict:
+                                if script_args.tool_format:
+                                    tu = get_tool_utils(script_args.tool_format)
+                                    value = tu.function_formatter([FunctionCall(fc_dict["name"], json.dumps(fc_dict["arguments"], ensure_ascii=False))])
+                                else:
+                                    value = f"Action: {fc_dict['name']}\nAction Input: {json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
                         messages.append({"role": "assistant", "content": value})
 
                 if tools_text:

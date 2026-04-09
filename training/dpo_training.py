@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from glob import glob
 from typing import Dict, Optional
 
+from training.tool_utils import get_tool_utils, FunctionCall
+
 import torch
 from datasets import load_dataset
 from loguru import logger
@@ -297,19 +299,15 @@ def main():
 
     def _format_tool_call_value(value, tool_fmt):
         """Format a function_call value using tool_utils."""
-        try:
-            fc_dict = json.loads(value)
-            if "name" in fc_dict and "arguments" in fc_dict:
-                if tool_fmt:
-                    from training.tool_utils import get_tool_utils, FunctionCall
-                    tu = get_tool_utils(tool_fmt)
-                    return tu.function_formatter(
-                        [FunctionCall(fc_dict["name"], json.dumps(fc_dict["arguments"], ensure_ascii=False))]
-                    )
-                else:
-                    return f"Action: {fc_dict['name']}\nAction Input: {json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
-        except Exception:
-            pass
+        fc_dict = json.loads(value)
+        if "name" in fc_dict and "arguments" in fc_dict:
+            if tool_fmt:
+                tu = get_tool_utils(tool_fmt)
+                return tu.function_formatter(
+                    [FunctionCall(fc_dict["name"], json.dumps(fc_dict["arguments"], ensure_ascii=False))]
+                )
+            else:
+                return f"Action: {fc_dict['name']}\nAction Input: {json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
         return value
 
     def _format_observation_value(value, tool_fmt):
@@ -329,14 +327,10 @@ def main():
         tools_text = ""
 
         if tools_json:
-            try:
-                tools_parsed = json.loads(tools_json) if isinstance(tools_json, str) else tools_json
-                if tools_parsed and tool_fmt:
-                    from training.tool_utils import get_tool_utils
-                    tu = get_tool_utils(tool_fmt)
-                    tools_text = tu.tool_formatter(tools_parsed)
-            except Exception:
-                pass
+            tools_parsed = json.loads(tools_json) if isinstance(tools_json, str) else tools_json
+            if tools_parsed and tool_fmt:
+                tu = get_tool_utils(tool_fmt)
+                tools_text = tu.tool_formatter(tools_parsed)
 
         chat_messages = []
         for sentence in source:
