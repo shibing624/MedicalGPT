@@ -21,6 +21,7 @@ part of code is modified from https://github.com/shibing624/textgen
 import math
 import os
 import sys
+import json
 from dataclasses import dataclass, field
 from glob import glob
 from types import MethodType
@@ -462,7 +463,6 @@ def main():
                     tools_json = examples["tools"][i]
                     if isinstance(tools_json, str):
                         try:
-                            import json
                             tools_parsed = json.loads(tools_json)
                             if tools_parsed and script_args.tool_format:
                                 from training.tool_utils import get_tool_utils
@@ -494,7 +494,6 @@ def main():
                     elif role in ["gpt", "assistant", "function_call"]:
                         if role == "function_call":
                             try:
-                                import json
                                 fc_dict = json.loads(value)
                                 if "name" in fc_dict and "arguments" in fc_dict:
                                     if script_args.tool_format:

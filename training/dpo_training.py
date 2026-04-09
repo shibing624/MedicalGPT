@@ -3,6 +3,7 @@
 @author:XuMing(xuming624@qq.com)
 @description: Train a model from SFT using DPO
 """
+import json
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -296,18 +297,17 @@ def main():
 
     def _format_tool_call_value(value, tool_fmt):
         """Format a function_call value using tool_utils."""
-        import json as _json
         try:
-            fc_dict = _json.loads(value)
+            fc_dict = json.loads(value)
             if "name" in fc_dict and "arguments" in fc_dict:
                 if tool_fmt:
                     from training.tool_utils import get_tool_utils, FunctionCall
                     tu = get_tool_utils(tool_fmt)
                     return tu.function_formatter(
-                        [FunctionCall(fc_dict["name"], _json.dumps(fc_dict["arguments"], ensure_ascii=False))]
+                        [FunctionCall(fc_dict["name"], json.dumps(fc_dict["arguments"], ensure_ascii=False))]
                     )
                 else:
-                    return f"Action: {fc_dict['name']}\nAction Input: {_json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
+                    return f"Action: {fc_dict['name']}\nAction Input: {json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
         except Exception:
             pass
         return value
@@ -324,17 +324,13 @@ def main():
             return f"Observation: {value}"
 
     def _build_prompt_from_conversations(source, tools_json, system_prompt_override, tool_fmt):
-        """Build a prompt string from sharegpt-style conversations with tool call support.
-
-        Returns: (prompt_text, system_prompt_used)
-        """
-        import json as _json
+        """Build a prompt string from sharegpt-style conversations with tool call support."""
         system_prompt = system_prompt_override or ""
         tools_text = ""
 
         if tools_json:
             try:
-                tools_parsed = _json.loads(tools_json) if isinstance(tools_json, str) else tools_json
+                tools_parsed = json.loads(tools_json) if isinstance(tools_json, str) else tools_json
                 if tools_parsed and tool_fmt:
                     from training.tool_utils import get_tool_utils
                     tu = get_tool_utils(tool_fmt)

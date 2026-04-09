@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+@author:XuMing(xuming624@qq.com)
+@description: 
+"""
+
 import json
 import re
 from abc import ABC, abstractmethod
@@ -257,7 +263,7 @@ class MistralToolUtils(ToolUtils):
 
 class QwenToolUtils(ToolUtils):
     r"""
-    Qwen 2.5 tool using template.
+    Qwen tool using template. Compatible with Qwen2.5, Qwen3 and Qwen3.5.
     """
 
     @staticmethod
@@ -307,6 +313,8 @@ TOOLS = {
     "llama3": Llama3ToolUtils(),
     "mistral": MistralToolUtils(),
     "qwen": QwenToolUtils(),
+    "qwen3": QwenToolUtils(),
+    "qwen3.5": QwenToolUtils(),
 }
 
 

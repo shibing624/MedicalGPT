@@ -5,7 +5,7 @@
 # file types in the same train_file_dir folder
 
 CUDA_VISIBLE_DEVICES=0,1 python training/dpo_training.py \
-    --model_name_or_path Qwen/Qwen2.5-1.5B-Instruct \
+    --model_name_or_path Qwen/Qwen3.5-2B \
     --train_file_dir ./data/toolcall \
     --validation_file_dir ./data/toolcall \
     --per_device_train_batch_size 4 \

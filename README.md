@@ -258,7 +258,9 @@ DPO 数据格式（`data/toolcall/toolcall_dpo_zh_demo.json`）：
 | tool_format | 适用模型 | 说明 |
 |-------------|---------|------|
 | `default`   | 通用 | Action/Action Input 格式 |
-| `qwen`      | Qwen系列 | `<tool_call>` XML格式 |
+| `qwen`      | Qwen2.5/Qwen3/Qwen3.5 | `<tool_call>` XML格式 |
+| `qwen3`     | Qwen3 | 同 `qwen`，别名 |
+| `qwen3.5`   | Qwen3.5 | 同 `qwen`，别名 |
 | `glm4`      | GLM-4 | ChatGLM 工具格式 |
 | `llama3`    | LLaMA-3.x | JSON function call 格式 |
 | `mistral`   | Mistral | `[AVAILABLE_TOOLS]` 格式 |
