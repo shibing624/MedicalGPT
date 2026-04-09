@@ -107,6 +107,10 @@ class ScriptArguments:
         default=None,
         metadata={"help": "The prompt template name. If not set, use tokenizer's built-in chat_template."}
     )
+    tool_format: Optional[str] = field(
+        default=None,
+        metadata={"help": "Tool format to use for agent training. Options: default, glm4, llama3, mistral, qwen."}
+    )
     # 添加参数控制是否使用张量并行
     use_tensor_parallel: bool = field(
         default=False,
@@ -230,31 +234,78 @@ def create_preprocess_function(tokenizer, prompt_template, script_args, IGNORE_I
             system_prompts = examples.get("system_prompt", "")
             for i, source in enumerate(examples['conversations']):
                 system_prompt = ""
-                if len(source) < 2:
-                    continue
-                data_role = source[0].get("from", "")
-                if data_role == "system":
-                    # Skip the first one if it is from system
-                    system_prompt = source[0]["value"]
-                    source = source[1:]
-                    data_role = source[0].get("from", "")
-                if data_role not in roles or data_role != roles[0]:
-                    # Skip the first one if it is not from human
-                    source = source[1:]
-                if len(source) < 2:
-                    continue
+                tools_text = ""
+                if "tools" in examples and examples["tools"][i]:
+                    tools_json = examples["tools"][i]
+                    if isinstance(tools_json, str):
+                        try:
+                            import json
+                            tools_parsed = json.loads(tools_json)
+                            if tools_parsed and script_args.tool_format:
+                                from training.tool_utils import get_tool_utils
+                                tool_utils = get_tool_utils(script_args.tool_format)
+                                tools_text = tool_utils.tool_formatter(tools_parsed)
+                        except Exception:
+                            pass
+                
                 messages = []
-                for j, sentence in enumerate(source):
-                    data_role = sentence.get("from", "")
-                    if data_role not in roles:
-                        logger.warning(f"unknown role: {data_role}, {i}. (ignored)")
-                        break
-                    if data_role == roles[j % 2]:
-                        messages.append(sentence["value"])
-                if len(messages) % 2 != 0:
+                for sentence in source:
+                    role = sentence.get("from", "")
+                    value = sentence.get("value", "")
+                    
+                    if role == "system":
+                        system_prompt = value
+                        continue
+                    
+                    if role in ["human", "user", "observation"]:
+                        if role == "observation":
+                            if script_args.tool_format == "qwen":
+                                value = f"<tool_response>\n{value}\n</tool_response>"
+                            elif script_args.tool_format == "glm4":
+                                value = f"<|observation|>\n{value}"
+                            elif script_args.tool_format == "mistral":
+                                value = f"[TOOL_RESULTS] {{\"content\": {value}}}[/TOOL_RESULTS]"
+                            else:
+                                value = f"Observation: {value}"
+                        messages.append({"role": "user", "content": value})
+                    elif role in ["gpt", "assistant", "function_call"]:
+                        if role == "function_call":
+                            try:
+                                import json
+                                fc_dict = json.loads(value)
+                                if "name" in fc_dict and "arguments" in fc_dict:
+                                    if script_args.tool_format:
+                                        from training.tool_utils import get_tool_utils, FunctionCall
+                                        tool_utils = get_tool_utils(script_args.tool_format)
+                                        value = tool_utils.function_formatter([FunctionCall(fc_dict["name"], json.dumps(fc_dict["arguments"], ensure_ascii=False))])
+                                    else:
+                                        value = f"Action: {fc_dict['name']}\nAction Input: {json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
+                            except Exception:
+                                pass
+                        messages.append({"role": "assistant", "content": value})
+
+                if tools_text:
+                    system_prompt = system_prompt + ("\n\n" if system_prompt else "") + tools_text
+
+                history_messages = []
+                temp_history = []
+                for msg in messages:
+                    if not temp_history and msg["role"] == "user":
+                        temp_history.append(msg["content"])
+                    elif len(temp_history) == 1 and msg["role"] == "assistant":
+                        temp_history.append(msg["content"])
+                        history_messages.append(temp_history)
+                        temp_history = []
+                    elif msg["role"] == "user" and len(temp_history) == 1:
+                        temp_history[0] += "\n" + msg["content"]
+                    elif msg["role"] == "assistant" and len(temp_history) == 0:
+                        pass
+                    elif msg["role"] == "assistant" and len(temp_history) == 2:
+                        history_messages[-1][1] += "\n" + msg["content"]
+                        
+                if not history_messages:
                     continue
-                # Convert the list to pairs of elements
-                history_messages = [[messages[k], messages[k + 1]] for k in range(0, len(messages), 2)]
+
                 if not system_prompt:
                     system_prompt = system_prompts[i] if system_prompts else ""
                 if prompt_template:

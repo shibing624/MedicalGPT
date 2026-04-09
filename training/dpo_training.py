@@ -81,6 +81,10 @@ class ScriptArguments:
         default=None,
         metadata={"help": "The prompt template name. If not set, use tokenizer's built-in chat_template."}
     )
+    tool_format: Optional[str] = field(
+        default=None,
+        metadata={"help": "Tool format to use for agent training. Options: default, glm4, llama3, mistral, qwen."}
+    )
     per_device_train_batch_size: Optional[int] = field(default=4, metadata={"help": "Train batch size per device"})
     per_device_eval_batch_size: Optional[int] = field(default=1, metadata={"help": "Eval batch size per device"})
     max_source_length: Optional[int] = field(default=2048, metadata={"help": "Max length of prompt input text"})
@@ -290,8 +294,111 @@ def main():
     max_target_length = args.max_target_length
     full_max_length = max_source_length + max_target_length
 
+    def _format_tool_call_value(value, tool_fmt):
+        """Format a function_call value using tool_utils."""
+        import json as _json
+        try:
+            fc_dict = _json.loads(value)
+            if "name" in fc_dict and "arguments" in fc_dict:
+                if tool_fmt:
+                    from training.tool_utils import get_tool_utils, FunctionCall
+                    tu = get_tool_utils(tool_fmt)
+                    return tu.function_formatter(
+                        [FunctionCall(fc_dict["name"], _json.dumps(fc_dict["arguments"], ensure_ascii=False))]
+                    )
+                else:
+                    return f"Action: {fc_dict['name']}\nAction Input: {_json.dumps(fc_dict['arguments'], ensure_ascii=False)}"
+        except Exception:
+            pass
+        return value
+
+    def _format_observation_value(value, tool_fmt):
+        """Format an observation value for the tool format."""
+        if tool_fmt == "qwen":
+            return f"<tool_response>\n{value}\n</tool_response>"
+        elif tool_fmt == "glm4":
+            return f"<|observation|>\n{value}"
+        elif tool_fmt == "mistral":
+            return f'[TOOL_RESULTS] {{"content": {value}}}[/TOOL_RESULTS]'
+        else:
+            return f"Observation: {value}"
+
+    def _build_prompt_from_conversations(source, tools_json, system_prompt_override, tool_fmt):
+        """Build a prompt string from sharegpt-style conversations with tool call support.
+
+        Returns: (prompt_text, system_prompt_used)
+        """
+        import json as _json
+        system_prompt = system_prompt_override or ""
+        tools_text = ""
+
+        if tools_json:
+            try:
+                tools_parsed = _json.loads(tools_json) if isinstance(tools_json, str) else tools_json
+                if tools_parsed and tool_fmt:
+                    from training.tool_utils import get_tool_utils
+                    tu = get_tool_utils(tool_fmt)
+                    tools_text = tu.tool_formatter(tools_parsed)
+            except Exception:
+                pass
+
+        chat_messages = []
+        for sentence in source:
+            role = sentence.get("from", "")
+            value = sentence.get("value", "")
+
+            if role == "system":
+                system_prompt = value
+                continue
+
+            if role in ["human", "user", "observation"]:
+                if role == "observation":
+                    value = _format_observation_value(value, tool_fmt)
+                chat_messages.append({"role": "user", "content": value})
+            elif role in ["gpt", "assistant", "function_call"]:
+                if role == "function_call":
+                    value = _format_tool_call_value(value, tool_fmt)
+                chat_messages.append({"role": "assistant", "content": value})
+
+        if tools_text:
+            system_prompt = system_prompt + ("\n\n" if system_prompt else "") + tools_text
+
+        history_messages = []
+        temp = []
+        for msg in chat_messages:
+            if not temp and msg["role"] == "user":
+                temp.append(msg["content"])
+            elif len(temp) == 1 and msg["role"] == "assistant":
+                temp.append(msg["content"])
+                history_messages.append(temp)
+                temp = []
+            elif msg["role"] == "user" and len(temp) == 1:
+                temp[0] += "\n" + msg["content"]
+            elif msg["role"] == "assistant" and len(temp) == 2:
+                history_messages[-1][1] += "\n" + msg["content"]
+        if len(temp) == 1:
+            history_messages.append([temp[0], ""])
+
+        if prompt_template:
+            return prompt_template.get_prompt(messages=history_messages, system_prompt=system_prompt)
+        else:
+            accumulated = []
+            if system_prompt:
+                accumulated.append({"role": "system", "content": system_prompt})
+            for uq, br in history_messages:
+                accumulated.append({"role": "user", "content": uq})
+                if br:
+                    accumulated.append({"role": "assistant", "content": br})
+            return tokenizer.apply_chat_template(
+                accumulated, tokenize=False, add_generation_prompt=True
+            )
+
     def return_prompt_and_responses(examples) -> Dict[str, str]:
         """Load the paired dataset and convert it to the necessary format.
+
+        Supports two data formats:
+        1. Alpaca-style: {system, history, question, response_chosen, response_rejected}
+        2. ShareGPT-style with tool calls: {conversations, tools, chosen, rejected}
 
         The dataset is converted to a dictionary with the following structure:
         {
@@ -299,32 +406,61 @@ def main():
             'chosen': List[str],
             'rejected': List[str],
         }
-
-        Prompts are structured as follows:
-          system_prompt + history[[q,a], [q,a]...] + question
         """
+        columns = set(examples.keys())
+        is_sharegpt = "conversations" in columns
+
         prompts = []
-        for system, history, question in zip(examples["system"], examples["history"], examples["question"]):
-            system_prompt = system or ""
-            if prompt_template:
-                history_with_question = history + [[question, '']] if history else [[question, '']]
-                prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
-            else:
-                messages = []
-                if system_prompt:
-                    messages.append({"role": "system", "content": system_prompt})
-                if history:
-                    for h_q, h_a in history:
-                        messages.append({"role": "user", "content": h_q})
-                        messages.append({"role": "assistant", "content": h_a})
-                messages.append({"role": "user", "content": question})
-                prompts.append(tokenizer.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True
-                ))
+        chosen_list = []
+        rejected_list = []
+
+        if is_sharegpt:
+            tools_list = examples.get("tools", [None] * len(examples["conversations"]))
+            for i, source in enumerate(examples["conversations"]):
+                tools_json = tools_list[i] if tools_list else None
+
+                chosen_data = examples["chosen"][i]
+                rejected_data = examples["rejected"][i]
+                if isinstance(chosen_data, dict):
+                    chosen_text = chosen_data.get("value", chosen_data.get("content", ""))
+                else:
+                    chosen_text = str(chosen_data)
+                if isinstance(rejected_data, dict):
+                    rejected_text = rejected_data.get("value", rejected_data.get("content", ""))
+                else:
+                    rejected_text = str(rejected_data)
+
+                prompt = _build_prompt_from_conversations(
+                    source, tools_json, "", args.tool_format
+                )
+                prompts.append(prompt)
+                chosen_list.append(chosen_text)
+                rejected_list.append(rejected_text)
+        else:
+            for system, history, question in zip(examples["system"], examples["history"], examples["question"]):
+                system_prompt = system or ""
+                if prompt_template:
+                    history_with_question = history + [[question, '']] if history else [[question, '']]
+                    prompts.append(prompt_template.get_prompt(messages=history_with_question, system_prompt=system_prompt))
+                else:
+                    messages = []
+                    if system_prompt:
+                        messages.append({"role": "system", "content": system_prompt})
+                    if history:
+                        for h_q, h_a in history:
+                            messages.append({"role": "user", "content": h_q})
+                            messages.append({"role": "assistant", "content": h_a})
+                    messages.append({"role": "user", "content": question})
+                    prompts.append(tokenizer.apply_chat_template(
+                        messages, tokenize=False, add_generation_prompt=True
+                    ))
+            chosen_list = examples["response_chosen"]
+            rejected_list = examples["response_rejected"]
+
         return {
             "prompt": prompts,
-            "chosen": examples["response_chosen"],
-            "rejected": examples["response_rejected"],
+            "chosen": chosen_list,
+            "rejected": rejected_list,
         }
 
     # Preprocess the dataset

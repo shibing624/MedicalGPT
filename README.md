@@ -31,6 +31,8 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - ORPO方法来自论文[ORPO: Monolithic Preference Optimization without Reference Model](https://arxiv.org/abs/2403.07691)
 
 ## 🔥 News
+[2026/04/09] v2.6版本：支持了 **[Agent工具调用/Function Call]** 模型微调训练，新增了支持不同模型的工具数据格式转换和解析代码。并在 `data` 目录下补充了 `toolcall` 数据样例。详见[Release-v2.6](https://github.com/shibing624/MedicalGPT/releases/tag/2.6.0)
+
 [2026/04/07] v2.5版本：支持了 **[Qwen3.5](https://huggingface.co/collections/Qwen/qwen35)** 系列模型（包括Base、Instruct和MoE变体），PT/SFT/DPO/ORPO/GRPO全流程适配，新增`qwen3`、`qwen3_5`、`qwen3_nothink`、`qwen3_5_nothink`对话模板，支持DeepSpeed ZeRO-3 MoE训练，详见[Release-v2.5](https://github.com/shibing624/MedicalGPT/releases/tag/2.5.0)
 
 [2025/04/18] v2.4版本：支持了LoRA和全参的 **[GRPO](https://arxiv.org/pdf/2402.03300)** 训练方法，GRPO通过纯RL方法可以体验`aha moment`，详见[Release-v2.4](https://github.com/shibing624/MedicalGPT/releases/tag/2.4.0)
@@ -149,17 +151,19 @@ pip install -r requirements.txt --upgrade
 MedicalGPT/
 ├── training/                # 核心训练脚本（教学主线）
 │   ├── template.py                         # 对话模板定义
+│   ├── tool_utils.py                       # Agent工具调用格式化工具
 │   ├── pretraining.py                      # Stage 1: 增量预训练(PT)
-│   ├── supervised_finetuning.py            # Stage 2: 有监督微调(SFT)
-│   ├── supervised_finetuning_accelerate.py # Stage 2: SFT (Accelerate版)
+│   ├── supervised_finetuning.py            # Stage 2: 有监督微调(SFT, 支持Agent)
+│   ├── supervised_finetuning_accelerate.py # Stage 2: SFT Accelerate版(支持Agent)
 │   ├── reward_modeling.py                  # Stage 3: 奖励模型(RM)
 │   ├── ppo_training.py                     # Stage 3: 强化学习(PPO/RLOO)
-│   ├── dpo_training.py                     # Stage 3: 直接偏好优化(DPO)
+│   ├── dpo_training.py                     # Stage 3: 直接偏好优化(DPO, 支持Agent)
 │   ├── orpo_training.py                    # Stage 3: ORPO
 │   └── grpo_training.py                    # Stage 3: GRPO
 │
 ├── scripts/                 # 一键运行脚本 + DeepSpeed配置
 │   ├── run_pt.sh / run_sft.sh / run_dpo.sh / ...
+│   ├── run_agent_sft.sh / run_agent_dpo.sh # Agent训练脚本
 │   └── zero1.json / zero2.json / zero3.json
 │
 ├── demo/                    # 推理、部署、应用示例
@@ -177,6 +181,9 @@ MedicalGPT/
 │   └── run_training_ppo_pipeline.ipynb
 │
 ├── data/                    # 训练数据
+│   ├── finetune/                           # SFT数据
+│   ├── reward/                             # DPO/RM偏好数据
+│   └── toolcall/                           # Agent工具调用数据(SFT+DPO)
 ├── docs/                    # 文档
 └── tests/                   # 测试
 ```
@@ -206,11 +213,73 @@ Training Stage:
 
 - 提供完整PT+SFT+DPO全阶段串起来训练的pipeline：[run_training_dpo_pipeline.ipynb](https://github.com/shibing624/MedicalGPT/blob/main/notebooks/run_training_dpo_pipeline.ipynb) ，其对应的colab： [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/shibing624/MedicalGPT/blob/main/notebooks/run_training_dpo_pipeline.ipynb)，运行完大概需要15分钟
 - 提供完整PT+SFT+RLHF全阶段串起来训练的pipeline：[run_training_ppo_pipeline.ipynb](https://github.com/shibing624/MedicalGPT/blob/main/notebooks/run_training_ppo_pipeline.ipynb) ，其对应的colab： [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/shibing624/MedicalGPT/blob/main/notebooks/run_training_ppo_pipeline.ipynb) ，运行完大概需要20分钟
+- 支持Agent工具调用微调训练（Agent Finetuning），SFT和DPO阶段均支持。详见下方 [Agent 训练](#agent-训练agent-finetuning) 章节
 - 提供基于知识库文件的LLM问答功能（RAG）：[chatpdf.py](https://github.com/shibing624/MedicalGPT/blob/main/demo/chatpdf.py)
 - [训练参数说明](https://github.com/shibing624/MedicalGPT/blob/main/docs/training_params.md) | [训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E)
 - [数据集](https://github.com/shibing624/MedicalGPT/blob/main/docs/datasets.md) | [数据集wiki](https://github.com/shibing624/MedicalGPT/wiki/%E6%95%B0%E6%8D%AE%E9%9B%86)
 - [扩充词表](https://github.com/shibing624/MedicalGPT/blob/main/docs/extend_vocab.md) | [扩充词表wiki](https://github.com/shibing624/MedicalGPT/wiki/%E6%89%A9%E5%85%85%E4%B8%AD%E6%96%87%E8%AF%8D%E8%A1%A8)
 - [FAQ](https://github.com/shibing624/MedicalGPT/blob/main/docs/FAQ.md) | [FAQ_wiki](https://github.com/shibing624/MedicalGPT/wiki/FAQ)
+
+#### Agent 训练（Agent Finetuning）
+
+本项目支持通过 SFT 和 DPO 两种方式训练具有工具调用（Function Call / Tool Use）能力的 Agent 模型。
+
+**核心原理：** Tool Call 本质上是特殊的多轮对话，在标准的 `human`/`gpt` 角色之外新增了 `function_call`（模型决定调用工具）和 `observation`（工具返回结果）两种角色。Template 系统统一处理所有角色，有工具描述就拼接到 system message，没有就跳过，对 loss 计算和训练过程完全透明。
+
+**数据格式（ShareGPT + Tools）：**
+
+SFT 数据格式（`data/toolcall/glaive_toolcall_zh_demo.json`）：
+```json
+{
+  "conversations": [
+    {"from": "human", "value": "帮我查一下北京天气"},
+    {"from": "function_call", "value": "{\"name\": \"get_weather\", \"arguments\": {\"city\": \"北京\"}}"},
+    {"from": "observation", "value": "{\"temperature\": \"28°C\", \"weather\": \"晴\"}"},
+    {"from": "gpt", "value": "北京今天天气晴朗，气温28°C。"}
+  ],
+  "tools": "[{\"name\": \"get_weather\", \"description\": \"获取天气\", \"parameters\": {...}}]"
+}
+```
+
+DPO 数据格式（`data/toolcall/toolcall_dpo_zh_demo.json`）：
+```json
+{
+  "conversations": [
+    {"from": "human", "value": "帮我查一下北京天气"}
+  ],
+  "tools": "[{\"name\": \"get_weather\", ...}]",
+  "chosen": {"from": "gpt", "value": "Action: get_weather\nAction Input: {\"city\": \"北京\"}"},
+  "rejected": {"from": "gpt", "value": "北京今天天气晴朗，气温25度。"}
+}
+```
+
+**支持的 tool_format：**
+
+| tool_format | 适用模型 | 说明 |
+|-------------|---------|------|
+| `default`   | 通用 | Action/Action Input 格式 |
+| `qwen`      | Qwen系列 | `<tool_call>` XML格式 |
+| `glm4`      | GLM-4 | ChatGLM 工具格式 |
+| `llama3`    | LLaMA-3.x | JSON function call 格式 |
+| `mistral`   | Mistral | `[AVAILABLE_TOOLS]` 格式 |
+
+**混合训练：** 普通问答SFT数据和Tool Call数据可以一起训练，只需将两类数据文件放在同一个 `--train_file_dir` 目录下即可。没有 `tools` 字段的数据会按照普通SFT/DPO流程处理。
+
+**训练命令示例：**
+
+Agent SFT 训练：
+```shell
+bash scripts/run_agent_sft.sh
+```
+
+Agent DPO 训练：
+```shell
+bash scripts/run_agent_dpo.sh
+```
+
+关键参数说明：
+- `--tool_format default`：指定工具调用的文本格式（可选 `default, glm4, llama3, mistral, qwen`）
+- `--train_file_dir ./data/toolcall`：指向包含 tool call 数据的文件夹
 
 #### Supported Models
 
