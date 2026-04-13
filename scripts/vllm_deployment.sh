@@ -16,7 +16,7 @@ export CUDA_VISIBLE_DEVICES=0,1
 # - --max-model-len: 指定模型支持的最大输入长度（token数量）
 # - -tp: 张量并行度，1表示关闭张量并行，即由单个GPU处理所有张量运算
 
-python -m vllm.entrypoints.openai.api_server \
+python3 -m vllm.entrypoints.openai.api_server \
     --model medical-model \
     --served-model-name doctor \
     --dtype=auto \

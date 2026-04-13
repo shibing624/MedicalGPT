@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=0,1 python training/dpo_training.py \
+CUDA_VISIBLE_DEVICES=0,1 python3 training/dpo_training.py \
     --model_name_or_path Qwen/Qwen3.5-2B \
     --train_file_dir ./data/reward \
     --validation_file_dir ./data/reward \

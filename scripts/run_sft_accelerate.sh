@@ -3,7 +3,7 @@ accelerate launch --num_processes=2 training/supervised_finetuning_accelerate.py
     --model_name_or_path Qwen/Qwen3.5-2B \
     --train_file_dir ./data/sft \
     --validation_file_dir ./data/sft \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
     --do_train \
     --do_eval \
