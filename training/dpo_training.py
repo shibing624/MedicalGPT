@@ -26,7 +26,7 @@ from transformers.integrations import is_deepspeed_zero3_enabled
 from trl import DPOTrainer, DPOConfig
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from training.tool_utils import get_tool_utils, FunctionCall
+from training.tool_utils import get_tool_utils, FunctionCall, load_local_json_datasets
 from training.template import get_conv_template
 
 os.environ["TOKENIZERS_PARALLELISM"] = "FALSE"
@@ -270,25 +270,13 @@ def main():
             eval_data_files = glob(f'{args.validation_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"eval files: {', '.join(eval_data_files)}")
             data_files["validation"] = eval_data_files
-        raw_datasets = load_dataset(
-            'json',
-            data_files=data_files,
-            cache_dir=args.cache_dir,
-        )
+        raw_datasets = load_local_json_datasets(data_files, cache_dir=args.cache_dir)
         # If no validation data is there, validation_split_percentage will be used to divide the dataset.
         if "validation" not in raw_datasets.keys():
-            raw_datasets["validation"] = load_dataset(
-                'json',
-                data_files=data_files,
-                split=f"train[:{args.validation_split_percentage}%]",
-                cache_dir=args.cache_dir,
-            )
-            raw_datasets["train"] = load_dataset(
-                'json',
-                data_files=data_files,
-                split=f"train[{args.validation_split_percentage}%:]",
-                cache_dir=args.cache_dir,
-            )
+            train_dataset = raw_datasets["train"]
+            validation_size = int(len(train_dataset) * args.validation_split_percentage / 100)
+            raw_datasets["validation"] = train_dataset.select(range(validation_size))
+            raw_datasets["train"] = train_dataset.select(range(validation_size, len(train_dataset)))
     logger.info(f"Raw datasets: {raw_datasets}")
 
     # Preprocessing the datasets

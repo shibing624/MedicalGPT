@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Tuple, Union
 
+from datasets import DatasetDict, concatenate_datasets, load_dataset
+
 
 class FunctionCall(NamedTuple):
     name: str
@@ -324,3 +326,37 @@ def get_tool_utils(name: str) -> "ToolUtils":
         raise ValueError(f"Tool utils `{name}` not found.")
 
     return tool_utils
+
+
+def load_local_json_datasets(data_files, cache_dir=None):
+    raw_datasets = DatasetDict()
+    for split_name, split_files in data_files.items():
+        if not split_files:
+            continue
+        split_datasets = []
+        feature_by_column = {}
+        column_order = []
+        for file_path in split_files:
+            split_dataset = load_dataset(
+                "json",
+                data_files=file_path,
+                split="train",
+                cache_dir=cache_dir,
+            )
+            split_datasets.append(split_dataset)
+            for column_name in split_dataset.column_names:
+                if column_name not in feature_by_column:
+                    feature_by_column[column_name] = split_dataset.features[column_name]
+                    column_order.append(column_name)
+        aligned_datasets = []
+        for split_dataset in split_datasets:
+            for column_name in column_order:
+                if column_name not in split_dataset.column_names:
+                    split_dataset = split_dataset.add_column(
+                        column_name,
+                        [None] * len(split_dataset),
+                        feature=feature_by_column[column_name],
+                    )
+            aligned_datasets.append(split_dataset.select_columns(column_order))
+        raw_datasets[split_name] = concatenate_datasets(aligned_datasets)
+    return raw_datasets

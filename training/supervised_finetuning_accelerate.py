@@ -47,7 +47,7 @@ from tqdm.auto import tqdm
 from accelerate import Accelerator
 from accelerate.utils import set_seed as accelerate_set_seed
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from training.tool_utils import get_tool_utils, FunctionCall
+from training.tool_utils import get_tool_utils, FunctionCall, load_local_json_datasets
 from training.template import get_conv_template
 try:
     import flash_attn  # noqa: F401
@@ -198,11 +198,7 @@ def load_datasets(data_args, model_args):
             eval_data_files = glob(f'{data_args.validation_file_dir}/**/*.jsonl', recursive=True)
             logger.info(f"eval files: {eval_data_files}")
             data_files["validation"] = eval_data_files
-        raw_datasets = load_dataset(
-            'json',
-            data_files=data_files,
-            cache_dir=model_args.cache_dir,
-        )
+        raw_datasets = load_local_json_datasets(data_files, cache_dir=model_args.cache_dir)
         # If no validation data is there, validation_split_percentage will be used to divide the dataset.
         if "validation" not in raw_datasets.keys():
             shuffled_train_dataset = raw_datasets["train"].shuffle(seed=42)
