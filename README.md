@@ -154,7 +154,6 @@ MedicalGPT/
 │   ├── tool_utils.py                       # Agent工具调用格式化工具
 │   ├── pretraining.py                      # Stage 1: 增量预训练(PT)
 │   ├── supervised_finetuning.py            # Stage 2: 有监督微调(SFT, 支持Agent)
-│   ├── supervised_finetuning_accelerate.py # Stage 2: SFT Accelerate版(支持Agent)
 │   ├── reward_modeling.py                  # Stage 3: 奖励模型(RM)
 │   ├── ppo_training.py                     # Stage 3: 强化学习(PPO/RLOO)
 │   ├── dpo_training.py                     # Stage 3: 直接偏好优化(DPO, 支持Agent)

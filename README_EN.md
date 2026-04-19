@@ -66,7 +66,6 @@ MedicalGPT/
 │   ├── template.py                         # Conversation template definitions
 │   ├── pretraining.py                      # Stage 1: Continue Pretraining (PT)
 │   ├── supervised_finetuning.py            # Stage 2: Supervised Fine-tuning (SFT)
-│   ├── supervised_finetuning_accelerate.py # Stage 2: SFT (Accelerate version)
 │   ├── reward_modeling.py                  # Stage 3: Reward Modeling (RM)
 │   ├── ppo_training.py                     # Stage 3: Reinforcement Learning (PPO/RLOO)
 │   ├── dpo_training.py                     # Stage 3: Direct Preference Optimization (DPO)
