@@ -134,3 +134,33 @@ dmypy.json
 outputs-dpo-qwen-v1/
 cache/
 outputs-*/
+
+# ==========================================
+# 大模型项目专属防崩盘设置
+# ==========================================
+
+# 1. 忽略所有数据集（极度重要）
+data/
+*.jsonl
+*.json
+*.csv
+*.txt
+
+# 2. 忽略所有模型权重与输出目录（极度重要）
+outputs/
+output/
+*.bin
+*.safetensors
+*.pth
+*.pt
+*.ckpt
+
+# 3. 忽略 Python 缓存和虚拟环境
+__pycache__/
+*.pyc
+venv/
+.env
+
+# 4. 忽略日志文件
+logs/
+*.log
