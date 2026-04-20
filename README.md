@@ -20,9 +20,11 @@
 ## 📖 Introduction
 
 **MedicalGPT** training medical GPT model with ChatGPT training pipeline, implemantation of Pretraining,
-Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(Direct Preference Optimization).
+Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning), DPO(Direct Preference Optimization)
+and standalone OPD(On-Policy Distillation).
 
-**MedicalGPT** 训练医疗大模型，实现了包括增量预训练、有监督微调、RLHF(奖励建模、强化学习训练)和DPO(直接偏好优化)。
+**MedicalGPT** 训练医疗大模型，实现了包括增量预训练、有监督微调、RLHF(奖励建模、强化学习训练)、DPO(直接偏好优化)
+和独立OPD(On-Policy Distillation)。
 
 <img src="https://github.com/shibing624/MedicalGPT/blob/main/docs/dpo.jpg" width="860" />
 
@@ -31,6 +33,8 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
 - ORPO方法来自论文[ORPO: Monolithic Preference Optimization without Reference Model](https://arxiv.org/abs/2403.07691)
 
 ## 🔥 News
+[2026/04/20] v2.7版本：支持了 **OPD(On-Policy Distillation)** 蒸馏训练，新增独立 `training/opd_training.py` 训练入口、`scripts/run_opd.sh` 启动脚本，并补充了OPD参数与使用文档，详见[Release-v2.7](https://github.com/shibing624/MedicalGPT/releases/tag/2.7.0)
+
 [2026/04/09] v2.6版本：支持了 **[Agent工具调用/Function Call]** 模型微调训练，新增了支持不同模型的工具数据格式转换和解析代码。并在 `data` 目录下补充了 `toolcall` 数据样例。详见[Release-v2.6](https://github.com/shibing624/MedicalGPT/releases/tag/2.6.0)
 
 [2026/04/07] v2.5版本：支持了 **[Qwen3.5](https://huggingface.co/collections/Qwen/qwen35)** 系列模型（包括Base、Instruct和MoE变体），PT/SFT/DPO/ORPO/GRPO全流程适配，新增`qwen3`、`qwen3_5`、`qwen3_nothink`、`qwen3_5_nothink`对话模板，支持DeepSpeed ZeRO-3 MoE训练，详见[Release-v2.5](https://github.com/shibing624/MedicalGPT/releases/tag/2.5.0)
@@ -84,6 +88,7 @@ Supervised Finetuning, RLHF(Reward Modeling and Reinforcement Learning) and DPO(
     - RL(Reinforcement Learning)强化学习，用奖励模型来训练SFT模型，生成模型使用奖励或惩罚来更新其策略，以便生成更高质量、更符合人类偏好的文本
   - [DPO(Direct Preference Optimization)](https://arxiv.org/pdf/2305.18290.pdf)直接偏好优化方法，DPO通过直接优化语言模型来实现对其行为的精确控制，而无需使用复杂的强化学习，也可以有效学习到人类偏好，DPO相较于RLHF更容易实现且易于训练，效果更好
   - [ORPO](https://arxiv.org/abs/2403.07691)比值比偏好优化，不需要参考模型（ref_model）的优化方法，通过ORPO，LLM可以同时学习SFT和对齐，将两个过程整合为单一步骤，缓解模型灾难性遗忘问题
+  - OPD(On-Policy Distillation)独立蒸馏训练，使用更强的teacher模型对student在自身rollout轨迹上的输出分布进行监督，首版不和PPO/GRPO联训，训练产物可以像SFT一样独立部署
 
 
 ### Release Models
@@ -154,6 +159,7 @@ MedicalGPT/
 │   ├── tool_utils.py                       # Agent工具调用格式化工具
 │   ├── pretraining.py                      # Stage 1: 增量预训练(PT)
 │   ├── supervised_finetuning.py            # Stage 2: 有监督微调(SFT, 支持Agent)
+│   ├── opd_training.py                     # Stage 2.5: 独立OPD蒸馏
 │   ├── reward_modeling.py                  # Stage 3: 奖励模型(RM)
 │   ├── ppo_training.py                     # Stage 3: 强化学习(PPO/RLOO)
 │   ├── dpo_training.py                     # Stage 3: 直接偏好优化(DPO, 支持Agent)
@@ -203,6 +209,7 @@ Training Stage:
 |:-------------------------------|:-------------|:-----------------------------------------------------------------------------------------------------------------|:---------------------------------------------------------------------------------------|
 | Continue Pretraining           | 增量预训练        | [pretraining.py](https://github.com/shibing624/MedicalGPT/blob/main/training/pretraining.py)                     | [run_pt.sh](https://github.com/shibing624/MedicalGPT/blob/main/scripts/run_pt.sh)     |
 | Supervised Fine-tuning         | 有监督微调        | [supervised_finetuning.py](https://github.com/shibing624/MedicalGPT/blob/main/training/supervised_finetuning.py) | [run_sft.sh](https://github.com/shibing624/MedicalGPT/blob/main/scripts/run_sft.sh)   |
+| On-Policy Distillation         | 独立OPD蒸馏       | [opd_training.py](https://github.com/shibing624/MedicalGPT/blob/main/training/opd_training.py)                   | [run_opd.sh](https://github.com/shibing624/MedicalGPT/blob/main/scripts/run_opd.sh)   |
 | Direct Preference Optimization | 直接偏好优化       | [dpo_training.py](https://github.com/shibing624/MedicalGPT/blob/main/training/dpo_training.py)                   | [run_dpo.sh](https://github.com/shibing624/MedicalGPT/blob/main/scripts/run_dpo.sh)   |
 | Reward Modeling                | 奖励模型建模       | [reward_modeling.py](https://github.com/shibing624/MedicalGPT/blob/main/training/reward_modeling.py)             | [run_rm.sh](https://github.com/shibing624/MedicalGPT/blob/main/scripts/run_rm.sh)     |
 | Reinforcement Learning         | 强化学习         | [ppo_training.py](https://github.com/shibing624/MedicalGPT/blob/main/training/ppo_training.py)                   | [run_ppo.sh](https://github.com/shibing624/MedicalGPT/blob/main/scripts/run_ppo.sh)   |
@@ -211,6 +218,7 @@ Training Stage:
 - 提供完整PT+SFT+DPO全阶段串起来训练的pipeline：[run_training_dpo_pipeline.ipynb](https://github.com/shibing624/MedicalGPT/blob/main/notebooks/run_training_dpo_pipeline.ipynb) ，其对应的colab： [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/shibing624/MedicalGPT/blob/main/notebooks/run_training_dpo_pipeline.ipynb)，运行完大概需要15分钟
 - 提供完整PT+SFT+RLHF全阶段串起来训练的pipeline：[run_training_ppo_pipeline.ipynb](https://github.com/shibing624/MedicalGPT/blob/main/notebooks/run_training_ppo_pipeline.ipynb) ，其对应的colab： [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/shibing624/MedicalGPT/blob/main/notebooks/run_training_ppo_pipeline.ipynb) ，运行完大概需要20分钟
 - 支持Agent工具调用微调训练（Agent Finetuning），SFT和DPO阶段均支持。详见下方 [Agent 训练](#agent-训练agent-finetuning) 章节
+- 支持独立 OPD 训练，复用 `data/sft` 的 ShareGPT 多轮数据格式，训练输出与 SFT/LoRA 一样可直接部署；如果是LoRA训练，可继续使用 `tools/merge_peft_adapter.py` 合并权重
 - 提供基于知识库文件的LLM问答功能（RAG）：[chatpdf.py](https://github.com/shibing624/MedicalGPT/blob/main/demo/chatpdf.py)
 - [训练参数说明](https://github.com/shibing624/MedicalGPT/blob/main/docs/training_params.md) | [训练参数说明wiki](https://github.com/shibing624/MedicalGPT/wiki/%E8%AE%AD%E7%BB%83%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E)
 - [数据集](https://github.com/shibing624/MedicalGPT/blob/main/docs/datasets.md) | [数据集wiki](https://github.com/shibing624/MedicalGPT/wiki/%E6%95%B0%E6%8D%AE%E9%9B%86)

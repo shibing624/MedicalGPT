@@ -8,7 +8,7 @@
     - RM(Reward Model)奖励模型建模 `run_rm.sh`
     - RL(Reinforcement Learning)基于人类反馈的强化学习 `run_ppo.sh`
   - DPO(Direct Preference Optimization)直接偏好优化 `run_dpo.sh`
-
+  - OPD(On-Policy Distillation)独立蒸馏 `run_opd.sh`
 
 ## 训练参数说明
 
@@ -27,6 +27,11 @@
 13. 新增了[LongLoRA](https://github.com/dvlab-research/LongLoRA) 提出的 **$S^2$-Attn**，使模型获得长文本处理能力，SFT中使用 `--shift_attn` 参数以启用该功能
 14. 支持了[NEFTune](https://github.com/neelsjain/NEFTune)给embedding加噪SFT训练方法，[NEFTune paper](https://arxiv.org/abs/2310.05914), SFT中使用 `--neft_alpha` 参数启用 NEFTune，例如 `--neft_alpha 5`
 15. 支持微调Mixtral混合专家MoE模型 **[Mixtral 8x7B](https://huggingface.co/mistralai/Mixtral-8x7B-v0.1)**，SFT中如果用lora微调模型，可以开启4bit量化和QLoRA`--load_in_4bit True --qlora True`以节省显存，建议设置`--target_modules q_proj,k_proj,v_proj,o_proj`，这样可以避免对MoE专家网络的MLP层量化，因为它们很稀疏且量化后会导致性能效果下降。
+16. 独立OPD训练依赖 `trl>=0.29.0` 的 `trl.experimental.gkd.GKDTrainer`，更新依赖后可直接运行 `bash scripts/run_opd.sh`
+17. OPD第一版复用 `data/sft` 的 ShareGPT 多轮对话数据格式，每条样本会拆成若干个以 assistant turn 结尾的 `messages` 训练样本，不需要 `chosen/rejected` 偏好数据
+18. OPD常用参数：`--teacher_model_name_or_path` 指定更强的teacher，`--max_prompt_length` 控制提示词长度，`--max_new_tokens` 控制on-policy rollout长度，`--opd_lambda` 对应 on-policy rollout 比例，`--opd_beta` 对应 GKD/JSD 的KL插值，`--temperature` 和 `--seq_kd` 直接映射到 `GKDConfig`
+19. OPD建议默认只训练student，teacher保持冻结；显存紧张时可给teacher加 `--teacher_load_in_4bit True` 或 `--teacher_load_in_8bit True`
+20. OPD最好让student和teacher共用同一tokenizer family / chat template；如果底模tokenizer没有内置 `chat_template`，请显式传 `--template_name`
 
 
 **关于LoRA Training**
@@ -45,6 +50,7 @@ python merge_peft_adapter.py \
 
 - this script requires `peft>=0.4.0`
 - 合并后的权重保存在output_dir目录下，后续可通过from_pretrained直接加载
+- OPD的LoRA输出与SFT/DPO相同，也可以用同样的方式合并和部署
 
 **关于模型结果**
 
