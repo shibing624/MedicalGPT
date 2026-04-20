@@ -154,7 +154,7 @@ pip install -r requirements.txt --upgrade
 
 ```
 MedicalGPT/
-├── training/                # 核心训练脚本（教学主线）
+├── training/                # 核心训练脚本（训练主线）
 │   ├── template.py                         # 对话模板定义
 │   ├── tool_utils.py                       # Agent工具调用格式化工具
 │   ├── pretraining.py                      # Stage 1: 增量预训练(PT)
@@ -191,13 +191,13 @@ MedicalGPT/
 └── tests/                   # 测试
 ```
 
-| 目录 | 说明 | 适合谁看 |
+| 目录 | 说明 | 适用人群 |
 |------|------|---------|
-| `training/` | 核心训练代码，覆盖PT→SFT→RM→PPO/DPO/ORPO/GRPO全流程 | 想了解训练原理的开发者 |
-| `scripts/` | 一键运行脚本和DeepSpeed配置，复制即用 | 快速上手训练的用户 |
-| `demo/` | 推理、Gradio UI、FastAPI服务、RAG问答等示例 | 想部署和体验模型的用户 |
-| `tools/` | LoRA合并、量化、词表扩充、数据格式转换等工具 | 需要模型后处理的用户 |
-| `notebooks/` | Colab一键运行的端到端教程 | 零基础快速体验的用户 |
+| `training/` | 核心训练代码，覆盖PT→SFT→RM→PPO/DPO/ORPO/GRPO全流程 | 训练模型 |
+| `scripts/` | 一键运行脚本和DeepSpeed配置，复制即用 | 快速上手训练 |
+| `demo/` | 推理、Gradio UI、FastAPI服务、RAG问答等示例 | 想部署和体验模型 |
+| `tools/` | LoRA合并、量化、词表扩充、数据格式转换等工具 | 需要模型后处理 |
+| `notebooks/` | Colab一键运行的端到端教程 | 零基础快速体验 |
 
 > 所有脚本均从**项目根目录**运行，例如：`bash scripts/run_sft.sh`
 

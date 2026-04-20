@@ -62,7 +62,7 @@ Parameter Description:
 
 ```
 MedicalGPT/
-├── training/                # Core training scripts (main learning path)
+├── training/                # Core training scripts (main training path)
 │   ├── template.py                         # Conversation template definitions
 │   ├── pretraining.py                      # Stage 1: Continue Pretraining (PT)
 │   ├── supervised_finetuning.py            # Stage 2: Supervised Fine-tuning (SFT)
