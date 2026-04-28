@@ -17,7 +17,9 @@ import torch
 from peft import PeftModel, PeftConfig
 from transformers import (
     AutoTokenizer,
+    AutoConfig,
     AutoModelForCausalLM,
+    AutoModelForConditionalGeneration,
     AutoModelForSequenceClassification,
 )
 
@@ -55,13 +57,28 @@ def main():
             device_map="auto",
         )
     else:
-        print("Loading LoRA for causal language model")
-        base_model = AutoModelForCausalLM.from_pretrained(
-            base_model_path,
-            torch_dtype='auto',
-            trust_remote_code=True,
-            device_map="auto",
-        )
+        # 自动判断模型架构：如果是多模态模型（如 Qwen3_5ForConditionalGeneration），
+        # 用 AutoModelForConditionalGeneration 加载以保留原始 config 结构；
+        # 否则用 AutoModelForCausalLM
+        base_cfg = AutoConfig.from_pretrained(base_model_path, trust_remote_code=True)
+        archs = getattr(base_cfg, 'architectures', []) or []
+        is_conditional = any('ConditionalGeneration' in a for a in archs)
+        if is_conditional:
+            print(f"Loading LoRA for conditional generation model (archs={archs})")
+            base_model = AutoModelForConditionalGeneration.from_pretrained(
+                base_model_path,
+                torch_dtype='auto',
+                trust_remote_code=True,
+                device_map="auto",
+            )
+        else:
+            print(f"Loading LoRA for causal language model (archs={archs})")
+            base_model = AutoModelForCausalLM.from_pretrained(
+                base_model_path,
+                torch_dtype='auto',
+                trust_remote_code=True,
+                device_map="auto",
+            )
     if args.tokenizer_path:
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_path, trust_remote_code=True)
     else:
