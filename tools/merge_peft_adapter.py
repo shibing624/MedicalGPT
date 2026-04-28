@@ -12,6 +12,9 @@ python merge_peft_adapter.py \
 """
 
 import argparse
+import glob
+import os
+import shutil
 
 import torch
 from peft import PeftModel, PeftConfig
@@ -22,6 +25,41 @@ from transformers import (
     AutoModelForConditionalGeneration,
     AutoModelForSequenceClassification,
 )
+
+
+def _overwrite_tokenizer_files_from_base(base_dir: str, output_dir: str):
+    """从 base model 目录复制 tokenizer 相关文件到 output_dir，覆盖 save_pretrained 的输出。
+
+    transformers 的 save_pretrained 可能丢失关键字段（如 chat_template、
+    added_tokens_decoder、preprocessor_config 等），直接从原始目录覆盖更可靠。
+    """
+    # 需要从 base model 复制的文件（如果存在的话）
+    files_to_copy = [
+        'tokenizer_config.json',
+        'tokenizer.json',
+        'chat_template.jinja',
+        'preprocessor_config.json',
+        'video_preprocessor_config.json',
+        'special_tokens_map.json',
+        'vocab.json',
+        'merges.txt',
+        'configuration.json',
+        'generation_config.json',
+    ]
+    # 也复制 tokenizer.model 等二进制文件
+    for pattern in ['tokenizer.model', 'tokenizer.model.*']:
+        for f in glob.glob(os.path.join(base_dir, pattern)):
+            files_to_copy.append(os.path.basename(f))
+
+    copied = []
+    for fname in files_to_copy:
+        src = os.path.join(base_dir, fname)
+        dst = os.path.join(output_dir, fname)
+        if os.path.isfile(src):
+            shutil.copy2(src, dst)
+            copied.append(fname)
+    if copied:
+        print(f"Copied tokenizer/config files from {base_dir}: {copied}")
 
 
 def main():
@@ -102,6 +140,12 @@ def main():
     print("Saving to Hugging Face format...")
     tokenizer.save_pretrained(output_dir)
     base_model.save_pretrained(output_dir, max_shard_size='10GB')
+
+    # 从 base model 目录补全 tokenizer 相关文件，避免 save_pretrained 丢失关键字段
+    # （如 chat_template、added_tokens_decoder、preprocessor_config.json 等）
+    tokenizer_src = args.tokenizer_path or base_model_path
+    _overwrite_tokenizer_files_from_base(tokenizer_src, output_dir)
+
     print(f"Done! model saved to {output_dir}")
     if args.hf_hub_model_id:
         print(f"Pushing to Hugging Face Hub...")
