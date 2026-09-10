@@ -107,6 +107,37 @@ MedicalGPT/
 
 ## 🚀 Training Pipeline
 
+### Pipeline Overview
+
+```mermaid
+flowchart TD
+    subgraph PRE["Pre-train: learn knowledge"]
+        PT["Continue Pretraining PT (optional)<br/>Inject domain knowledge / Causal-LM loss on all tokens"]
+    end
+    subgraph POST["Post-train: learn to follow instructions + align with human preference"]
+        SFT["Supervised Fine-tuning SFT (required)<br/>Instruction alignment / loss only on responses"]
+        RM["Reward Model RM<br/>Learn preference ranking, chosen over rejected"]
+        PPO["Reinforcement Learning PPO/RLOO<br/>Generate, score, optimize policy"]
+        DPO["Direct Preference Optimization DPO<br/>Align directly without a reward model"]
+        ORPO["ORPO single-stage alignment<br/>SFT + alignment in one step, no ref model"]
+        GRPO["GRPO reasoning reinforcement<br/>Rule-based rewards train reasoning chains"]
+        OPD["Standalone Distillation OPD<br/>Stronger teacher distills student"]
+    end
+    subgraph SERVE["Deployment"]
+        MERGE["Merge LoRA<br/>Merge after each stage before the next one"]
+        DEPLOY["Inference / Quantization / Deployment"]
+    end
+    PT --> SFT
+    SFT --> RM --> PPO --> MERGE
+    SFT --> DPO --> MERGE
+    SFT --> ORPO --> MERGE
+    SFT --> GRPO --> MERGE
+    SFT --> OPD --> MERGE
+    MERGE --> DEPLOY
+```
+
+> Recommended for beginners: `SFT → DPO`. Classic RLHF path: `SFT → RM → PPO`. For reasoning ability: `GRPO`. With a stronger teacher from the same model family: `OPD`. Merge each stage's LoRA with `tools/merge_peft_adapter.py` before moving to the next stage.
+
 ### Stage 1: Continue Pretraining
 
 Based on the llama-7b model, use medical encyclopedia data to continue pre-training, and expect to inject medical knowledge into the pre-training model to obtain the llama-7b-pt model. This step is optional
