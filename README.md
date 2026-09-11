@@ -203,6 +203,37 @@ MedicalGPT/
 
 ## 🚀 Training Pipeline
 
+### 全流程概览
+
+```mermaid
+flowchart TD
+    subgraph PRE["Pre-train 预训练 — 学知识"]
+        PT["增量预训练 PT（可选）<br/>领域文档灌知识 / Causal-LM 全 token loss"]
+    end
+    subgraph POST["Post-train 后训练 — 学做事 + 对齐人类偏好"]
+        SFT["有监督微调 SFT（必做）<br/>问答对齐 / 只在回答上算 loss"]
+        RM["奖励模型 RM<br/>学偏好排序，chosen 优于 rejected"]
+        PPO["强化学习 PPO/RLOO<br/>生成→打分→策略优化"]
+        DPO["直接偏好优化 DPO<br/>跳过 RM，直接对齐"]
+        ORPO["ORPO 单阶段对齐<br/>SFT + 对齐一次做完，无需 ref 模型"]
+        GRPO["GRPO 推理强化<br/>规则奖励训练推理链"]
+        OPD["独立蒸馏 OPD<br/>强 teacher 蒸馏 student"]
+    end
+    subgraph SERVE["部署 — 落地"]
+        MERGE["合并 LoRA<br/>每阶段合并后再进下一阶段"]
+        DEPLOY["推理 / 量化 / 部署"]
+    end
+    PT --> SFT
+    SFT --> RM --> PPO --> MERGE
+    SFT --> DPO --> MERGE
+    SFT --> ORPO --> MERGE
+    SFT --> GRPO --> MERGE
+    SFT --> OPD --> MERGE
+    MERGE --> DEPLOY
+```
+
+> 新手推荐路线：`SFT → DPO`；经典 RLHF 路线：`SFT → RM → PPO`；推理能力：`GRPO`；有更强同系列 teacher 时：`OPD`。每阶段的 LoRA 都用 `tools/merge_peft_adapter.py` 合并后再进入下一阶段。
+
 Training Stage:
 
 | Stage                          | Introduction | Python script                                                                                                    | Shell script                                                                           |
